@@ -91,7 +91,7 @@ export function RemoveApplicantButton({
               <li>Their portal login account</li>
             </ul>
             <span className="block text-sm">
-              Any active BigCommerce promotions will be disabled. The person can re-apply or be manually re-added afterward.
+              Their BigCommerce coupon(s) will be deleted and they will be removed from the wholesale customer group. The person can re-apply or be manually re-added afterward.
             </span>
           </DialogDescription>
         </DialogHeader>

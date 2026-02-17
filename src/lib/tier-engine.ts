@@ -419,8 +419,27 @@ export async function ensurePromoForTier(
 
       const promoId = (bcPromo.data as { id: number }).id;
 
-      // Create coupon code
-      await bc().createCouponCode(promoId, promoRecord.code);
+      // Create coupon code (retry with new code if duplicate)
+      let codeToUse = promoRecord.code;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await bc().createCouponCode(promoId, codeToUse);
+          break;
+        } catch (codeErr) {
+          if (attempt === 0) {
+            // Likely duplicate code in BC — generate a new one and retry
+            codeToUse = currentTier === "WELCOME"
+              ? formatCouponCode(alias, tierConfig.discount).replace(`T${tierConfig.discount}`, "WELCOME")
+              : formatCouponCode(alias, tierConfig.discount);
+            await db.promotionRecord.update({
+              where: { id: promoRecord.id },
+              data: { code: codeToUse },
+            });
+          } else {
+            throw codeErr;
+          }
+        }
+      }
 
       await db.promotionRecord.update({
         where: { id: promoRecord.id },

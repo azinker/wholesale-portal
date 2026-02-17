@@ -84,22 +84,27 @@ export async function DELETE(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Step 1: Disable any active BigCommerce promotions
+    // Step 1: Remove coupons in BigCommerce — delete each promotion (removes coupon code entirely)
     for (const promo of account.promotions) {
-      if (promo.promoId && promo.enabled) {
+      if (promo.promoId) {
         try {
           await bc().updatePromotion(promo.promoId, { status: "DISABLED" });
+        } catch {
+          // Ignore disable errors (promo may already be gone)
+        }
+        try {
+          await bc().deletePromotion(promo.promoId);
         } catch (err) {
-          console.warn(`Failed to disable BC promo ${promo.promoId}:`, err);
-          // Continue anyway — we still want to delete the account
+          console.warn(`Failed to delete BC promo ${promo.promoId}:`, err);
+          // Continue — we still remove the account and customer group
         }
       }
     }
 
-    // Step 2: Remove the customer from the Wholesale group in BigCommerce
+    // Step 2: Remove the customer from the Wholesale group in BigCommerce (0 = default/retail)
     if (account.customerId) {
       try {
-        await bc().updateCustomerGroup(account.customerId, 0); // 0 = no group
+        await bc().updateCustomerGroup(account.customerId, 0);
       } catch (err) {
         console.warn("Failed to remove customer from BC group:", err);
       }

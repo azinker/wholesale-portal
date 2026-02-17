@@ -15,7 +15,7 @@ export interface TierDef {
 export type TierId = string;
 
 // Qualifying status IDs for 7-day tier count (must match recalcTier logic)
-export const QUALIFYING_TIER_STATUS_IDS = [2, 3, 10, 14, 11] as const;
+export const QUALIFYING_TIER_STATUS_IDS = [2, 3, 10, 14, 11];
 
 /**
  * Returns whether an order counts toward the 7-day tier, has expired from the window, or never counted (wrong status).

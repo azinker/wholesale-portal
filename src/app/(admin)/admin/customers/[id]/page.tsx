@@ -347,7 +347,7 @@ export default async function CustomerDetailPage({
                         {new Date(doc.uploadedAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 flex-wrap">
                           {doc.scanStatus === "CLEAN" && (
                             <>
                               <Button variant="ghost" size="sm" asChild>
@@ -363,7 +363,14 @@ export default async function CustomerDetailPage({
                             </>
                           )}
                           {doc.scanStatus === "PENDING" && (
-                            <DocumentScanActions documentId={doc.id} />
+                            <>
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={`/api/admin/documents/${doc.id}/bypass-and-view`} target="_blank" rel="noopener noreferrer">
+                                  Bypass &amp; view
+                                </a>
+                              </Button>
+                              <DocumentScanActions documentId={doc.id} />
+                            </>
                           )}
                         </div>
                       </td>

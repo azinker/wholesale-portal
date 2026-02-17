@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── TPP Brand Colors ─────────────────────────────── */
+  --color-background: #ffffff;
+  --color-foreground: #1a1a1a;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #1a1a1a;
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1a1a1a;
+
+  --color-primary: #B8282E;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary: #f5f0ee;
+  --color-secondary-foreground: #1a1a1a;
+
+  --color-muted: #f5f0ee;
+  --color-muted-foreground: #6b6462;
+
+  --color-accent: #f5f0ee;
+  --color-accent-foreground: #1a1a1a;
+
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+
+  --color-border: #e5e0dd;
+  --color-input: #e5e0dd;
+  --color-ring: #B8282E;
+
+  /* ── Sidebar (dark charcoal) ──────────────────────── */
+  --color-sidebar: #2d2d2d;
+  --color-sidebar-foreground: #e8e4e1;
+  --color-sidebar-muted: #3a3a3a;
+  --color-sidebar-muted-foreground: #a8a4a1;
+  --color-sidebar-accent: #B8282E;
+  --color-sidebar-accent-foreground: #ffffff;
+  --color-sidebar-border: #404040;
+
+  /* ── Semantic Colors ──────────────────────────────── */
+  --color-success: #16a34a;
+  --color-success-light: #dcfce7;
+  --color-danger: #dc2626;
+  --color-danger-light: #fef2f2;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fffbeb;
+  --color-info: #2563eb;
+  --color-info-light: #eff6ff;
+
+  /* ── Typography ───────────────────────────────────── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* ── Radius ───────────────────────────────────────── */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* ── Smooth transitions for interactive elements ──── */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Scrollbar styling ─────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+}

@@ -18,7 +18,7 @@ interface ShipmentRow {
   carrierUrl: string | null;
 }
 
-type Filter = "all" | "shipped" | "completed";
+type Filter = "all" | "shipped" | "partially_refunded" | "cancelled" | "refunded";
 type SortField = "orderId" | "orderDate" | "orderStatus" | "trackingNumber" | "carrier" | "shipDate";
 type SortDir = "asc" | "desc";
 
@@ -39,8 +39,10 @@ export function TrackingFilters({ shipments }: { shipments: ShipmentRow[] }) {
   const filtered = shipments.filter((s) => {
     if (filter === "all") return true;
     const status = s.orderStatus.toLowerCase();
-    if (filter === "completed") return status.includes("complet") || status.includes("deliver");
     if (filter === "shipped") return status.includes("ship") || status.includes("transit") || status.includes("awaiting");
+    if (filter === "partially_refunded") return status.includes("partially") && status.includes("refund");
+    if (filter === "cancelled") return status.includes("cancel");
+    if (filter === "refunded") return status.includes("refund") && !status.includes("partially");
     return true;
   });
 
@@ -79,9 +81,14 @@ export function TrackingFilters({ shipments }: { shipments: ShipmentRow[] }) {
       const st = s.orderStatus.toLowerCase();
       return st.includes("ship") || st.includes("transit") || st.includes("awaiting");
     }).length,
-    completed: shipments.filter((s) => {
+    partially_refunded: shipments.filter((s) => {
       const st = s.orderStatus.toLowerCase();
-      return st.includes("complet") || st.includes("deliver");
+      return st.includes("partially") && st.includes("refund");
+    }).length,
+    cancelled: shipments.filter((s) => s.orderStatus.toLowerCase().includes("cancel")).length,
+    refunded: shipments.filter((s) => {
+      const st = s.orderStatus.toLowerCase();
+      return st.includes("refund") && !st.includes("partially");
     }).length,
   };
 
@@ -124,7 +131,9 @@ export function TrackingFilters({ shipments }: { shipments: ShipmentRow[] }) {
           {([
             ["all", "All"],
             ["shipped", "Shipped"],
-            ["completed", "Completed"],
+            ["partially_refunded", "Partially Refunded"],
+            ["cancelled", "Cancelled"],
+            ["refunded", "Refunded"],
           ] as [Filter, string][]).map(([key, label]) => (
             <Button
               key={key}
@@ -216,9 +225,8 @@ export function TrackingFilters({ shipments }: { shipments: ShipmentRow[] }) {
 function StatusBadge({ status }: { status: string }) {
   const lower = status.toLowerCase();
   let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
-  if (lower.includes("complet") || lower.includes("deliver")) variant = "default";
-  else if (lower.includes("ship")) variant = "secondary";
-  else if (lower.includes("cancel")) variant = "destructive";
+  if (lower.includes("ship")) variant = "secondary";
+  else if (lower.includes("cancel") || lower.includes("refund")) variant = "destructive";
 
   return <Badge variant={variant} className="text-[10px]">{status}</Badge>;
 }

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift } from "lucide-react";
+import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign } from "lucide-react";
 import { db } from "@/lib/db";
+import { bc } from "@/lib/bigcommerce/client";
 import { loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
 import { DashboardOnboarding } from "./dashboard-onboarding";
 import { CopyCouponButton } from "./copy-coupon-button";
@@ -56,6 +57,19 @@ export default async function DashboardPage() {
       select: { code: true, tier: true },
     });
     activePromo = promo ?? null;
+  }
+
+  // Fetch store credit for approved accounts
+  let storeCredit = 0;
+  if (status === "APPROVED" && account?.customerId) {
+    try {
+      const customer = await bc().getCustomerById(account.customerId);
+      if (customer?.store_credit_amounts && customer.store_credit_amounts.length > 0) {
+        storeCredit = customer.store_credit_amounts[0].amount;
+      }
+    } catch {
+      // Ignore errors fetching store credit
+    }
   }
 
   return (
@@ -175,6 +189,7 @@ export default async function DashboardPage() {
           activePromo={activePromo}
           pausedUpgrades={account!.pausedUpgrades}
           welcomeExpiresAt={account!.welcomeExpiresAt?.toISOString() ?? null}
+          storeCredit={storeCredit}
         />
       )}
     </div>
@@ -186,6 +201,7 @@ async function ApprovedDashboardWrapper({
   activePromo,
   pausedUpgrades,
   welcomeExpiresAt,
+  storeCredit,
 }: {
   account: {
     lastTier: string;
@@ -196,6 +212,7 @@ async function ApprovedDashboardWrapper({
   activePromo: { code: string; tier: string } | null;
   pausedUpgrades: boolean;
   welcomeExpiresAt: string | null;
+  storeCredit: number;
 }) {
   const tierDefs = await loadTiers();
   const welcomeConfig = await loadWelcomeConfig();
@@ -217,6 +234,7 @@ async function ApprovedDashboardWrapper({
       welcomeExpiresAt={welcomeActive ? welcomeExpiresAt : null}
       welcomeDiscount={welcomeConfig.discount}
       earnedTierIdWhenWelcome={earnedTierIdWhenWelcome}
+      storeCredit={storeCredit}
     />
   );
 }
@@ -229,6 +247,7 @@ function ApprovedDashboard({
   welcomeExpiresAt,
   welcomeDiscount,
   earnedTierIdWhenWelcome,
+  storeCredit,
 }: {
   account: {
     lastTier: string;
@@ -240,6 +259,7 @@ function ApprovedDashboard({
   pausedUpgrades: boolean;
   tierDefs: TierDef[];
   welcomeExpiresAt: string | null;
+  storeCredit: number;
   welcomeDiscount: number;
   earnedTierIdWhenWelcome: string | null;
 }) {
@@ -355,6 +375,31 @@ function ApprovedDashboard({
                 <h3 className="text-sm font-semibold">No Active Coupon</h3>
                 <p className="text-xs text-muted-foreground mt-1">
                   Reach {tiers[0]?.min ?? 5} qualifying orders in 7 days to unlock your first coupon code ({tiers[0]?.label ?? "10% Off"}).
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Store Credit */}
+      {storeCredit > 0 && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-start gap-4">
+              <div className="bg-primary/10 rounded-full p-2.5 flex-shrink-0">
+                <DollarSign className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold mb-1">Store Credit Available</h3>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-bold text-primary font-mono">
+                    ${storeCredit.toFixed(2)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">available to use</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Your store credit will automatically apply at checkout on theperfectpart.net.
                 </p>
               </div>
             </div>

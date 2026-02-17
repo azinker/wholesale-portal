@@ -14,6 +14,22 @@ export interface TierDef {
 /** TierId is now a plain string ("NONE" | "T10" | "T15" | …) */
 export type TierId = string;
 
+// Qualifying status IDs for 7-day tier count (must match recalcTier logic)
+export const QUALIFYING_TIER_STATUS_IDS = [2, 3, 10, 14, 11] as const;
+
+/**
+ * Returns whether an order counts toward the 7-day tier, has expired from the window, or never counted (wrong status).
+ */
+export function getTierStatusForOrder(
+  dateCreated: string,
+  statusId: number
+): "counts" | "expired" | "excluded" {
+  if (!QUALIFYING_TIER_STATUS_IDS.includes(statusId)) return "excluded";
+  const orderDate = new Date(dateCreated);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return orderDate >= sevenDaysAgo ? "counts" : "expired";
+}
+
 // ── Default tiers (fallback when no DB config exists) ──
 export const DEFAULT_TIERS: TierDef[] = [
   { id: "T10", label: "10% Off", minOrders: 5, discount: 10 },
@@ -204,12 +220,9 @@ export async function recalcTier(accountId: string): Promise<{
     page++;
   }
 
-  // Qualifying orders: paid orders that are shipped or awaiting fulfillment.
-  // Status IDs: 2=Shipped, 3=Partially Shipped, 10=Completed, 14=Partially Refunded, 11=Awaiting Fulfillment
-  // Including Awaiting Fulfillment (11) so orders count toward tier as soon as they're placed and paid.
-  const qualifyingStatusIds = [2, 3, 10, 14, 11];
+  // Qualifying orders: paid orders that are shipped or awaiting fulfillment (see QUALIFYING_TIER_STATUS_IDS).
   const qualifyingCount = allOrders.filter((o) =>
-    qualifyingStatusIds.includes(o.status_id)
+    QUALIFYING_TIER_STATUS_IDS.includes(o.status_id)
   ).length;
 
   let newTier = await tierFromCount(qualifyingCount);

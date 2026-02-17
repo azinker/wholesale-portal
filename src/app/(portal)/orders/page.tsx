@@ -1,6 +1,7 @@
 import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
+import { getTierStatusForOrder } from "@/lib/tier-engine";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShoppingCart, AlertCircle, AlertTriangle } from "lucide-react";
 import { OrdersTable } from "./orders-table";
@@ -89,6 +90,7 @@ export default async function OrdersPage({
             status: o.status,
             items_total: o.items_total,
             total_inc_tax: o.total_inc_tax,
+            tierStatus: getTierStatusForOrder(o.date_created, o.status_id),
           }))}
           currentPage={currentPage}
           hasMore={hasMore}

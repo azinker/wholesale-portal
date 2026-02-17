@@ -9,6 +9,9 @@ export interface BCCustomer {
   company: string;
   customer_group_id: number;
   form_fields?: { name: string; value: string }[];
+  store_credit_amounts?: Array<{
+    amount: number;
+  }>;
 }
 
 export interface BCOrder {
@@ -203,7 +206,7 @@ class BigCommerceClient {
 
   async getCustomerById(id: number): Promise<BCCustomer | null> {
     const res = await this.get<{ data: BCCustomer[] }>(
-      `${this.baseV3}/customers?id:in=${id}&include=formfields`
+      `${this.baseV3}/customers?id:in=${id}&include=formfields,storecredit`
     );
     return res.data?.[0] ?? null;
   }

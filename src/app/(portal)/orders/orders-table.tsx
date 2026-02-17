@@ -8,12 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { ReorderButton } from "./reorder-button";
 
+export type TierStatusForOrder = "counts" | "expired" | "excluded";
+
 interface OrderRow {
   id: number;
   date_created: string;
   status: string;
   items_total: number;
   total_inc_tax: string;
+  tierStatus: TierStatusForOrder;
 }
 
 type SortField = "id" | "date_created" | "status" | "items_total" | "total_inc_tax";
@@ -115,6 +118,9 @@ export function OrdersTable({
                 <SortHeader field="id" className="text-left">Order #</SortHeader>
                 <SortHeader field="date_created" className="text-left">Date</SortHeader>
                 <SortHeader field="status" className="text-left">Status</SortHeader>
+                <th className="text-left px-4 py-3 font-medium" title="Whether this order counts toward your 7-day discount tier">
+                  Counts for tier
+                </th>
                 <SortHeader field="items_total" className="text-left">Items</SortHeader>
                 <SortHeader field="total_inc_tax" className="text-right">Total</SortHeader>
                 <th className="text-right px-4 py-3 font-medium">Actions</th>
@@ -133,6 +139,9 @@ export function OrdersTable({
                   <td className="px-4 py-3">
                     <OrderBadge status={order.status} />
                   </td>
+                  <td className="px-4 py-3">
+                    <TierStatusBadge status={order.tierStatus} />
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {order.items_total} item{order.items_total !== 1 ? "s" : ""}
                   </td>
@@ -146,7 +155,7 @@ export function OrdersTable({
               ))}
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No orders found on this page.
                   </td>
                 </tr>
@@ -194,4 +203,24 @@ function OrderBadge({ status }: { status: string }) {
   else if (lower.includes("cancel") || lower.includes("refund")) variant = "destructive";
 
   return <Badge variant={variant} className="text-[10px]">{status}</Badge>;
+}
+
+function TierStatusBadge({ status }: { status: TierStatusForOrder }) {
+  if (status === "counts") {
+    return (
+      <Badge variant="default" className="text-[10px] bg-green-600 hover:bg-green-600">
+        Counts
+      </Badge>
+    );
+  }
+  if (status === "expired") {
+    return (
+      <Badge variant="secondary" className="text-[10px] text-muted-foreground">
+        Expired
+      </Badge>
+    );
+  }
+  return (
+    <span className="text-xs text-muted-foreground">—</span>
+  );
 }

@@ -80,25 +80,36 @@ export default async function TrackingPage() {
         direction: "desc",
       });
 
-      // Batch fetch shipments for all orders
-      const shipmentsPromises = orders.map(async (order: BCOrder) => {
-        try {
-          const shipments = await bc().getOrderShipments(order.id);
-          return shipments.map((s: BCShipment) => ({
-            ...s,
-            order_id: order.id,
-            order_status: order.status,
-            order_date: order.date_created,
-          }));
-        } catch {
-          return [];
+      // Fetch shipments in small batches to avoid BigCommerce 429 rate limits
+      const BATCH_SIZE = 8;
+      const BATCH_DELAY_MS = 400;
+      for (let i = 0; i < orders.length; i += BATCH_SIZE) {
+        const batch = orders.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (order: BCOrder) => {
+            try {
+              const shipments = await bc().getOrderShipments(order.id);
+              return shipments.map((s: BCShipment) => ({
+                ...s,
+                order_id: order.id,
+                order_status: order.status,
+                order_date: order.date_created,
+              }));
+            } catch {
+              return [];
+            }
+          })
+        );
+        allShipments = allShipments.concat(batchResults.flat());
+        if (i + BATCH_SIZE < orders.length) {
+          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
         }
-      });
-
-      const results = await Promise.all(shipmentsPromises);
-      allShipments = results.flat();
+      }
     } catch (err) {
-      fetchError = err instanceof Error ? err.message : "Failed to fetch tracking data";
+      const msg = err instanceof Error ? err.message : "Failed to fetch tracking data";
+      fetchError = msg.includes("429")
+        ? "Too many requests. Please wait a moment and refresh the page to try again."
+        : msg;
     }
   }
 
@@ -139,6 +150,11 @@ export default async function TrackingPage() {
         <Card className="border-destructive/30">
           <CardContent className="pt-6">
             <p className="text-sm text-destructive">{fetchError}</p>
+            {fetchError.includes("429") && (
+              <p className="text-sm text-muted-foreground mt-2">
+                You can refresh the page now to try again.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

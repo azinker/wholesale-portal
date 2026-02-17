@@ -121,8 +121,21 @@ class BigCommerceClient {
   }
 
   // ── Generic fetch helpers ──────────────────────────
-  private async get<T>(url: string): Promise<T> {
+  /** Sleep for ms (for 429 retry backoff) */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async get<T>(url: string, attempt = 1): Promise<T> {
+    const maxAttempts = 3;
     const res = await fetch(url, { headers: this.headers, cache: "no-store" });
+
+    if (res.status === 429 && attempt < maxAttempts) {
+      const delayMs = attempt === 1 ? 2000 : 5000;
+      await this.sleep(delayMs);
+      return this.get<T>(url, attempt + 1);
+    }
+
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`BC API GET ${url} failed (${res.status}): ${text}`);

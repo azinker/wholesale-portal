@@ -6,11 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle, ExternalLink, UserPlus, Download } from "lucide-react";
+import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle, ExternalLink, UserPlus, Download, RefreshCw, ShieldOff } from "lucide-react";
 import { ImpersonateButton } from "@/components/impersonate-button";
 import { RemoveApplicantButton } from "@/components/remove-applicant-button";
 import { getAvatarUrl } from "@/lib/avatar";
 import ApplicantActions from "./applicant-actions";
+import { DocumentScanActions } from "./document-scan-actions";
 
 export default async function ApplicantDetailPage({
   params,
@@ -166,6 +167,9 @@ export default async function ApplicantDetailPage({
                                 </a>
                               </Button>
                             </>
+                          )}
+                          {doc.scanStatus === "PENDING" && (
+                            <DocumentScanActions documentId={doc.id} />
                           )}
                         </div>
                       </td>

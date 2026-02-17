@@ -15,6 +15,7 @@ import TierOverrideForm from "./tier-override-form";
 import { ResetOnboardingButton } from "./reset-onboarding-button";
 import { RecalcTierButton } from "./recalc-tier-button";
 import { VerifyCustomerGroupButton } from "./verify-customer-group-button";
+import { DocumentScanActions } from "../../applicants/[id]/document-scan-actions";
 
 export default async function CustomerDetailPage({
   params,
@@ -360,6 +361,9 @@ export default async function CustomerDetailPage({
                                 </a>
                               </Button>
                             </>
+                          )}
+                          {doc.scanStatus === "PENDING" && (
+                            <DocumentScanActions documentId={doc.id} />
                           )}
                         </div>
                       </td>

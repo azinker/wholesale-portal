@@ -105,6 +105,24 @@ export async function getSignedViewUrl(
 }
 
 /**
+ * Get a pre-signed URL for downloading a clean file with Content-Disposition set.
+ * Forces download with the original filename.
+ * Expires in 15 minutes by default.
+ */
+export async function getSignedDownloadUrl(
+  key: string,
+  filename: string,
+  expiresIn = 900
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: bucket(),
+    Key: `clean/${key}`,
+    ResponseContentDisposition: `attachment; filename="${filename}"`,
+  });
+  return getSignedUrl(getClient(), command, { expiresIn });
+}
+
+/**
  * Download a file from quarantine for ClamAV scanning.
  */
 export async function downloadFromQuarantine(key: string): Promise<Buffer> {

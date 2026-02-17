@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, ExternalLink, ShieldCheck, Clock, Package, Zap, UserPlus } from "lucide-react";
+import { ArrowLeft, ExternalLink, ShieldCheck, Clock, Package, Zap, UserPlus, FileText, Download } from "lucide-react";
 import { loadTiers, getTierConfig, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { ImpersonateButton } from "@/components/impersonate-button";
 import { RemoveApplicantButton } from "@/components/remove-applicant-button";
@@ -36,6 +36,13 @@ export default async function CustomerDetailPage({
       },
       riskFlags: {
         where: { status: "OPEN" },
+      },
+      documents: {
+        orderBy: { uploadedAt: "desc" },
+        select: {
+          id: true, filename: true, mime: true, size: true,
+          scanStatus: true, docType: true, state: true, note: true, uploadedAt: true,
+        },
       },
     },
   });
@@ -304,6 +311,67 @@ export default async function CustomerDetailPage({
         </CardContent>
       </Card>
 
+      {/* Documents */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" />
+            Documents ({account.documents.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {account.documents.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No documents uploaded.</p>
+          ) : (
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left px-4 py-2.5 font-medium">File</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Type</th>
+                    <th className="text-left px-4 py-2.5 font-medium">State</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Scan</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Uploaded</th>
+                    <th className="text-right px-4 py-2.5 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {account.documents.map((doc) => (
+                    <tr key={doc.id} className="border-b last:border-0">
+                      <td className="px-4 py-2.5">{doc.filename}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.docType || "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.state || "—"}</td>
+                      <td className="px-4 py-2.5"><ScanBadge status={doc.scanStatus} /></td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">
+                        {new Date(doc.uploadedAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {doc.scanStatus === "CLEAN" && (
+                            <>
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
+                                  View <ExternalLink className="ml-1 h-3 w-3" />
+                                </a>
+                              </Button>
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={`/api/admin/documents/${doc.id}/download`} download>
+                                  <Download className="h-3 w-3" />
+                                </a>
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Tier History */}
       {account.snapshots.length > 0 && (
         <Card>
@@ -369,4 +437,11 @@ function TierBadge({ tier }: { tier: string }) {
       {tier === "NONE" ? "None" : tier === "WELCOME" ? "Welcome" : tier}
     </Badge>
   );
+}
+
+function ScanBadge({ status }: { status: string }) {
+  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+    CLEAN: "default", INFECTED: "destructive", SCANNING: "secondary", PENDING: "outline",
+  };
+  return <Badge variant={variants[status] || "outline"} className="text-[10px]">{status}</Badge>;
 }

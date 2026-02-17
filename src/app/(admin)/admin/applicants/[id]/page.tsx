@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle, ExternalLink, UserPlus } from "lucide-react";
+import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle, ExternalLink, UserPlus, Download } from "lucide-react";
 import { ImpersonateButton } from "@/components/impersonate-button";
 import { RemoveApplicantButton } from "@/components/remove-applicant-button";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -152,13 +152,22 @@ export default async function ApplicantDetailPage({
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.state || "—"}</td>
                       <td className="px-4 py-2.5"><ScanBadge status={doc.scanStatus} /></td>
                       <td className="px-4 py-2.5">
-                        {doc.scanStatus === "CLEAN" && (
-                          <Button variant="ghost" size="xs" asChild>
-                            <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
-                              View <ExternalLink className="ml-1 h-3 w-3" />
-                            </a>
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {doc.scanStatus === "CLEAN" && (
+                            <>
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
+                                  View <ExternalLink className="ml-1 h-3 w-3" />
+                                </a>
+                              </Button>
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={`/api/admin/documents/${doc.id}/download`} download>
+                                  <Download className="h-3 w-3" />
+                                </a>
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

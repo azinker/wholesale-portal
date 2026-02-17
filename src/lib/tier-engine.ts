@@ -204,11 +204,10 @@ export async function recalcTier(accountId: string): Promise<{
     page++;
   }
 
-  // Qualifying orders: any order that was at some point shipped.
-  // Status IDs: 2=Shipped, 3=Partially Shipped, 10=Completed, 14=Partially Refunded
-  // All of these imply the order was fulfilled/shipped at some point.
-  // Once an order qualifies, a later status change does not deduct it.
-  const qualifyingStatusIds = [2, 3, 10, 14];
+  // Qualifying orders: paid orders that are shipped or awaiting fulfillment.
+  // Status IDs: 2=Shipped, 3=Partially Shipped, 10=Completed, 14=Partially Refunded, 11=Awaiting Fulfillment
+  // Including Awaiting Fulfillment (11) so orders count toward tier as soon as they're placed and paid.
+  const qualifyingStatusIds = [2, 3, 10, 14, 11];
   const qualifyingCount = allOrders.filter((o) =>
     qualifyingStatusIds.includes(o.status_id)
   ).length;

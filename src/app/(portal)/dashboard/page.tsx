@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift } from "lucide-react";
 import { db } from "@/lib/db";
-import { loadTiers, loadWelcomeConfig, isWelcomeActive, type TierDef } from "@/lib/tier-engine";
+import { loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
 import { DashboardOnboarding } from "./dashboard-onboarding";
 import { CopyCouponButton } from "./copy-coupon-button";
 import { WelcomeCountdown } from "./welcome-countdown";
+import { TierActivatesCountdown } from "./tier-activates-countdown";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -199,6 +200,14 @@ async function ApprovedDashboardWrapper({
   const tierDefs = await loadTiers();
   const welcomeConfig = await loadWelcomeConfig();
   const welcomeActive = welcomeExpiresAt ? isWelcomeActive(new Date(welcomeExpiresAt)) : false;
+  // Which tier will activate when welcome ends: based on current 7-day count and admin-defined tier ranges.
+  // If count is below the first tier's min (e.g. < 5), earned is "NONE" → we pass null so no tier box shows "activates when welcome ends".
+  const earnedRaw =
+    account.lastTier === "WELCOME" && welcomeActive
+      ? await tierFromCount(account.lastCount7d)
+      : null;
+  const earnedTierIdWhenWelcome =
+    earnedRaw === "NONE" || earnedRaw === null ? null : earnedRaw;
   return (
     <ApprovedDashboard
       account={account}
@@ -207,6 +216,7 @@ async function ApprovedDashboardWrapper({
       tierDefs={tierDefs}
       welcomeExpiresAt={welcomeActive ? welcomeExpiresAt : null}
       welcomeDiscount={welcomeConfig.discount}
+      earnedTierIdWhenWelcome={earnedTierIdWhenWelcome}
     />
   );
 }
@@ -218,6 +228,7 @@ function ApprovedDashboard({
   tierDefs,
   welcomeExpiresAt,
   welcomeDiscount,
+  earnedTierIdWhenWelcome,
 }: {
   account: {
     lastTier: string;
@@ -230,6 +241,7 @@ function ApprovedDashboard({
   tierDefs: TierDef[];
   welcomeExpiresAt: string | null;
   welcomeDiscount: number;
+  earnedTierIdWhenWelcome: string | null;
 }) {
   // Build display tiers with min/max from sorted tier definitions
   const sorted = [...tierDefs].sort((a, b) => a.minOrders - b.minOrders);
@@ -396,11 +408,19 @@ function ApprovedDashboard({
         </CardContent>
       </Card>
 
-      {/* Tier Cards */}
+      {/* Tier Cards — "Activates when welcome ends" is shown only on the tier whose order range (from admin config) contains the user's 7-day count. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {tiers.map((tier) => {
           const isActive = account.lastTier === tier.id;
-          const isAchieved = tiers.indexOf(tier) <= tiers.findIndex((t) => t.id === account.lastTier);
+          const activatesWhenWelcomeEnds =
+            !!welcomeExpiresAt &&
+            earnedTierIdWhenWelcome !== null &&
+            earnedTierIdWhenWelcome === tier.id &&
+            account.lastTier === "WELCOME";
+          const isAchieved =
+            !activatesWhenWelcomeEnds &&
+            (tiers.indexOf(tier) <= tiers.findIndex((t) => t.id === account.lastTier) ||
+              (account.lastTier === "WELCOME" && count >= tier.min));
 
           return (
             <Card
@@ -408,25 +428,50 @@ function ApprovedDashboard({
               className={`transition-all ${
                 isActive
                   ? "border-primary shadow-md ring-1 ring-primary/20"
-                  : isAchieved
-                    ? "border-success/30"
-                    : "opacity-50"
+                  : activatesWhenWelcomeEnds
+                    ? "border-purple-400/50 shadow-md ring-1 ring-purple-400/20 bg-gradient-to-b from-purple-50/50 to-transparent dark:from-purple-950/20"
+                    : isAchieved
+                      ? "border-success/30"
+                      : "opacity-50"
               }`}
             >
               <CardContent className="pt-5">
                 <div className="flex items-center justify-between mb-3">
                   <Badge
-                    variant={isActive ? "default" : isAchieved ? "secondary" : "outline"}
-                    className="text-[10px]"
+                    variant={
+                      isActive
+                        ? "default"
+                        : activatesWhenWelcomeEnds
+                          ? "secondary"
+                          : isAchieved
+                            ? "secondary"
+                            : "outline"
+                    }
+                    className={`text-[10px] ${activatesWhenWelcomeEnds ? "bg-purple-600 text-white border-0" : ""}`}
                   >
-                    {isActive ? "Current Tier" : isAchieved ? "Unlocked" : "Locked"}
+                    {isActive
+                      ? "Current Tier"
+                      : activatesWhenWelcomeEnds
+                        ? "Activates when welcome ends"
+                        : isAchieved
+                          ? "Unlocked"
+                          : "Locked"}
                   </Badge>
-                  <div className={`w-3 h-3 rounded-full ${isActive ? "bg-primary" : isAchieved ? "bg-success" : "bg-muted"}`} />
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      isActive ? "bg-primary" : activatesWhenWelcomeEnds ? "bg-purple-500" : isAchieved ? "bg-success" : "bg-muted"
+                    }`}
+                  />
                 </div>
                 <h3 className="text-2xl font-bold">{tier.discount}% Off</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   {tier.min}&ndash;{tier.max === Infinity ? "\u221E" : tier.max} orders / 7 days
                 </p>
+                {activatesWhenWelcomeEnds && welcomeExpiresAt && (
+                  <div className="mt-2">
+                    <TierActivatesCountdown expiresAt={welcomeExpiresAt} />
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-2">
                   + Free Flat Rate Shipping (US only)
                 </p>

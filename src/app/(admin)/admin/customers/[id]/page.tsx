@@ -14,6 +14,7 @@ import { getAvatarUrl } from "@/lib/avatar";
 import TierOverrideForm from "./tier-override-form";
 import { ResetOnboardingButton } from "./reset-onboarding-button";
 import { RecalcTierButton } from "./recalc-tier-button";
+import { VerifyCustomerGroupButton } from "./verify-customer-group-button";
 
 export default async function CustomerDetailPage({
   params,
@@ -226,9 +227,12 @@ export default async function CustomerDetailPage({
               </div>
             )}
             <Separator />
-            <div className="space-y-1">
+            <div className="space-y-2">
               <p className="text-xs text-muted-foreground">7-Day Qualifying Count: <strong className="text-foreground">{account.lastCount7d}</strong></p>
-              <RecalcTierButton accountId={account.id} />
+              <div className="flex gap-2">
+                <RecalcTierButton accountId={account.id} />
+                <VerifyCustomerGroupButton accountId={account.id} />
+              </div>
             </div>
           </CardContent>
         </Card>

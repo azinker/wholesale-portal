@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserCheck, ArrowRight, Lock } from "lucide-react";
 import { ImpersonateButton } from "@/components/impersonate-button";
 import TierRecalcButton from "./tier-recalc-button";
+import RecreatePromotionsButton from "./recreate-promotions-button";
 import { getAvatarUrls } from "@/lib/avatar";
 import { EnrollCustomerForm } from "./enroll-customer-form";
 
@@ -53,6 +54,7 @@ export default async function CustomersPage() {
         </div>
         <div className="flex items-center gap-2">
           <EnrollCustomerForm />
+          <RecreatePromotionsButton />
           <TierRecalcButton />
         </div>
       </div>

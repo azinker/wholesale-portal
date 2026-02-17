@@ -36,14 +36,15 @@ export default async function DashboardPage() {
   // Onboarding data for approved accounts
   let onboardingData = null;
   if (status === "APPROVED" && account && !account.onboardingDismissed) {
-    const hasResaleCert = await db.document.count({
-      where: { accountId: account.id, docType: "resale_cert" },
+    // Count any uploaded document (resale cert, other, business license, etc.) for the checklist
+    const hasUploadedDocument = await db.document.count({
+      where: { accountId: account.id },
     });
     const flags = (account.onboardingFlags as Record<string, boolean>) || {};
 
     onboardingData = {
       profileComplete: !!(account.companyName && account.phone),
-      hasResaleCert: hasResaleCert > 0,
+      hasResaleCert: hasUploadedDocument > 0,
       browsedHotSellers: !!flags.browsedHotSellers,
       hasOrders: (account.lastCount7d ?? 0) > 0,
     };

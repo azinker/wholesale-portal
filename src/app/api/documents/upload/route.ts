@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { uploadToQuarantine } from "@/lib/storage";
-import { processDocumentScan } from "@/lib/document-pipeline";
+import { uploadToClean } from "@/lib/storage";
 import { randomCode } from "@/lib/utils";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -61,10 +60,10 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Upload to R2 quarantine zone
-    await uploadToQuarantine(storageKey, buffer, file.type);
+    // Upload directly to clean storage (virus scanning disabled)
+    await uploadToClean(storageKey, buffer, file.type);
 
-    // Create document record
+    // Create document record - marked as CLEAN immediately (no scanning)
     const doc = await db.document.create({
       data: {
         accountId: account.id,
@@ -72,17 +71,14 @@ export async function POST(req: NextRequest) {
         mime: file.type,
         size: file.size,
         storageKey,
-        scanStatus: "PENDING",
+        scanStatus: "CLEAN",
         docType,
         state,
         note,
       },
     });
 
-    // Trigger async ClamAV scan (don't block the response)
-    processDocumentScan(doc.id, storageKey).catch((err) => {
-      console.error(`Document scan failed for ${doc.id}:`, err);
-    });
+    console.log(`Document ${doc.id} uploaded and marked CLEAN (virus scanning disabled)`);
 
     return NextResponse.json({
       id: doc.id,

@@ -46,6 +46,25 @@ export async function uploadToQuarantine(
 }
 
 /**
+ * Upload a file buffer directly to clean/ storage (no quarantine/scanning).
+ * Use when virus scanning is disabled.
+ */
+export async function uploadToClean(
+  key: string,
+  body: Buffer,
+  contentType: string
+): Promise<void> {
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: bucket(),
+      Key: `clean/${key}`,
+      Body: body,
+      ContentType: contentType,
+    })
+  );
+}
+
+/**
  * Move a file from quarantine/ to clean/ after it passes AV scan.
  * R2 doesn't have a native "move" — we copy + delete.
  */

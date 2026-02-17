@@ -377,17 +377,19 @@ export async function ensurePromoForTier(
         status: "ENABLED",
         can_be_used_with_other_promotions: false,
         rules: [
+          // Rule 1: Discount on order subtotal (must come BEFORE free shipping)
           {
             action: {
-              cart_items: {
+              cart_value: {
                 discount: {
                   percentage_amount: tierConfig.discount.toString(),
                 },
               },
             },
             apply_once: true,
-            stop: true,
+            stop: false,
           },
+          // Rule 2: Free shipping (must come AFTER discount)
           {
             action: {
               shipping: {

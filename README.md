@@ -157,6 +157,25 @@ ngrok http 3001
 - Billing address must be US
 - Rolling 7-day window, recalculated every 4 hours
 
+**Promotion setup:**
+- Each tier gets a BigCommerce promotion with a unique coupon code.
+- Rule 1: **Discount on order subtotal** (`cart_value`) — applies the tier discount percentage.
+- Rule 2: **Free shipping** (`shipping`) — applies to all zones.
+- **Order matters**: discount rule must come before free shipping so both apply correctly.
+
+## Tax Exemption for Wholesale Customers
+
+Wholesale customers should be tax-exempt. In BigCommerce:
+
+1. **Customer group** (`Wholesale`) must be assigned to wholesale accounts (done automatically on approval).
+2. **Tax zone** (`Wholesale No Tax`):
+   - Set **Tax rate: 0%**.
+   - Set **Applies to**: Only customers in select groups → **Wholesale**.
+   - If a wholesale customer is still charged tax at checkout, check:
+     - They're assigned to the **Wholesale** customer group in BC (Admin → Customers → view customer → Group).
+     - The tax zone is **enabled** and set to apply **only** to the Wholesale group (not "all customers").
+     - No other tax rules with higher priority are overriding this (check Tax → Tax rates and zones).
+
 ## Production Launch Checklist
 
 1. [ ] Set `TARGET_STORE=dev` and test full flow on dev store

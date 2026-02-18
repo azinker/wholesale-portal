@@ -12,6 +12,7 @@ import { DashboardOnboarding } from "./dashboard-onboarding";
 import { CopyCouponButton } from "./copy-coupon-button";
 import { WelcomeCountdown } from "./welcome-countdown";
 import { TierActivatesCountdown } from "./tier-activates-countdown";
+import { DashboardRecalcTrigger } from "./dashboard-recalc-trigger";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -75,6 +76,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-4xl space-y-8">
+      <DashboardRecalcTrigger enabled={status === "APPROVED"} />
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-1">

@@ -9,6 +9,7 @@ import {
   tierFromCount,
   getTierConfig,
 } from "@/lib/tier-engine";
+import { sendApplicantApprovalEmail } from "@/lib/email";
 
 const WHOLESALE_GROUP_NAME = "Wholesale";
 
@@ -145,6 +146,11 @@ export async function POST(
           bcGroupName: WHOLESALE_GROUP_NAME,
         },
       },
+    });
+
+    // Notify applicant by email (do not fail approval if email fails)
+    sendApplicantApprovalEmail(account.email, account.companyName).catch((err) => {
+      console.warn("Approval email send failed:", err);
     });
 
     return NextResponse.json({ success: true });

@@ -99,6 +99,53 @@ const SOURCE_LABELS: Record<NewApplicantPayload["source"], string> = {
   admin: "Admin (enrolled)",
 };
 
+/** Send approval email to the applicant when their wholesale account is approved. Does not throw; logs on failure. */
+export async function sendApplicantApprovalEmail(to: string, companyName: string): Promise<void> {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+    if (!apiKey) {
+      console.error("Applicant approval email skipped: RESEND_API_KEY is not set");
+      return;
+    }
+    const resend = getResend();
+    const safeName = escapeHtml(companyName || "your business");
+    const loginUrl = `${appUrl}/login`;
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject: "Your wholesale account has been approved — The Perfect Part",
+      html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+        <h2 style="color: #111; margin-bottom: 8px;">You're approved for wholesale</h2>
+        <p style="color: #555; font-size: 15px; line-height: 1.6;">
+          Great news — your wholesale account for <strong>${safeName}</strong> has been approved at <strong>The Perfect Part</strong>.
+        </p>
+        <p style="color: #555; font-size: 15px; line-height: 1.6;">
+          You can sign in to the wholesale portal to place orders and manage your account.
+        </p>
+        <a href="${escapeHtml(loginUrl)}"
+           style="display: inline-block; background: #111; color: #fff; padding: 12px 28px;
+                  border-radius: 6px; text-decoration: none; font-size: 15px; margin: 16px 0;">
+          Sign in to wholesale portal
+        </a>
+        <p style="color: #888; font-size: 13px; margin-top: 24px;">
+          If you have any questions, contact us from the Support page after signing in.
+        </p>
+      </div>
+    `,
+    });
+    if (error) {
+      console.error("Failed to send applicant approval email:", error);
+    } else if (data?.id) {
+      console.log(`Applicant approval email sent to ${to}, Resend id: ${data.id}`);
+    }
+  } catch (err) {
+    console.error("Applicant approval email failed:", err);
+  }
+}
+
 /** Notify wholesale@ when a new applicant signs up. Does not throw; logs on failure. */
 export async function sendNewApplicantNotification(payload: NewApplicantPayload): Promise<void> {
   try {

@@ -12,14 +12,13 @@ import { recalcAllTiers } from "@/lib/tier-engine";
 export async function POST(req: NextRequest) {
   // Verify cron secret
   const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET || process.env.JWT_SECRET;
+  const cronSecret = (process.env.CRON_SECRET || process.env.JWT_SECRET)?.trim();
 
   if (!cronSecret) {
     return NextResponse.json({ error: "No cron secret configured" }, { status: 500 });
   }
 
   if (authHeader !== `Bearer ${cronSecret}`) {
-    console.log(`[cron-auth] FAIL — header len: ${authHeader?.length ?? "null"}, secret len: ${cronSecret.length}, header prefix: "${authHeader?.slice(0, 10)}", secret source: ${process.env.CRON_SECRET ? "CRON_SECRET" : "JWT_SECRET"}`);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

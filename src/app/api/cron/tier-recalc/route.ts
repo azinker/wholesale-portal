@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (authHeader !== `Bearer ${cronSecret}`) {
+    console.log(`[cron-auth] FAIL — header len: ${authHeader?.length ?? "null"}, secret len: ${cronSecret.length}, header prefix: "${authHeader?.slice(0, 10)}", secret source: ${process.env.CRON_SECRET ? "CRON_SECRET" : "JWT_SECRET"}`);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

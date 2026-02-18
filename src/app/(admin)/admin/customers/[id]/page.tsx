@@ -13,6 +13,7 @@ import { RemoveApplicantButton } from "@/components/remove-applicant-button";
 import { getAvatarUrl } from "@/lib/avatar";
 import TierOverrideForm from "./tier-override-form";
 import { ResetOnboardingButton } from "./reset-onboarding-button";
+import { ResetWelcomeButton } from "./reset-welcome-button";
 import { RecalcTierButton } from "./recalc-tier-button";
 import { VerifyCustomerGroupButton } from "./verify-customer-group-button";
 import { DocumentScanActions } from "../../applicants/[id]/document-scan-actions";
@@ -170,6 +171,12 @@ export default async function CustomerDetailPage({
             )}
             <Separator />
             <ResetOnboardingButton accountId={account.id} />
+            <ResetWelcomeButton
+              accountId={account.id}
+              companyName={account.companyName}
+              welcomeExpiresAt={account.welcomeExpiresAt?.toISOString() ?? null}
+              welcomeHours={welcomeConfig.hours}
+            />
           </CardContent>
         </Card>
 

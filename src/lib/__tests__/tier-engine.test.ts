@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { tierFromCount, getTierConfig, TIERS, DEFAULT_TIERS } from "../tier-engine";
+import {
+  tierFromCount,
+  getTierConfig,
+  TIERS,
+  DEFAULT_TIERS,
+  getTierStatusForOrder,
+} from "../tier-engine";
 
 describe("tierFromCount", () => {
   it("returns NONE for 0 orders", async () => {
@@ -70,5 +76,19 @@ describe("TIERS / DEFAULT_TIERS", () => {
     for (let i = 1; i < DEFAULT_TIERS.length; i++) {
       expect(DEFAULT_TIERS[i].minOrders).toBeGreaterThan(DEFAULT_TIERS[i - 1].minOrders);
     }
+  });
+});
+
+describe("getTierStatusForOrder", () => {
+  it("returns excluded for non-qualifying status", () => {
+    const nowIso = new Date().toISOString();
+    expect(getTierStatusForOrder(nowIso, 0, 14)).toBe("excluded");
+  });
+
+  it("uses configurable rolling window", () => {
+    const now = Date.now();
+    const tenDaysAgoIso = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString();
+    expect(getTierStatusForOrder(tenDaysAgoIso, 2, 14)).toBe("counts");
+    expect(getTierStatusForOrder(tenDaysAgoIso, 2, 7)).toBe("expired");
   });
 });

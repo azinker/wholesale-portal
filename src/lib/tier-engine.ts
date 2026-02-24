@@ -2,6 +2,11 @@ import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
 import { formatCouponCode, toAlias } from "@/lib/utils";
+import {
+  DEFAULT_TIER_WINDOW_DAYS,
+  getTierWindowStartDate,
+  normalizeTierWindowDays,
+} from "@/lib/tier-window";
 
 // ── Tier types ──────────────────────────────────────────
 export interface TierDef {
@@ -14,20 +19,22 @@ export interface TierDef {
 /** TierId is now a plain string ("NONE" | "T10" | "T15" | …) */
 export type TierId = string;
 
-// Qualifying status IDs for 7-day tier count (must match recalcTier logic)
+// Qualifying status IDs for rolling-window tier count (must match recalcTier logic)
 export const QUALIFYING_TIER_STATUS_IDS = [2, 3, 10, 14, 11];
 
 /**
- * Returns whether an order counts toward the 7-day tier, has expired from the window, or never counted (wrong status).
+ * Returns whether an order counts toward the current rolling tier window, has expired from
+ * that window, or never counted (wrong status).
  */
 export function getTierStatusForOrder(
   dateCreated: string,
-  statusId: number
+  statusId: number,
+  windowDays: number = DEFAULT_TIER_WINDOW_DAYS
 ): "counts" | "expired" | "excluded" {
   if (!QUALIFYING_TIER_STATUS_IDS.includes(statusId)) return "excluded";
   const orderDate = new Date(dateCreated);
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  return orderDate >= sevenDaysAgo ? "counts" : "expired";
+  const windowStart = getTierWindowStartDate(windowDays);
+  return orderDate >= windowStart ? "counts" : "expired";
 }
 
 // ── Default tiers (fallback when no DB config exists) ──
@@ -75,6 +82,32 @@ export async function saveTiers(tiers: TierDef[]): Promise<void> {
   const row = await db.globalSettings.findUnique({ where: { id: "global" } });
   const existingSettings = (row?.settings as Record<string, unknown>) || {};
   const merged = JSON.parse(JSON.stringify({ ...existingSettings, tiers })) as Prisma.InputJsonValue;
+  await db.globalSettings.upsert({
+    where: { id: "global" },
+    create: { id: "global", settings: merged },
+    update: { settings: merged },
+  });
+}
+
+/** Load rolling window length (days) for tier calculations from GlobalSettings */
+export async function loadTierWindowDays(): Promise<number> {
+  try {
+    const row = await db.globalSettings.findUnique({ where: { id: "global" } });
+    const settings = row?.settings as Record<string, unknown> | null;
+    return normalizeTierWindowDays(settings?.tierWindowDays, DEFAULT_TIER_WINDOW_DAYS);
+  } catch {
+    return DEFAULT_TIER_WINDOW_DAYS;
+  }
+}
+
+/** Save rolling window length (days) for tier calculations to GlobalSettings */
+export async function saveTierWindowDays(windowDays: number): Promise<void> {
+  const normalized = normalizeTierWindowDays(windowDays, DEFAULT_TIER_WINDOW_DAYS);
+  const row = await db.globalSettings.findUnique({ where: { id: "global" } });
+  const existingSettings = (row?.settings as Record<string, unknown>) || {};
+  const merged = JSON.parse(
+    JSON.stringify({ ...existingSettings, tierWindowDays: normalized })
+  ) as Prisma.InputJsonValue;
   await db.globalSettings.upsert({
     where: { id: "global" },
     create: { id: "global", settings: merged },
@@ -132,7 +165,7 @@ export function isWelcomeActive(welcomeExpiresAt: Date | null): boolean {
   return new Date() < welcomeExpiresAt;
 }
 
-/** Determine the tier from a 7-day order count (async, reads DB) */
+/** Determine the tier from the current rolling-window order count (async, reads DB) */
 export async function tierFromCount(count: number): Promise<TierId> {
   const tiers = await loadTiers();
   // Walk tiers from highest to lowest minOrders
@@ -162,26 +195,41 @@ export async function getTierConfig(tierId: TierId): Promise<TierDef | null> {
  * Recalculate tier for a single wholesale account.
  *
  * Steps:
- * 1. Fetch paid orders from BC in the last 7 days for this customer
+ * 1. Fetch paid orders from BC in the configured rolling window for this customer
  * 2. Filter to US-only orders with at least 1 shipment
  * 3. Count qualifying orders
  * 4. Determine new tier
  * 5. If tier changed → create/enable/disable promotions as needed
  * 6. Save snapshot + update account
  */
-export async function recalcTier(accountId: string): Promise<{
+export async function recalcTier(
+  accountId: string,
+  options: { windowDays?: number } = {}
+): Promise<{
   previousTier: TierId;
   newTier: TierId;
   count7d: number;
   changed: boolean;
+  windowDays: number;
 }> {
+  const configuredWindowDays = options.windowDays ?? await loadTierWindowDays();
+  const windowDays = normalizeTierWindowDays(
+    configuredWindowDays,
+    DEFAULT_TIER_WINDOW_DAYS
+  );
   const account = await db.wholesaleAccount.findUnique({
     where: { id: accountId },
     include: { promotions: true },
   });
 
   if (!account || account.status !== "APPROVED" || !account.customerId) {
-    return { previousTier: "NONE", newTier: "NONE", count7d: 0, changed: false };
+    return {
+      previousTier: "NONE",
+      newTier: "NONE",
+      count7d: 0,
+      changed: false,
+      windowDays,
+    };
   }
 
   if (account.pausedUpgrades) {
@@ -193,14 +241,17 @@ export async function recalcTier(accountId: string): Promise<{
       newTier: account.lastTier as TierId,
       count7d: account.lastCount7d,
       changed: false,
+      windowDays,
     };
   }
 
   const previousTier = account.lastTier as TierId;
 
-  // Fetch orders from last 7 days
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const minDate = sevenDaysAgo.toISOString().replace("T", " ").replace("Z", "");
+  // Fetch orders from the configured rolling window
+  const minDate = getTierWindowStartDate(windowDays)
+    .toISOString()
+    .replace("T", " ")
+    .replace("Z", "");
 
   let allOrders: BCOrder[] = [];
   let page = 1;
@@ -284,12 +335,13 @@ export async function recalcTier(accountId: string): Promise<{
           from: previousTier,
           to: newTier,
           count7d: qualifyingCount,
+          windowDays,
         },
       },
     });
   }
 
-  return { previousTier, newTier, count7d: qualifyingCount, changed };
+  return { previousTier, newTier, count7d: qualifyingCount, changed, windowDays };
 }
 
 /**
@@ -482,7 +534,9 @@ export async function recalcAllTiers(): Promise<{
   processed: number;
   changed: number;
   errors: number;
+  windowDays: number;
 }> {
+  const windowDays = await loadTierWindowDays();
   const accounts = await db.wholesaleAccount.findMany({
     where: { status: "APPROVED" },
     select: { id: true },
@@ -494,7 +548,7 @@ export async function recalcAllTiers(): Promise<{
 
   for (const account of accounts) {
     try {
-      const result = await recalcTier(account.id);
+      const result = await recalcTier(account.id, { windowDays });
       processed++;
       if (result.changed) changed++;
     } catch (err) {
@@ -503,5 +557,5 @@ export async function recalcAllTiers(): Promise<{
     }
   }
 
-  return { processed, changed, errors };
+  return { processed, changed, errors, windowDays };
 }

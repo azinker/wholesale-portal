@@ -4,6 +4,8 @@ import { isAdmin } from "@/lib/env";
 import {
   loadTiers,
   saveTiers,
+  loadTierWindowDays,
+  saveTierWindowDays,
   loadWelcomeConfig,
   saveWelcomeConfig,
   recalcAllTiers,
@@ -11,10 +13,14 @@ import {
   type WelcomeDiscountConfig,
 } from "@/lib/tier-engine";
 import { db } from "@/lib/db";
+import {
+  MAX_TIER_WINDOW_DAYS,
+  MIN_TIER_WINDOW_DAYS,
+} from "@/lib/tier-window";
 
 /**
  * GET /api/admin/tier-config
- * Returns the current tier configuration + welcome discount config.
+ * Returns the current tier configuration + rolling window + welcome discount config.
  */
 export async function GET() {
   const user = await getUser();
@@ -23,13 +29,14 @@ export async function GET() {
   }
 
   const tiers = await loadTiers();
+  const windowDays = await loadTierWindowDays();
   const welcome = await loadWelcomeConfig();
-  return NextResponse.json({ tiers, welcome });
+  return NextResponse.json({ tiers, windowDays, welcome });
 }
 
 /**
  * PUT /api/admin/tier-config
- * Saves a new tier configuration and triggers a full recalculation.
+ * Saves a new tier configuration and/or rolling window and triggers a full recalculation.
  */
 export async function PUT(req: NextRequest) {
   const user = await getUser();
@@ -39,9 +46,10 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { tiers, welcome } = body as {
+    const { tiers, welcome, windowDays } = body as {
       tiers: TierDef[];
       welcome?: WelcomeDiscountConfig;
+      windowDays?: number;
     };
 
     // ── Validate ────────────────────────────────────────
@@ -87,11 +95,33 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: errors.join(" ") }, { status: 400 });
     }
 
+    const currentWindowDays = await loadTierWindowDays();
+    let normalizedWindowDays = currentWindowDays;
+    if (windowDays !== undefined) {
+      const parsedWindowDays = Number(windowDays);
+      if (
+        !Number.isInteger(parsedWindowDays) ||
+        parsedWindowDays < MIN_TIER_WINDOW_DAYS ||
+        parsedWindowDays > MAX_TIER_WINDOW_DAYS
+      ) {
+        return NextResponse.json(
+          {
+            error: `Rolling window must be an integer between ${MIN_TIER_WINDOW_DAYS} and ${MAX_TIER_WINDOW_DAYS} days.`,
+          },
+          { status: 400 }
+        );
+      }
+      normalizedWindowDays = parsedWindowDays;
+    }
+
     // Sort by minOrders ascending before saving
     const sorted = [...tiers].sort((a, b) => a.minOrders - b.minOrders);
 
     // ── Save ────────────────────────────────────────────
     await saveTiers(sorted);
+    if (windowDays !== undefined) {
+      await saveTierWindowDays(normalizedWindowDays);
+    }
 
     // Save welcome config if provided
     if (welcome) {
@@ -103,7 +133,9 @@ export async function PUT(req: NextRequest) {
       data: {
         actorEmail: user.email,
         action: "tier_config_updated",
-        details: JSON.parse(JSON.stringify({ tiers: sorted })),
+        details: JSON.parse(
+          JSON.stringify({ tiers: sorted, windowDays: normalizedWindowDays })
+        ),
       },
     });
 
@@ -113,6 +145,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({
       success: true,
       tiers: sorted,
+      windowDays: normalizedWindowDays,
       recalc: recalcResult,
     });
   } catch (error) {

@@ -53,7 +53,7 @@ export function TermsOfServiceContent() {
       <p>
         <strong>2.1 Tiered Discount Structure.</strong> Wholesale discounts are
         provided through a tiered system based on your qualifying order volume within
-        a rolling 7-day window. Tier thresholds, discount percentages, and
+        a rolling evaluation window. Tier thresholds, discount percentages, and
         eligibility criteria are determined solely by the Company and may be changed
         at any time without prior notice.
       </p>

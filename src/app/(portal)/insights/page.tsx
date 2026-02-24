@@ -2,7 +2,8 @@ import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
-import { loadTiers, type TierId } from "@/lib/tier-engine";
+import { loadTierWindowDays, loadTiers, type TierId } from "@/lib/tier-engine";
+import { formatTierWindowLabel, getTierWindowStartDate } from "@/lib/tier-window";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -62,10 +63,12 @@ export default async function InsightsPage() {
     where: { accountId: account.id, enabled: true },
     select: { code: true, tier: true },
   });
+  const tierWindowDays = await loadTierWindowDays();
+  const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
 
   // ── Compute statistics ──────────────────────────────────
   const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const tierWindowStart = getTierWindowStartDate(tierWindowDays, now.getTime());
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   // Parse order dates and totals
@@ -76,7 +79,7 @@ export default async function InsightsPage() {
     _items: o.items_total || 0,
   }));
 
-  const orders7d = parsed.filter((o) => o._date >= sevenDaysAgo);
+  const orders7d = parsed.filter((o) => o._date >= tierWindowStart);
   const orders30d = parsed.filter((o) => o._date >= thirtyDaysAgo);
 
   const totalOrders = parsed.length;
@@ -120,7 +123,7 @@ export default async function InsightsPage() {
   const ordersToNext = nextTier ? Math.max(nextTier.minOrders - count7d, 0) : 0;
   const progressPct = nextTier ? Math.min((count7d / nextTier.minOrders) * 100, 100) : 100;
 
-  // Best 7d streak from snapshots
+  // Best rolling-window streak from snapshots
   const bestStreak = snapshots.length > 0 ? Math.max(...snapshots.map((s) => s.paidOrders7d)) : count7d;
 
   // Estimated monthly savings (based on current tier discount)
@@ -143,13 +146,13 @@ export default async function InsightsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           icon={<ShoppingCart className="h-4 w-4" />}
-          label="Orders (7 days)"
+          label={`Orders (${tierWindowLabel})`}
           value={String(orders7d.length)}
           subtext={`${count7d} qualifying`}
         />
         <MetricCard
           icon={<DollarSign className="h-4 w-4" />}
-          label="Revenue (7 days)"
+          label={`Revenue (${tierWindowLabel})`}
           value={`$${revenue7d.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         />
         <MetricCard
@@ -204,7 +207,7 @@ export default async function InsightsPage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 {ordersToNext > 0
-                  ? <>You need <strong className="text-foreground">{ordersToNext} more qualifying orders</strong> in the next 7-day window to unlock <strong>{nextTier.discount}% off</strong>.</>
+                  ? <>You need <strong className="text-foreground">{ordersToNext} more qualifying orders</strong> in the next {tierWindowLabel} window to unlock <strong>{nextTier.discount}% off</strong>.</>
                   : <>You&apos;ve met the threshold! Your tier will update on the next recalculation cycle.</>
                 }
               </p>
@@ -250,7 +253,7 @@ export default async function InsightsPage() {
             <Separator />
             <StatRow label="Revenue (Last 30 Days)" value={`$${revenue30d.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
             <Separator />
-            <StatRow label="Avg. Order (Last 7 Days)" value={`$${avgOrder7d.toFixed(2)}`} />
+            <StatRow label={`Avg. Order (Last ${tierWindowLabel})`} value={`$${avgOrder7d.toFixed(2)}`} />
             <Separator />
             <StatRow label="Avg. Order (Last 30 Days)" value={`$${avgOrder30d.toFixed(2)}`} />
             <Separator />
@@ -275,9 +278,9 @@ export default async function InsightsPage() {
             <Separator />
             <StatRow label="Active Promo Code" value={activePromo?.code || "None"} mono />
             <Separator />
-            <StatRow label="Best 7-Day Streak" value={`${bestStreak} orders`} />
+            <StatRow label={`Best ${tierWindowDays}-Day Streak`} value={`${bestStreak} orders`} />
             <Separator />
-            <StatRow label="Current 7-Day Count" value={`${count7d} orders`} />
+            <StatRow label={`Current ${tierWindowDays}-Day Count`} value={`${count7d} orders`} />
             <Separator />
             {mostRecent && (
               <>
@@ -299,7 +302,7 @@ export default async function InsightsPage() {
               Tier History
             </CardTitle>
             <CardDescription>
-              Your recent tier snapshots showing 7-day performance over time.
+              Your recent tier snapshots showing {tierWindowLabel} performance over time.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -327,7 +330,7 @@ export default async function InsightsPage() {
             <div className="space-y-2">
               <p className="font-medium">Tips to Maximize Your Wholesale Benefits</p>
               <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
-                <li>Qualifying orders must be <strong>shipped or completed</strong> within a rolling 7-day window.</li>
+                <li>Qualifying orders must be <strong>shipped or completed</strong> within a rolling {tierWindowLabel} window.</li>
                 <li>Consolidate purchases early in the week to hit tier thresholds faster.</li>
                 {nextTier && <li>At your current pace, focus on {ordersToNext} more orders to unlock {nextTier.discount}% off.</li>}
                 <li>Your promo code stacks with free Flat Rate shipping on US orders.</li>

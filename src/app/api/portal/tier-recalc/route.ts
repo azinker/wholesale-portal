@@ -46,6 +46,7 @@ export async function GET() {
       newTier: result.newTier,
       count7d: result.count7d,
       changed: result.changed,
+      windowDays: result.windowDays,
     });
   } catch (err) {
     console.error("Portal tier recalc error:", err);

@@ -1,7 +1,8 @@
 import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
-import { getTierStatusForOrder, loadTiers } from "@/lib/tier-engine";
+import { getTierStatusForOrder, loadTierWindowDays, loadTiers } from "@/lib/tier-engine";
+import { formatTierWindowLabel } from "@/lib/tier-window";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { OrdersTable } from "./orders-table";
@@ -39,6 +40,8 @@ export default async function OrdersPage({
 
   // If we got a full page of results, there might be more
   const hasMore = orders.length >= ORDERS_PER_PAGE;
+  const tierWindowDays = await loadTierWindowDays();
+  const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
 
   // Tier progress (approved wholesale accounts only)
   const account = user.wholesaleAccount;
@@ -78,7 +81,7 @@ export default async function OrdersPage({
       count,
       targetOrders: targetOrders === Infinity ? 0 : targetOrders,
       progress,
-      currentTierLabel: currentTier?.label ?? account.lastTier === "WELCOME" ? "Welcome" : "None",
+      currentTierLabel: currentTier?.label ?? (account.lastTier === "WELCOME" ? "Welcome" : "None"),
       nextTierLabel: nextTier?.label ?? null,
       ordersToNext: nextTier ? Math.max(nextTier.min - count, 0) : 0,
     };
@@ -101,7 +104,7 @@ export default async function OrdersPage({
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              Tier progress (last 7 days)
+              Tier progress (last {tierWindowLabel})
             </CardTitle>
             <CardDescription>
               <span className="font-mono font-medium text-foreground">{tierProgress.count}</span>
@@ -178,10 +181,11 @@ export default async function OrdersPage({
             status: o.status,
             items_total: o.items_total,
             total_inc_tax: o.total_inc_tax,
-            tierStatus: getTierStatusForOrder(o.date_created, o.status_id),
+            tierStatus: getTierStatusForOrder(o.date_created, o.status_id, tierWindowDays),
           }))}
           currentPage={currentPage}
           hasMore={hasMore}
+          windowDays={tierWindowDays}
         />
       )}
     </div>

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { loadTiers, type TierId } from "@/lib/tier-engine";
+import { loadTierWindowDays, loadTiers, type TierId } from "@/lib/tier-engine";
+import { formatTierWindowLabel } from "@/lib/tier-window";
 
 export interface PortalNotification {
   id: string;
@@ -29,6 +30,8 @@ export async function GET() {
   // ── Tier progress notifications ──────────────────────────
   const currentTier = account.lastTier as TierId;
   const count7d = account.lastCount7d;
+  const windowDays = await loadTierWindowDays();
+  const windowLabel = formatTierWindowLabel(windowDays);
 
   // Find the next tier
   const TIERS = await loadTiers();
@@ -56,7 +59,7 @@ export async function GET() {
           id: "tier-almost",
           type: "tier_progress",
           title: "Almost there!",
-          message: `Just ${ordersNeeded} more order${ordersNeeded === 1 ? "" : "s"} in the next 7 days to unlock ${nextTier.discount}% off!`,
+          message: `Just ${ordersNeeded} more order${ordersNeeded === 1 ? "" : "s"} in the next ${windowLabel} to unlock ${nextTier.discount}% off!`,
           variant: "warning",
         });
       } else if (ordersNeeded <= 15) {
@@ -72,7 +75,7 @@ export async function GET() {
           id: "tier-goal",
           type: "tier_progress",
           title: "Next Tier Goal",
-          message: `Reach ${nextTier.minOrders} orders in 7 days to unlock ${nextTier.discount}% off. You have ${count7d} so far.`,
+          message: `Reach ${nextTier.minOrders} orders in ${windowLabel} to unlock ${nextTier.discount}% off. You have ${count7d} so far.`,
           variant: "default",
         });
       }
@@ -97,7 +100,7 @@ export async function GET() {
       id: "encouragement",
       type: "encouragement",
       title: "Keep it up!",
-      message: `You've placed ${count7d} qualifying order${count7d === 1 ? "" : "s"} this week. Every order counts toward your next tier!`,
+      message: `You've placed ${count7d} qualifying order${count7d === 1 ? "" : "s"} in the current ${windowLabel} window. Every order counts toward your next tier!`,
       variant: "info",
     });
   }

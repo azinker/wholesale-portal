@@ -10,6 +10,7 @@ import TierRecalcButton from "./tier-recalc-button";
 import RecreatePromotionsButton from "./recreate-promotions-button";
 import { getAvatarUrls } from "@/lib/avatar";
 import { EnrollCustomerForm } from "./enroll-customer-form";
+import { loadTierWindowDays } from "@/lib/tier-engine";
 
 /** Get initials from a company name */
 function getInitials(name: string): string {
@@ -21,6 +22,7 @@ function getInitials(name: string): string {
 }
 
 export default async function CustomersPage() {
+  const tierWindowDays = await loadTierWindowDays();
   const customers = await db.wholesaleAccount.findMany({
     where: { status: "APPROVED" },
     orderBy: { approvedAt: "desc" },
@@ -75,7 +77,7 @@ export default async function CustomersPage() {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-4 py-3 font-medium">Customer</th>
                   <th className="text-left px-4 py-3 font-medium">Tier</th>
-                  <th className="text-left px-4 py-3 font-medium">7d Orders</th>
+                  <th className="text-left px-4 py-3 font-medium">{tierWindowDays}d Orders</th>
                   <th className="text-left px-4 py-3 font-medium">Active Code</th>
                   <th className="text-left px-4 py-3 font-medium">BC ID</th>
                   <th className="text-left px-4 py-3 font-medium"></th>

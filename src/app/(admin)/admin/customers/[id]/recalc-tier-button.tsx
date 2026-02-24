@@ -10,6 +10,7 @@ export function RecalcTierButton({ accountId }: { accountId: string }) {
     newTier: string;
     count7d: number;
     changed: boolean;
+    windowDays?: number;
   } | null>(null);
   const [error, setError] = useState("");
 
@@ -35,6 +36,7 @@ export function RecalcTierButton({ accountId }: { accountId: string }) {
         newTier: data.newTier,
         count7d: data.count7d,
         changed: data.changed,
+        windowDays: data.windowDays,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to recalculate tier");
@@ -63,7 +65,7 @@ export function RecalcTierButton({ accountId }: { accountId: string }) {
         <div className="rounded-md bg-muted p-2 text-xs space-y-0.5">
           <p className="flex items-center gap-1">
             <CheckCircle className="h-3 w-3 text-green-500" />
-            Tier: <strong>{result.newTier}</strong> ({result.count7d} qualifying orders)
+            Tier: <strong>{result.newTier}</strong> ({result.count7d} qualifying orders / {result.windowDays ?? 7}d)
           </p>
           {result.changed && (
             <p className="text-primary font-medium">Tier was updated!</p>

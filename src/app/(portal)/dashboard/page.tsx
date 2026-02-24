@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign } from "lucide-react";
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
-import { loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
+import { loadTierWindowDays, loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
+import { formatTierWindowLabel } from "@/lib/tier-window";
 import { DashboardOnboarding } from "./dashboard-onboarding";
 import { CopyCouponButton } from "./copy-coupon-button";
 import { WelcomeCountdown } from "./welcome-countdown";
@@ -219,8 +220,9 @@ async function ApprovedDashboardWrapper({
 }) {
   const tierDefs = await loadTiers();
   const welcomeConfig = await loadWelcomeConfig();
+  const tierWindowDays = await loadTierWindowDays();
   const welcomeActive = welcomeExpiresAt ? isWelcomeActive(new Date(welcomeExpiresAt)) : false;
-  // Which tier will activate when welcome ends: based on current 7-day count and admin-defined tier ranges.
+  // Which tier will activate when welcome ends: based on current rolling-window count and admin-defined tier ranges.
   // If count is below the first tier's min (e.g. < 5), earned is "NONE" → we pass null so no tier box shows "activates when welcome ends".
   const earnedRaw =
     account.lastTier === "WELCOME" && welcomeActive
@@ -237,6 +239,7 @@ async function ApprovedDashboardWrapper({
       welcomeExpiresAt={welcomeActive ? welcomeExpiresAt : null}
       welcomeDiscount={welcomeConfig.discount}
       earnedTierIdWhenWelcome={earnedTierIdWhenWelcome}
+      tierWindowDays={tierWindowDays}
       storeCredit={storeCredit}
     />
   );
@@ -250,6 +253,7 @@ function ApprovedDashboard({
   welcomeExpiresAt,
   welcomeDiscount,
   earnedTierIdWhenWelcome,
+  tierWindowDays,
   storeCredit,
 }: {
   account: {
@@ -265,7 +269,10 @@ function ApprovedDashboard({
   storeCredit: number;
   welcomeDiscount: number;
   earnedTierIdWhenWelcome: string | null;
+  tierWindowDays: number;
 }) {
+  const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
+
   // Build display tiers with min/max from sorted tier definitions
   const sorted = [...tierDefs].sort((a, b) => a.minOrders - b.minOrders);
   const tiers = sorted.map((t, i) => ({
@@ -377,7 +384,7 @@ function ApprovedDashboard({
               <div>
                 <h3 className="text-sm font-semibold">No Active Coupon</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Reach {tiers[0]?.min ?? 5} qualifying orders in 7 days to unlock your first coupon code ({tiers[0]?.label ?? "10% Off"}).
+                  Reach {tiers[0]?.min ?? 5} qualifying orders in {tierWindowLabel} to unlock your first coupon code ({tiers[0]?.label ?? "10% Off"}).
                 </p>
               </div>
             </div>
@@ -430,7 +437,7 @@ function ApprovedDashboard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            Your Progress (Last 7 Days)
+            Your Progress (Last {tierWindowLabel})
           </CardTitle>
           <CardDescription>
             {count} / {targetOrders === Infinity ? "\u221E" : targetOrders} qualifying orders
@@ -456,7 +463,7 @@ function ApprovedDashboard({
         </CardContent>
       </Card>
 
-      {/* Tier Cards — "Activates when welcome ends" is shown only on the tier whose order range (from admin config) contains the user's 7-day count. */}
+      {/* Tier cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {tiers.map((tier) => {
           const isActive = account.lastTier === tier.id;
@@ -513,7 +520,7 @@ function ApprovedDashboard({
                 </div>
                 <h3 className="text-2xl font-bold">{tier.discount}% Off</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {tier.min}&ndash;{tier.max === Infinity ? "\u221E" : tier.max} orders / 7 days
+                  {tier.min}&ndash;{tier.max === Infinity ? "\u221E" : tier.max} orders / {tierWindowLabel}
                 </p>
                 {activatesWhenWelcomeEnds && welcomeExpiresAt && (
                   <div className="mt-2">

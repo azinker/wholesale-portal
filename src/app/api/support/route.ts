@@ -3,6 +3,8 @@ import { getUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { sendSupportConfirmation } from "@/lib/email";
 import { Resend } from "resend";
+import { loadTierWindowDays } from "@/lib/tier-engine";
+import { formatTierWindowLabel } from "@/lib/tier-window";
 
 const URGENCY_LABELS: Record<string, string> = {
   low: "Low — General question",
@@ -70,6 +72,8 @@ export async function POST(req: NextRequest) {
   }
 
   const account = user.wholesaleAccount;
+  const tierWindowDays = await loadTierWindowDays();
+  const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
   const urgencyLabel = URGENCY_LABELS[urgency] || urgency;
   const urgencyColor = URGENCY_COLORS[urgency] || "#555";
   const categoryLabel = (category && CATEGORY_LABELS[category]) ? CATEGORY_LABELS[category] : (category || "General Inquiry");
@@ -118,7 +122,7 @@ export async function POST(req: NextRequest) {
             </tr>
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">Tier</td>
-              <td style="padding: 6px 0;">${account.lastTier} (${account.lastCount7d} orders / 7d)</td>
+              <td style="padding: 6px 0;">${account.lastTier} (${account.lastCount7d} orders / ${tierWindowLabel})</td>
             </tr>
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">BC Customer ID</td>

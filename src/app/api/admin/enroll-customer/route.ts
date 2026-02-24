@@ -6,12 +6,14 @@ import { sendNewApplicantNotification } from "@/lib/email";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
 import { Prisma } from "@prisma/client";
 import {
-  recalcTier,
   loadWelcomeConfig,
+  loadTierWindowDays,
+  QUALIFYING_TIER_STATUS_IDS,
   ensurePromoForTier,
   tierFromCount,
   getTierConfig,
 } from "@/lib/tier-engine";
+import { getTierWindowStartDate } from "@/lib/tier-window";
 
 const WHOLESALE_GROUP_NAME = "Wholesale";
 
@@ -102,13 +104,16 @@ export async function POST(req: NextRequest) {
 
     // Step 4: Check existing order history to decide welcome vs earned tier
     const welcomeCfg = await loadWelcomeConfig();
+    const windowDays = await loadTierWindowDays();
     let initialTier = "NONE";
     let welcomeExpiresAt: Date | null = null;
     let qualifyingCount = 0;
 
     try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const minDate = sevenDaysAgo.toISOString().replace("T", " ").replace("Z", "");
+      const minDate = getTierWindowStartDate(windowDays)
+        .toISOString()
+        .replace("T", " ")
+        .replace("Z", "");
       let allOrders: BCOrder[] = [];
       let page = 1;
       const limit = 250;
@@ -124,9 +129,8 @@ export async function POST(req: NextRequest) {
         if (orders.length < limit) break;
         page++;
       }
-      const qualifyingStatusIds = [2, 3, 10, 14];
       qualifyingCount = allOrders.filter((o) =>
-        qualifyingStatusIds.includes(o.status_id)
+        QUALIFYING_TIER_STATUS_IDS.includes(o.status_id)
       ).length;
     } catch (err) {
       console.warn("Could not fetch order history on enrollment:", err);

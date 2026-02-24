@@ -24,6 +24,8 @@ import {
   Award,
 } from "lucide-react";
 import { getAvatarUrls } from "@/lib/avatar";
+import { loadTierWindowDays } from "@/lib/tier-engine";
+import { formatTierWindowLabel } from "@/lib/tier-window";
 
 function getInitials(name: string): string {
   const words = name.trim().split(/\s+/);
@@ -41,6 +43,7 @@ export default async function AdminDashboardPage() {
     pendingInfoChanges,
     recentLogs,
     topCustomers,
+    tierWindowDays,
   ] = await Promise.all([
     db.wholesaleAccount.count(),
     db.wholesaleAccount.count({ where: { status: "PENDING" } }),
@@ -73,7 +76,9 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
+    loadTierWindowDays(),
   ]);
+  const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
 
   // Batch-fetch avatar URLs
   const avatarMap = await getAvatarUrls(
@@ -192,12 +197,12 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Total 7-Day Orders (all customers)</span>
+              <span className="text-muted-foreground">Total {tierWindowDays}-Day Orders (all customers)</span>
               <span className="font-bold text-lg">{totalCurrent7dOrders}</span>
             </div>
             <Separator />
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Avg Orders per Customer (7d)</span>
+              <span className="text-muted-foreground">Avg Orders per Customer ({tierWindowDays}d)</span>
               <span className="font-mono">
                 {approvedCount > 0 ? (totalCurrent7dOrders / approvedCount).toFixed(1) : "0"}
               </span>
@@ -236,7 +241,7 @@ export default async function AdminDashboardPage() {
             Top Wholesalers
           </CardTitle>
           <CardDescription>
-            Your most active wholesale customers ranked by current 7-day order volume.
+            Your most active wholesale customers ranked by current {tierWindowLabel} order volume.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -252,9 +257,9 @@ export default async function AdminDashboardPage() {
                     <th className="text-left px-4 py-3 font-medium w-8">#</th>
                     <th className="text-left px-4 py-3 font-medium">Customer</th>
                     <th className="text-left px-4 py-3 font-medium">Tier</th>
-                    <th className="text-right px-4 py-3 font-medium">7d Orders</th>
-                    <th className="text-right px-4 py-3 font-medium">Peak 7d</th>
-                    <th className="text-right px-4 py-3 font-medium">Avg 7d</th>
+                    <th className="text-right px-4 py-3 font-medium">{tierWindowDays}d Orders</th>
+                    <th className="text-right px-4 py-3 font-medium">Peak {tierWindowDays}d</th>
+                    <th className="text-right px-4 py-3 font-medium">Avg {tierWindowDays}d</th>
                     <th className="text-right px-4 py-3 font-medium">Tier %</th>
                     <th className="text-left px-4 py-3 font-medium">Active Code</th>
                     <th className="text-right px-4 py-3 font-medium">Days Active</th>

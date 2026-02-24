@@ -203,6 +203,7 @@ function fromRows(rows: TierRow[]) {
 
 function TierSettingsCard() {
   const [rows, setRows] = useState<TierRow[]>([]);
+  const [windowDays, setWindowDays] = useState("7");
   const [savedJson, setSavedJson] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -213,8 +214,15 @@ function TierSettingsCard() {
       if (res.ok) {
         const data = await res.json();
         const initial = toRows(data.tiers || []);
+        const initialWindowDays = String(data.windowDays ?? 7);
         setRows(initial);
-        setSavedJson(JSON.stringify(fromRows(initial)));
+        setWindowDays(initialWindowDays);
+        setSavedJson(
+          JSON.stringify({
+            tiers: fromRows(initial),
+            windowDays: initialWindowDays,
+          })
+        );
       }
     } catch {
       toast.error("Failed to load tier configuration");
@@ -227,8 +235,15 @@ function TierSettingsCard() {
     fetchTiers();
   }, [fetchTiers]);
 
-  const currentJson = JSON.stringify(fromRows(rows));
+  const currentJson = JSON.stringify({
+    tiers: fromRows(rows),
+    windowDays,
+  });
   const hasChanges = currentJson !== savedJson;
+  const windowDaysNum = Number(windowDays);
+  const windowLabel = Number.isFinite(windowDaysNum) && windowDaysNum > 0
+    ? `${Math.floor(windowDaysNum)} day${Math.floor(windowDaysNum) === 1 ? "" : "s"}`
+    : "rolling window";
 
   function updateRow(key: number, field: "minOrders" | "discount", value: string) {
     setRows((prev) =>
@@ -253,6 +268,12 @@ function TierSettingsCard() {
 
   async function handleSave() {
     const tiers = fromRows(rows);
+    const parsedWindowDays = Number(windowDays);
+
+    if (!Number.isInteger(parsedWindowDays) || parsedWindowDays < 1 || parsedWindowDays > 365) {
+      toast.error("Rolling window must be a whole number between 1 and 365 days.");
+      return;
+    }
 
     // Validate
     for (let i = 0; i < tiers.length; i++) {
@@ -282,7 +303,7 @@ function TierSettingsCard() {
       const res = await fetch("/api/admin/tier-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tiers }),
+        body: JSON.stringify({ tiers, windowDays: parsedWindowDays }),
       });
 
       if (!res.ok) {
@@ -292,10 +313,17 @@ function TierSettingsCard() {
 
       const data = await res.json();
       const newRows = toRows(data.tiers);
+      const savedWindowDays = String(data.windowDays ?? parsedWindowDays);
       setRows(newRows);
-      setSavedJson(JSON.stringify(fromRows(newRows)));
+      setWindowDays(savedWindowDays);
+      setSavedJson(
+        JSON.stringify({
+          tiers: fromRows(newRows),
+          windowDays: savedWindowDays,
+        })
+      );
       toast.success("Tier configuration saved!", {
-        description: `${data.recalc.processed} accounts recalculated, ${data.recalc.changed} changed.`,
+        description: `${data.recalc.processed} accounts recalculated (${savedWindowDays}-day window), ${data.recalc.changed} changed.`,
       });
     } catch (err) {
       toast.error("Failed to save tier configuration", {
@@ -334,10 +362,30 @@ function TierSettingsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="grid gap-2 max-w-xs">
+          <Label htmlFor="tier-window-days" className="text-xs text-muted-foreground">
+            Rolling Window (Days)
+          </Label>
+          <Input
+            id="tier-window-days"
+            type="number"
+            min={1}
+            max={365}
+            value={windowDays}
+            onChange={(e) => setWindowDays(e.target.value)}
+            className="h-9 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Tier thresholds are evaluated using a rolling {windowLabel}.
+          </p>
+        </div>
+
+        <Separator />
+
         {/* Column headers */}
         <div className="grid grid-cols-[1fr_1fr_1fr_40px] gap-3 px-3 text-xs font-medium text-muted-foreground">
           <span>Tier</span>
-          <span>Min Orders (7 days)</span>
+          <span>Min Orders ({windowLabel})</span>
           <span>Discount %</span>
           <span></span>
         </div>
@@ -564,7 +612,7 @@ function WelcomeDiscountCard() {
         </CardTitle>
         <CardDescription>
           Offer newly approved applicants a limited-time discount to encourage their first orders.
-          After expiration, the applicant&apos;s discount is based on their 7-day order volume.
+          After expiration, the applicant&apos;s discount is based on their configured rolling order volume.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

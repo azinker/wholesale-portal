@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, ExternalLink, ShieldCheck, Clock, Package, Zap, UserPlus, FileText, Download } from "lucide-react";
-import { loadTiers, getTierConfig, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
+import { loadTierWindowDays, loadTiers, getTierConfig, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
+import { formatTierWindowLabel } from "@/lib/tier-window";
 import { ImpersonateButton } from "@/components/impersonate-button";
 import { RemoveApplicantButton } from "@/components/remove-applicant-button";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -61,6 +62,8 @@ export default async function CustomerDetailPage({
   // Welcome discount info
   const welcomeActive = isWelcomeActive(account.welcomeExpiresAt);
   const welcomeConfig = await loadWelcomeConfig();
+  const tierWindowDays = await loadTierWindowDays();
+  const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
 
   // Check if this customer was manually enrolled by an admin
   const enrollAudit = await db.auditLog.findFirst({
@@ -188,7 +191,7 @@ export default async function CustomerDetailPage({
               Current Tier
             </CardTitle>
             <CardDescription>
-              7-day rolling window: {account.lastCount7d} qualifying orders
+              {tierWindowLabel} rolling window: {account.lastCount7d} qualifying orders
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -243,7 +246,7 @@ export default async function CustomerDetailPage({
             )}
             <Separator />
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">7-Day Qualifying Count: <strong className="text-foreground">{account.lastCount7d}</strong></p>
+              <p className="text-xs text-muted-foreground">{tierWindowLabel} qualifying count: <strong className="text-foreground">{account.lastCount7d}</strong></p>
               <div className="flex gap-2">
                 <RecalcTierButton accountId={account.id} />
                 <VerifyCustomerGroupButton accountId={account.id} />
@@ -407,7 +410,7 @@ export default async function CustomerDetailPage({
                   <tr className="border-b bg-muted/50">
                     <th className="text-left px-4 py-2.5 font-medium">Date</th>
                     <th className="text-left px-4 py-2.5 font-medium">Tier</th>
-                    <th className="text-left px-4 py-2.5 font-medium">7d Orders</th>
+                    <th className="text-left px-4 py-2.5 font-medium">{tierWindowDays}d Orders</th>
                     <th className="text-left px-4 py-2.5 font-medium">Promo Code</th>
                   </tr>
                 </thead>

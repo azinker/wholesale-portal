@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       newTier: result.newTier,
       count7d: result.count7d,
       changed: result.changed,
+      windowDays: result.windowDays,
     });
   } catch (error) {
     console.error("Manual tier recalc error:", error);

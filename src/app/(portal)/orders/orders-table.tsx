@@ -26,10 +26,12 @@ export function OrdersTable({
   orders,
   currentPage,
   hasMore,
+  windowDays,
 }: {
   orders: OrderRow[];
   currentPage: number;
   hasMore: boolean;
+  windowDays: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -118,7 +120,7 @@ export function OrdersTable({
                 <SortHeader field="id" className="text-left">Order #</SortHeader>
                 <SortHeader field="date_created" className="text-left">Date</SortHeader>
                 <SortHeader field="status" className="text-left">Status</SortHeader>
-                <th className="text-left px-4 py-3 font-medium" title="Whether this order counts toward your 7-day discount tier">
+                <th className="text-left px-4 py-3 font-medium" title={`Whether this order counts toward your ${windowDays}-day discount tier`}>
                   Counts for tier
                 </th>
                 <SortHeader field="items_total" className="text-left">Items</SortHeader>

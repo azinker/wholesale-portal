@@ -7,10 +7,12 @@ import { Separator } from "@/components/ui/separator";
 import { UserCircle, Building2, Mail } from "lucide-react";
 import AvatarUploader from "./avatar-uploader";
 import BusinessInfoForm from "./business-info-form";
+import { loadTierWindowDays } from "@/lib/tier-engine";
 
 export default async function ProfilePage() {
   const user = await getUser();
   if (!user) redirect("/");
+  const tierWindowDays = await loadTierWindowDays();
 
   const account = user.wholesaleAccount;
 
@@ -87,7 +89,7 @@ export default async function ProfilePage() {
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">7-Day Orders</span>
+                <span className="text-sm text-muted-foreground">{tierWindowDays}-Day Orders</span>
                 <span className="text-sm font-mono">{account.lastCount7d}</span>
               </div>
             </>

@@ -14,6 +14,7 @@ import { CopyCouponButton } from "./copy-coupon-button";
 import { WelcomeCountdown } from "./welcome-countdown";
 import { TierActivatesCountdown } from "./tier-activates-countdown";
 import { DashboardRecalcTrigger } from "./dashboard-recalc-trigger";
+import { RollingWindowHelpDialog } from "./rolling-window-help-dialog";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -492,6 +493,14 @@ function ApprovedDashboard({
           <p>
             If your qualifying order count drops below a tier threshold, your discount will adjust down on the next recalculation.
           </p>
+          <RollingWindowHelpDialog
+            tierWindowLabel={tierWindowLabel}
+            count={count}
+            currentTierLabel={currentTier?.label ?? (account.lastTier === "WELCOME" ? "Welcome" : "None")}
+            nextTierLabel={nextTier?.label ?? null}
+            nextTierMin={nextTier?.min ?? null}
+            ranges={tiers.map((t) => ({ label: t.label, min: t.min, max: t.max }))}
+          />
         </CardContent>
       </Card>
 

@@ -315,7 +315,7 @@ function ApprovedDashboard({
   return (
     <>
       {/* Welcome Discount Countdown */}
-      {welcomeExpiresAt && (
+      {isWelcomeTier && welcomeExpiresAt && (
         <Card className="border-purple-400/40 bg-gradient-to-r from-purple-50 to-fuchsia-50">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start gap-4">
@@ -460,6 +460,38 @@ function ApprovedDashboard({
               Maximum tier reached! ({currentTier.label})
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Rolling Window Explanation */}
+      <Card className="border-primary/25 bg-primary/[0.03]">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">How Your {tierWindowLabel} Tier Window Works</CardTitle>
+          <CardDescription>
+            You currently have <strong>{count}</strong> qualifying order{count === 1 ? "" : "s"} in the last {tierWindowLabel}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            Your discount tier is based on a rolling {tierWindowLabel} window. As new orders are added, older orders drop out once they are older than {tierWindowLabel}.
+          </p>
+          {currentTier && (
+            <p>
+              Current tier: <strong className="text-foreground">{currentTier.label}</strong>.
+            </p>
+          )}
+          {nextTier ? (
+            <p>
+              To reach <strong className="text-foreground">{nextTier.label}</strong>, you need <strong className="text-foreground">{Math.max(nextTier.min - count, 0)}</strong> more qualifying order{Math.max(nextTier.min - count, 0) === 1 ? "" : "s"} before older orders age out.
+            </p>
+          ) : (
+            <p>
+              You are at the highest tier right now. Keep steady order volume in each rolling {tierWindowLabel} period to maintain it.
+            </p>
+          )}
+          <p>
+            If your qualifying order count drops below a tier threshold, your discount will adjust down on the next recalculation.
+          </p>
         </CardContent>
       </Card>
 

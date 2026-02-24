@@ -204,7 +204,7 @@ export async function getTierConfig(tierId: TierId): Promise<TierDef | null> {
  */
 export async function recalcTier(
   accountId: string,
-  options: { windowDays?: number } = {}
+  options: { windowDays?: number; ignorePausedUpgrades?: boolean } = {}
 ): Promise<{
   previousTier: TierId;
   newTier: TierId;
@@ -232,7 +232,7 @@ export async function recalcTier(
     };
   }
 
-  if (account.pausedUpgrades) {
+  if (account.pausedUpgrades && !options.ignorePausedUpgrades) {
     // Tier is locked by admin — don't change it, but still ensure the
     // promotion exists (retries BC API if a previous attempt failed).
     await ensurePromoForTier(account.id, account.alias, account.lastTier as TierId);
@@ -315,6 +315,11 @@ export async function recalcTier(
     data: {
       lastTier: newTier,
       lastCount7d: qualifyingCount,
+      // Once earned tier is equal/higher (or welcome has ended), clear welcome expiry
+      // so welcome messaging no longer appears.
+      welcomeExpiresAt: account.welcomeExpiresAt && newTier !== "WELCOME"
+        ? null
+        : undefined,
     },
   });
 

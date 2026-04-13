@@ -95,7 +95,7 @@ export default async function DashboardPage() {
               <p className="font-semibold text-info">Retail Account</p>
               <p className="text-sm text-muted-foreground mt-1">
                 You&apos;re currently shopping at retail prices.{" "}
-                <Link href="/apply" className="text-info font-medium underline underline-offset-2">
+                <Link href="/" className="text-info font-medium underline underline-offset-2">
                   Apply for a wholesale account
                 </Link>{" "}
                 to unlock tiered discounts.

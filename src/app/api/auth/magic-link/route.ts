@@ -40,14 +40,14 @@ export async function POST(req: NextRequest) {
 
     if (!email || !email.includes("@")) {
       return NextResponse.redirect(
-        new URL("/?error=invalid_email", req.url)
+        new URL("/login?error=invalid_email", req.url)
       );
     }
 
     // Rate limit check
     if (!checkRateLimit(email)) {
       return NextResponse.redirect(
-        new URL("/?error=rate_limited", req.url)
+        new URL("/login?error=rate_limited", req.url)
       );
     }
 
@@ -56,12 +56,12 @@ export async function POST(req: NextRequest) {
     await sendMagicLink(email, token);
 
     return NextResponse.redirect(
-      new URL("/?sent=true", req.url)
+      new URL("/login?sent=true", req.url)
     );
   } catch (error) {
     console.error("Magic link error:", error);
     return NextResponse.redirect(
-      new URL("/?error=send_failed", req.url)
+      new URL("/login?error=send_failed", req.url)
     );
   }
 }

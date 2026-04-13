@@ -141,7 +141,7 @@ export default async function HotSellersPage() {
           <CardContent className="pt-6">
             <p className="text-sm">
               <strong>Want wholesale pricing?</strong>{" "}
-              <Link href="/apply" className="text-primary underline underline-offset-2">
+              <Link href="/" className="text-primary underline underline-offset-2">
                 Apply for a wholesale account
               </Link>{" "}
               to see discounted tier prices on all products.

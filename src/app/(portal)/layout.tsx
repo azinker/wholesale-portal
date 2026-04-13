@@ -48,7 +48,7 @@ export default async function PortalLayout({
 
   if (status === "RETAIL") {
     navItems.push({
-      href: "/apply",
+      href: "/",
       label: "Apply for Wholesale",
       icon: <FileText size={18} />,
     });

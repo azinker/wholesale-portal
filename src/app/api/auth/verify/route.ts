@@ -6,12 +6,12 @@ export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
 
   if (!token) {
-    return NextResponse.redirect(new URL("/?error=missing_token", req.url));
+    return NextResponse.redirect(new URL("/login?error=missing_token", req.url));
   }
 
   const email = await verifyMagicToken(token);
   if (!email) {
-    return NextResponse.redirect(new URL("/?error=invalid_token", req.url));
+    return NextResponse.redirect(new URL("/login?error=invalid_token", req.url));
   }
 
   // Find or create portal user

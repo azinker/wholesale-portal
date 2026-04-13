@@ -96,7 +96,7 @@ export default async function LoginPage({
               { icon: Package, label: "Shipment Tracking" },
               { icon: BadgePercent, label: "Coupon Codes" },
               { icon: Truck, label: "Free Shipping" },
-              { icon: ShieldCheck, label: "Secure Login" },
+              { icon: ShieldCheck, label: "Secure Access" },
             ].map((item, i) => (
               <div
                 key={i}
@@ -158,9 +158,9 @@ export default async function LoginPage({
             <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success-light px-4 py-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
               <CheckCircle className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-success">Magic link sent!</p>
+                <p className="text-sm font-medium text-success">Sign-in link sent!</p>
                 <p className="text-xs text-success/80 mt-0.5">
-                  Check your email and click the link to sign in.
+                  Check your email and click the link to access your dashboard.
                 </p>
               </div>
             </div>
@@ -180,12 +180,12 @@ export default async function LoginPage({
             <CardHeader className="pb-4 lg:hidden">
               <CardTitle className="text-xl">Sign in</CardTitle>
               <CardDescription>
-                Enter your email to receive a magic link. No password needed.
+                Enter your email and we&apos;ll send you a sign-in link. No password needed.
               </CardDescription>
             </CardHeader>
             <CardHeader className="pb-2 hidden lg:block">
               <CardDescription className="text-[15px]">
-                Enter your wholesale email to receive a secure sign-in link.
+                Enter your wholesale email and we&apos;ll send you a link to sign in.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
@@ -215,7 +215,7 @@ export default async function LoginPage({
                   className="w-full cursor-pointer h-12 text-base shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
                   size="lg"
                 >
-                  Send Magic Link
+                  Send Sign-In Link
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </form>
@@ -234,7 +234,7 @@ export default async function LoginPage({
             </p>
             <p className="text-xs text-muted-foreground/60 flex items-center justify-center gap-1.5">
               <ShieldCheck className="h-3 w-3" />
-              Passwordless &middot; Secure &middot; No signup required
+              No password required &middot; Secure &middot; Fast
             </p>
           </div>
         </div>

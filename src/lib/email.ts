@@ -123,13 +123,21 @@ export async function sendApplicantApprovalEmail(to: string, companyName: string
           Great news — your wholesale account for <strong>${safeName}</strong> has been approved at <strong>The Perfect Part</strong>.
         </p>
         <p style="color: #555; font-size: 15px; line-height: 1.6;">
-          You can sign in to the wholesale portal to place orders and manage your account.
+          Sign in to the wholesale portal to view your coupon code, track your tier progress, and manage your account.
         </p>
         <a href="${escapeHtml(loginUrl)}"
-           style="display: inline-block; background: #111; color: #fff; padding: 12px 28px;
+           style="display: inline-block; background: #B8282E; color: #fff; padding: 12px 28px;
                   border-radius: 6px; text-decoration: none; font-size: 15px; margin: 16px 0;">
           Sign in to wholesale portal
         </a>
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin-top: 20px;">
+          <p style="color: #991B1B; font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">
+            Important: How to get your discount at checkout
+          </p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0;">
+            When shopping on <strong>theperfectpart.net</strong>, make sure to <strong>sign in with this email address</strong> (${escapeHtml(to)}) before checkout. Then enter your wholesale coupon code at checkout to receive your discount, free shipping, and tax-free pricing.
+          </p>
+        </div>
         <p style="color: #888; font-size: 13px; margin-top: 24px;">
           If you have any questions, contact us from the Support page after signing in.
         </p>

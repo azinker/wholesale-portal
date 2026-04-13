@@ -23,6 +23,12 @@ export function DashboardOnboarding({
       completed: profileComplete,
     },
     {
+      id: "checkout_email",
+      label: "Sign in to theperfectpart.net with your registered email",
+      href: "https://theperfectpart.net/login.php",
+      completed: hasOrders,
+    },
+    {
       id: "resale_cert",
       label: "Upload a resale certificate",
       href: "/documents",
@@ -36,7 +42,7 @@ export function DashboardOnboarding({
     },
     {
       id: "first_order",
-      label: "Place your first order",
+      label: "Place your first order using your coupon code",
       href: "/orders",
       completed: hasOrders,
     },

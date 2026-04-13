@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign } from "lucide-react";
+import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign, Mail } from "lucide-react";
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { loadTierWindowDays, loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
@@ -141,6 +141,25 @@ export default async function DashboardPage() {
           browsedHotSellers={onboardingData.browsedHotSellers}
           hasOrders={onboardingData.hasOrders}
         />
+      )}
+
+      {/* Checkout Email Reminder - always visible for approved users */}
+      {status === "APPROVED" && (
+        <Card className="border-primary/20 bg-primary/[0.03]">
+          <CardContent className="pt-4 pb-4 flex items-start gap-3">
+            <Mail className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium">Use your registered email at checkout</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                To receive your wholesale discount and tax-free pricing, sign in to{" "}
+                <a href="https://theperfectpart.net" target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2">
+                  theperfectpart.net
+                </a>{" "}
+                with <strong className="text-foreground">{user.email}</strong> and enter your coupon code at checkout.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Announcements Widget - above progress for all statuses */}
@@ -369,7 +388,7 @@ function ApprovedDashboard({
                   <CopyCouponButton code={activePromo.code} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Use this code at checkout on theperfectpart.net. This is your exclusive wholesale discount &mdash; it cannot be combined with other promotions. This code is tracked via IP geo location and if shared will be terminated.
+                  <strong className="text-foreground">Sign in to theperfectpart.net with your registered email</strong> and enter this code at checkout to receive your discount, free shipping, and tax-free pricing. This code cannot be combined with other promotions and is tracked &mdash; sharing will result in termination.
                 </p>
               </div>
             </div>

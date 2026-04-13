@@ -59,6 +59,10 @@
   --radius-xl: 1rem;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: var(--font-sans);
   background: var(--color-background);

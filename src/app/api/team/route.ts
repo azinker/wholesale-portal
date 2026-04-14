@@ -88,11 +88,19 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Send invite email with magic link
+  // Send branded invite email
   try {
     const token = await createMagicToken(email);
     const appUrl = env().NEXT_PUBLIC_APP_URL;
     const loginUrl = `${appUrl}/api/auth/verify?token=${token}`;
+
+    const { buildTeamInviteHtml } = await import("@/lib/email");
+    const { html, text } = buildTeamInviteHtml(
+      user.email,
+      user.wholesaleAccount.companyName,
+      role,
+      loginUrl,
+    );
 
     const { Resend } = await import("resend");
     const resend = new Resend(env().RESEND_API_KEY);
@@ -100,14 +108,9 @@ export async function POST(req: NextRequest) {
     await resend.emails.send({
       from: env().EMAIL_FROM,
       to: email,
-      subject: `You've been invited to ${user.wholesaleAccount.companyName}'s wholesale team`,
-      html: `
-        <h2>You've been invited!</h2>
-        <p><strong>${user.email}</strong> has invited you to join <strong>${user.wholesaleAccount.companyName}</strong>'s wholesale team on The Perfect Part.</p>
-        <p>Your role: <strong>${role}</strong></p>
-        <p><a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#B8282E;color:white;text-decoration:none;border-radius:6px;">Accept Invitation & Login</a></p>
-        <p>This link expires in 15 minutes.</p>
-      `,
+      subject: `You've been invited to ${user.wholesaleAccount.companyName}'s wholesale team — The Perfect Part`,
+      html,
+      text,
     });
   } catch (err) {
     console.error("Failed to send invite email:", err);

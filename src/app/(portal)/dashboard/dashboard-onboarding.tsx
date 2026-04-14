@@ -1,6 +1,7 @@
 "use client";
 
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
+import { toast } from "sonner";
 
 interface DashboardOnboardingProps {
   profileComplete: boolean;
@@ -26,7 +27,7 @@ export function DashboardOnboarding({
       id: "checkout_email",
       label: "Sign in to theperfectpart.net with your registered email",
       href: "https://theperfectpart.net/login.php",
-      completed: hasOrders,
+      completed: profileComplete,
     },
     {
       id: "resale_cert",
@@ -50,11 +51,10 @@ export function DashboardOnboarding({
 
   const handleDismiss = async () => {
     try {
-      await fetch("/api/onboarding", {
-        method: "POST",
-      });
+      const res = await fetch("/api/onboarding", { method: "POST" });
+      if (!res.ok) throw new Error();
     } catch {
-      // Non-critical
+      toast.error("Could not dismiss checklist. Please try again.");
     }
   };
 

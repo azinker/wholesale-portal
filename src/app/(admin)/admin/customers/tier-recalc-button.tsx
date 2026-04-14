@@ -9,6 +9,13 @@ export default function TierRecalcButton() {
   const [loading, setLoading] = useState(false);
 
   async function handleRecalc() {
+    const confirmed = window.confirm(
+      "Recalculate tiers for ALL customers?\n\n" +
+        "This will recalculate every approved customer's tier based on their current rolling-window order volume. " +
+        "This may take a moment depending on the number of customers."
+    );
+    if (!confirmed) return;
+
     setLoading(true);
     try {
       const res = await fetch("/api/admin/tier-recalc", { method: "POST" });

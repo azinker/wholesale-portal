@@ -123,34 +123,34 @@ export function ResetWelcomeButton({
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button
           variant="outline"
           size="sm"
           onClick={handleReset}
           disabled={loading}
-          className="flex-1"
+          className="w-full text-xs"
         >
           {loading ? (
-            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
           ) : success ? (
-            <CheckCircle className="mr-2 h-3 w-3 text-green-500" />
+            <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" />
           ) : (
-            <Gift className="mr-2 h-3 w-3" />
+            <Gift className="mr-1.5 h-3 w-3" />
           )}
-          {success ? "Welcome Bonus Reset!" : "Reset Welcome Bonus"}
+          {success ? "Reset!" : "Reset Welcome Bonus"}
         </Button>
         <Button
           variant="outline"
           size="sm"
           onClick={handleRemove}
           disabled={loading}
-          className="flex-1 border-destructive/40 text-destructive hover:bg-destructive/10"
+          className="w-full text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
         >
           {loading ? (
-            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
           ) : (
-            <XCircle className="mr-2 h-3 w-3" />
+            <XCircle className="mr-1.5 h-3 w-3" />
           )}
           Remove Welcome Bonus
         </Button>

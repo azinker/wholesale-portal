@@ -371,9 +371,13 @@ function StatRow({ label, value, highlight, mono }: { label: string; value: stri
 function TierBadge({ tier }: { tier: string }) {
   const colors: Record<string, string> = {
     NONE: "bg-muted text-muted-foreground",
+    WELCOME: "bg-purple-100 text-purple-700",
     T10: "bg-info-light text-info",
     T15: "bg-warning-light text-warning",
     T20: "bg-success-light text-success",
+    T25: "bg-emerald-100 text-emerald-700",
+    T30: "bg-emerald-200 text-emerald-800",
   };
-  return <Badge variant="outline" className={`text-[10px] w-12 justify-center ${colors[tier] || colors.NONE}`}>{tier === "NONE" ? "—" : tier}</Badge>;
+  const label = tier === "NONE" ? "—" : tier === "WELCOME" ? "Welcome" : tier;
+  return <Badge variant="outline" className={`text-[10px] w-14 justify-center ${colors[tier] || colors.NONE}`}>{label}</Badge>;
 }

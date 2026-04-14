@@ -144,6 +144,7 @@ export default async function AdminDashboardPage() {
           label="Total Applications"
           value={totalAccounts}
           href="/admin/applicants"
+          subtext={deniedCount > 0 ? `${deniedCount} denied` : undefined}
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
@@ -457,13 +458,17 @@ function StatCard({
 function TierBadge({ tier }: { tier: string }) {
   const colors: Record<string, string> = {
     NONE: "bg-muted text-muted-foreground",
+    WELCOME: "bg-purple-100 text-purple-700",
     T10: "bg-info-light text-info",
     T15: "bg-warning-light text-warning",
     T20: "bg-success-light text-success",
+    T25: "bg-emerald-100 text-emerald-700",
+    T30: "bg-emerald-200 text-emerald-800",
   };
+  const label = tier === "NONE" ? "None" : tier === "WELCOME" ? "Welcome" : tier;
   return (
     <Badge variant="outline" className={`text-[10px] ${colors[tier] || colors.NONE}`}>
-      {tier === "NONE" ? "None" : tier}
+      {label}
     </Badge>
   );
 }

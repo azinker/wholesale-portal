@@ -139,13 +139,17 @@ function StatusBadge({ status }: { status: string }) {
 function TierBadge({ tier }: { tier: string }) {
   const styles: Record<string, string> = {
     NONE: "bg-muted text-muted-foreground",
+    WELCOME: "bg-purple-100 text-purple-700",
     T10: "bg-info-light text-info",
     T15: "bg-warning-light text-warning",
     T20: "bg-success-light text-success",
+    T25: "bg-emerald-100 text-emerald-700",
+    T30: "bg-emerald-200 text-emerald-800",
   };
+  const label = tier === "NONE" ? "None" : tier === "WELCOME" ? "Welcome" : tier;
   return (
     <Badge variant="outline" className={styles[tier] || styles.NONE}>
-      {tier === "NONE" ? "None" : tier}
+      {label}
     </Badge>
   );
 }

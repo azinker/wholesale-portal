@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ShoppingCart, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { OrdersTable } from "./orders-table";
 
-const ORDERS_PER_PAGE = 250;
+const ORDERS_PER_PAGE = 50;
 
 export default async function OrdersPage({
   searchParams,

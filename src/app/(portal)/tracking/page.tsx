@@ -72,19 +72,34 @@ export default async function TrackingPage() {
 
   if (customerId) {
     try {
-      const orders = await bc().getOrders({
-        customer_id: customerId,
-        limit: 250,
-        page: 1,
-        sort: "date_created",
-        direction: "desc",
-      });
+      // Fetch up to 3 pages of orders (150 most recent) to get shipment data
+      const MAX_PAGES = 3;
+      let allOrders: BCOrder[] = [];
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const pageOrders = await bc().getOrders({
+          customer_id: customerId,
+          limit: 50,
+          page,
+          sort: "date_created",
+          direction: "desc",
+        });
+        allOrders = allOrders.concat(pageOrders);
+        if (pageOrders.length < 50) break;
+        if (page < MAX_PAGES) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
 
-      // Fetch shipments in small batches to avoid BigCommerce 429 rate limits
-      const BATCH_SIZE = 8;
-      const BATCH_DELAY_MS = 400;
-      for (let i = 0; i < orders.length; i += BATCH_SIZE) {
-        const batch = orders.slice(i, i + BATCH_SIZE);
+      // Only fetch shipments for orders that have a shipped/completed status
+      const shippedOrders = allOrders.filter(
+        (o) => o.status_id >= 2 && o.status_id !== 5 && o.status_id !== 6
+      );
+
+      // Fetch shipments in small batches with conservative pacing
+      const BATCH_SIZE = 5;
+      const BATCH_DELAY_MS = 600;
+      for (let i = 0; i < shippedOrders.length; i += BATCH_SIZE) {
+        const batch = shippedOrders.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(
           batch.map(async (order: BCOrder) => {
             try {
@@ -101,7 +116,7 @@ export default async function TrackingPage() {
           })
         );
         allShipments = allShipments.concat(batchResults.flat());
-        if (i + BATCH_SIZE < orders.length) {
+        if (i + BATCH_SIZE < shippedOrders.length) {
           await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
         }
       }

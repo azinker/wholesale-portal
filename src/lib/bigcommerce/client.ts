@@ -130,11 +130,14 @@ class BigCommerceClient {
   }
 
   private async get<T>(url: string, attempt = 1): Promise<T> {
-    const maxAttempts = 3;
+    const maxAttempts = 5;
     const res = await fetch(url, { headers: this.headers, cache: "no-store" });
 
     if (res.status === 429 && attempt < maxAttempts) {
-      const delayMs = attempt === 1 ? 2000 : 5000;
+      const retryAfter = res.headers.get("X-Rate-Limit-Time-Reset-Ms");
+      const delayMs = retryAfter
+        ? Math.min(parseInt(retryAfter, 10) + 200, 15000)
+        : Math.min(1000 * Math.pow(2, attempt), 15000);
       await this.sleep(delayMs);
       return this.get<T>(url, attempt + 1);
     }

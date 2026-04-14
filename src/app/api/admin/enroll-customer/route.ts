@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         .replace("Z", "");
       let allOrders: BCOrder[] = [];
       let page = 1;
-      const limit = 250;
+      const limit = 50; // BC V2 max per page
       while (true) {
         const orders = await bc().getOrders({
           customer_id: bcCustomer.id,

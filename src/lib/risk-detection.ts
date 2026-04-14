@@ -35,16 +35,18 @@ export async function runRiskChecks(accountId: string): Promise<RiskCheck[]> {
   // Fetch recent orders
   let orders: BCOrder[] = [];
   try {
-    // BC V2 max is 50 per page — paginate to get all recent orders
-    for (let page = 1; page <= 5; page++) {
+    let page = 1;
+    while (true) {
       const pageOrders = await bc().getOrders({
         customer_id: account.customerId,
         min_date_created: minDate,
-        limit: 50,
+        limit: 250,
         page,
       });
+      if (!pageOrders || pageOrders.length === 0) break;
       orders = orders.concat(pageOrders);
-      if (pageOrders.length < 50) break;
+      if (pageOrders.length < 250) break;
+      page++;
     }
   } catch {
     return [];

@@ -47,12 +47,13 @@ export default async function InsightsPage() {
 
   if (customerId) {
     try {
-      // BC V2 max is 50 per page — fetch up to 6 pages (300 orders) for insights
-      for (let page = 1; page <= 6; page++) {
-        const pageOrders = await bc().getOrders({ customer_id: customerId, limit: 50, page });
+      let page = 1;
+      while (true) {
+        const pageOrders = await bc().getOrders({ customer_id: customerId, limit: 250, page });
+        if (!pageOrders || pageOrders.length === 0) break;
         allOrders = allOrders.concat(pageOrders);
-        if (pageOrders.length < 50) break;
-        if (page < 6) await new Promise((r) => setTimeout(r, 300));
+        if (pageOrders.length < 250) break;
+        page++;
       }
     } catch {
       // If BC fails, continue with whatever orders we got

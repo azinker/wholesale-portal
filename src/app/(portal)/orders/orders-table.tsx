@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +8,8 @@ import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "luci
 import { ReorderButton } from "./reorder-button";
 
 export type TierStatusForOrder = "counts" | "expired" | "excluded";
+
+const PAGE_SIZE = 50;
 
 interface OrderRow {
   id: number;
@@ -24,19 +25,14 @@ type SortDir = "asc" | "desc";
 
 export function OrdersTable({
   orders,
-  currentPage,
-  hasMore,
   windowDays,
 }: {
   orders: OrderRow[];
-  currentPage: number;
-  hasMore: boolean;
   windowDays: number;
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [sortField, setSortField] = useState<SortField>("date_created");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -45,12 +41,7 @@ export function OrdersTable({
       setSortField(field);
       setSortDir("desc");
     }
-  }
-
-  function goToPage(page: number) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("page", String(page));
-    router.push(`/orders?${params.toString()}`);
+    setCurrentPage(1);
   }
 
   const sorted = useMemo(() => {
@@ -78,6 +69,9 @@ export function OrdersTable({
     });
     return copy;
   }, [orders, sortField, sortDir]);
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageOrders = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   function SortIcon({ field }: { field: SortField }) {
     if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
@@ -129,7 +123,7 @@ export function OrdersTable({
               </tr>
             </thead>
             <tbody>
-              {sorted.map((order) => (
+              {pageOrders.map((order) => (
                 <tr
                   key={order.id}
                   className="border-b last:border-0 hover:bg-muted/30 transition-colors"
@@ -155,10 +149,10 @@ export function OrdersTable({
                   </td>
                 </tr>
               ))}
-              {sorted.length === 0 && (
+              {pageOrders.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                    No orders found on this page.
+                    No orders found.
                   </td>
                 </tr>
               )}
@@ -170,14 +164,14 @@ export function OrdersTable({
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Page {currentPage} &middot; Showing {sorted.length} order{sorted.length !== 1 ? "s" : ""}
+          Page {currentPage} of {totalPages} &middot; {orders.length} total order{orders.length !== 1 ? "s" : ""}
         </p>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             disabled={currentPage <= 1}
-            onClick={() => goToPage(currentPage - 1)}
+            onClick={() => setCurrentPage((p) => p - 1)}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Previous
@@ -185,8 +179,8 @@ export function OrdersTable({
           <Button
             variant="outline"
             size="sm"
-            disabled={!hasMore}
-            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
           >
             Next
             <ChevronRight className="h-4 w-4 ml-1" />

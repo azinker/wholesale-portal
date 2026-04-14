@@ -255,7 +255,7 @@ export async function recalcTier(
 
   let allOrders: BCOrder[] = [];
   let page = 1;
-  const limit = 50; // BC V2 max per page
+  const limit = 250;
 
   while (true) {
     const orders = await bc().getOrders({

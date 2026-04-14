@@ -72,28 +72,28 @@ export default async function TrackingPage() {
 
   if (customerId) {
     try {
-      // Fetch up to 3 pages of orders (150 most recent) to get shipment data
-      const MAX_PAGES = 3;
+      // Only fetch orders from the last 45 days to avoid overloading the API
+      const cutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000);
+      const minDate = cutoff.toISOString().replace("T", " ").replace("Z", "");
+
       let allOrders: BCOrder[] = [];
-      for (let page = 1; page <= MAX_PAGES; page++) {
+      let page = 1;
+      while (true) {
         const pageOrders = await bc().getOrders({
           customer_id: customerId,
-          limit: 50,
+          min_date_created: minDate,
+          limit: 250,
           page,
-          sort: "date_created",
-          direction: "desc",
         });
+        if (!pageOrders || pageOrders.length === 0) break;
         allOrders = allOrders.concat(pageOrders);
-        if (pageOrders.length < 50) break;
-        if (page < MAX_PAGES) {
-          await new Promise((r) => setTimeout(r, 300));
-        }
+        if (pageOrders.length < 250) break;
+        page++;
       }
 
-      // Only fetch shipments for orders that have a shipped/completed status
-      const shippedOrders = allOrders.filter(
-        (o) => o.status_id >= 2 && o.status_id !== 5 && o.status_id !== 6
-      );
+      // Only fetch shipments for shipped/completed orders
+      const SHIPPED_STATUS_IDS = [2, 3, 9, 10, 12, 13];
+      const shippedOrders = allOrders.filter((o) => SHIPPED_STATUS_IDS.includes(o.status_id));
 
       // Fetch shipments in small batches with conservative pacing
       const BATCH_SIZE = 5;

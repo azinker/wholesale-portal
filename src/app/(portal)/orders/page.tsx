@@ -7,39 +7,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ShoppingCart, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { OrdersTable } from "./orders-table";
 
-const ORDERS_PER_PAGE = 50;
+const BC_PAGE_LIMIT = 250;
 
-export default async function OrdersPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ page?: string }>;
-}) {
+export default async function OrdersPage() {
   const user = await getUser();
   if (!user) redirect("/");
 
-  const params = await searchParams;
-  const currentPage = Math.max(1, parseInt(params.page || "1", 10) || 1);
-
   const customerId = user.linkedCustomerId;
-  let orders: BCOrder[] = [];
+  let allOrders: BCOrder[] = [];
   let fetchError = "";
 
   if (customerId) {
     try {
-      orders = await bc().getOrders({
-        customer_id: customerId,
-        limit: ORDERS_PER_PAGE,
-        page: currentPage,
-        sort: "date_created",
-        direction: "desc",
-      });
+      // BC V2 sort/direction params are unreliable — fetch all orders then sort server-side
+      let page = 1;
+      while (true) {
+        const pageOrders = await bc().getOrders({
+          customer_id: customerId,
+          limit: BC_PAGE_LIMIT,
+          page,
+        });
+        if (!pageOrders || pageOrders.length === 0) break;
+        allOrders = allOrders.concat(pageOrders);
+        if (pageOrders.length < BC_PAGE_LIMIT) break;
+        page++;
+      }
+      // Sort by date descending (newest first) since BC sort is unreliable
+      allOrders.sort(
+        (a, b) => new Date(b.date_created).getTime() - new Date(a.date_created).getTime()
+      );
     } catch (err) {
       fetchError = err instanceof Error ? err.message : "Failed to fetch orders";
     }
   }
-
-  // If we got a full page of results, there might be more
-  const hasMore = orders.length >= ORDERS_PER_PAGE;
   const tierWindowDays = await loadTierWindowDays();
   const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
 
@@ -163,19 +163,17 @@ export default async function OrdersPage({
         </Card>
       )}
 
-      {customerId && orders.length === 0 && !fetchError && (
+      {customerId && allOrders.length === 0 && !fetchError && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">
-              {currentPage > 1 ? "No more orders found." : "No orders found."}
-            </p>
+            <p className="text-muted-foreground">No orders found.</p>
           </CardContent>
         </Card>
       )}
 
-      {orders.length > 0 && (
+      {allOrders.length > 0 && (
         <OrdersTable
-          orders={orders.map((o) => ({
+          orders={allOrders.map((o) => ({
             id: o.id,
             date_created: o.date_created,
             status: o.status,
@@ -183,8 +181,6 @@ export default async function OrdersPage({
             total_inc_tax: o.total_inc_tax,
             tierStatus: getTierStatusForOrder(o.date_created, o.status_id, tierWindowDays),
           }))}
-          currentPage={currentPage}
-          hasMore={hasMore}
           windowDays={tierWindowDays}
         />
       )}

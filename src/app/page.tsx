@@ -346,6 +346,16 @@ function TierProgression() {
    MAIN PAGE
    ═══════════════════════════════════════════════════════════════════ */
 
+type TrackingWindow = Window & {
+  dataLayer?: Array<Record<string, unknown>>;
+};
+
+function trackEvent(event: string, data: Record<string, unknown> = {}) {
+  const trackingWindow = window as TrackingWindow;
+  trackingWindow.dataLayer = trackingWindow.dataLayer || [];
+  trackingWindow.dataLayer.push({ event, ...data });
+}
+
 export default function ApplyPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -360,7 +370,10 @@ export default function ApplyPage() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const openApplication = () => setSheetOpen(true);
+  const openApplication = () => {
+    setSheetOpen(true);
+    trackEvent("wholesale_application_opened");
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -391,6 +404,9 @@ export default function ApplyPage() {
         const body = await res.json();
         throw new Error(body.error || "Application failed");
       }
+      trackEvent("wholesale_application_submitted", {
+        form_name: "Wholesale Application",
+      });
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

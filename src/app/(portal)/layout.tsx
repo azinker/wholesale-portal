@@ -46,10 +46,10 @@ export default async function PortalLayout({
     { href: "/terms", label: "Terms of Service", icon: <ScrollText size={18} /> },
   ];
 
-  if (status === "RETAIL") {
+  if (status === "RETAIL" || status === "DENIED") {
     navItems.push({
-      href: "/",
-      label: "Apply for Wholesale",
+      href: status === "DENIED" ? "/?reapply=1" : "/?apply=1",
+      label: status === "DENIED" ? "Reapply for Wholesale" : "Apply for Wholesale",
       icon: <FileText size={18} />,
     });
   }

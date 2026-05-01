@@ -3,6 +3,7 @@ import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { createMagicToken } from "@/lib/auth";
+import { sendTeamMemberAddedEmail } from "@/lib/email";
 
 export async function GET() {
   const user = await getUser();
@@ -115,6 +116,14 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Failed to send invite email:", err);
   }
+
+  await sendTeamMemberAddedEmail(
+    user.wholesaleAccount.email,
+    user.wholesaleAccount.companyName,
+    email,
+    role,
+    user.email
+  );
 
   return NextResponse.json({ member });
 }

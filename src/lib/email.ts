@@ -120,6 +120,62 @@ function infoBox(html: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────
+type MailRecipient = string | string[];
+
+async function sendBrandedEmail({
+  logLabel,
+  to,
+  subject,
+  bodyHtml,
+  text,
+  replyTo,
+}: {
+  logLabel: string;
+  to: MailRecipient;
+  subject: string;
+  bodyHtml: string;
+  text: string;
+  replyTo?: string;
+}): Promise<void> {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    if (!apiKey) {
+      console.error(`${logLabel} skipped: RESEND_API_KEY is not set`);
+      return;
+    }
+
+    const { data, error } = await getResend().emails.send({
+      from,
+      to,
+      replyTo,
+      subject,
+      html: brandedEmail(bodyHtml),
+      text,
+    });
+
+    if (error) {
+      console.error(`Failed to send ${logLabel}:`, error);
+    } else if (data?.id) {
+      console.log(`${logLabel} sent to ${Array.isArray(to) ? to.join(", ") : to}, Resend id: ${data.id}`);
+    }
+  } catch (err) {
+    console.error(`${logLabel} failed:`, err);
+  }
+}
+
+function formatList(items: string[]): string {
+  return `<ul style="padding-left:20px;margin:12px 0 0 0;">${items
+    .map((item) => `<li style="margin:4px 0;">${escapeHtml(item)}</li>`)
+    .join("")}</ul>`;
+}
+
+function tierLabel(tier: string): string {
+  if (tier === "NONE") return "No active wholesale discount";
+  if (tier === "WELCOME") return "Welcome discount";
+  return tier;
+}
+
 // 1. SIGN-IN LINK (sent to customer)
 // ─────────────────────────────────────────────────────────────────
 
@@ -213,6 +269,118 @@ export async function sendApplicantApprovalEmail(to: string, companyName: string
 }
 
 // ─────────────────────────────────────────────────────────────────
+// 2B. DENIAL EMAIL (sent to customer)
+export async function sendApplicantDenialEmail(to: string, companyName: string, reason: string): Promise<void> {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+    if (!apiKey) {
+      console.error("Applicant denial email skipped: RESEND_API_KEY is not set");
+      return;
+    }
+
+    const resend = getResend();
+    const safeName = escapeHtml(companyName || "your business");
+    const safeReason = escapeHtml(reason);
+    const reapplyUrl = `${appUrl}/?reapply=1`;
+
+    const html = brandedEmail(`
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Wholesale Application Update</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">The Perfect Part Wholesale Program</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Thank you for applying to the wholesale program for <strong>${safeName}</strong>.</p>
+      <p>We were not able to approve this application as submitted.</p>
+      ${infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">Reason provided by our review team</p>
+        <p style="margin:0;">${safeReason}</p>
+      `)}
+      <p style="margin:20px 0 0 0;">You can update your information and reapply at any time. A new submission will return your application to review.</p>
+      ${ctaButton(reapplyUrl, "Update and Reapply")}
+      <p style="font-size:13px;color:#a1a1aa;margin:0;">
+        If you have questions, sign in to the wholesale portal and contact Support.
+      </p>
+    `);
+
+    const text = `Your wholesale application for ${companyName} was not approved as submitted.\n\nReason: ${reason}\n\nYou can update your information and reapply here: ${reapplyUrl}\n\nIf you have questions, sign in to the wholesale portal and contact Support.`;
+
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject: "Wholesale application update - The Perfect Part",
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send applicant denial email:", error);
+    } else if (data?.id) {
+      console.log(`Applicant denial email sent to ${to}, Resend id: ${data.id}`);
+    }
+  } catch (err) {
+    console.error("Applicant denial email failed:", err);
+  }
+}
+
+// 2C. APPLICATION STATUS EMAILS (sent to customer)
+export async function sendApplicationReceivedEmail(to: string, companyName: string): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Application received email",
+    to,
+    subject: "We received your wholesale application - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Application Received</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">The Perfect Part Wholesale Program</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Thanks for applying for <strong>${escapeHtml(companyName)}</strong>. We received your wholesale application and our team will review it.</p>
+      <p>Most applications are reviewed within 1 business day. We will email you when your application is approved, denied, or if we need more information.</p>
+      ${ctaButton(`${appUrl}/login`, "Check Application Status")}
+    `,
+    text: `We received your wholesale application for ${companyName}.\n\nMost applications are reviewed within 1 business day. Check your status: ${appUrl}/login`,
+  });
+}
+
+export async function sendReapplicationReceivedEmail(to: string, companyName: string): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Reapplication received email",
+    to,
+    subject: "We received your updated wholesale application - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Updated Application Received</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">The Perfect Part Wholesale Program</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Thanks for updating the wholesale application for <strong>${escapeHtml(companyName)}</strong>.</p>
+      <p>Your application is back in review. We will email you when a decision is made or if we need anything else.</p>
+      ${ctaButton(`${appUrl}/login`, "Check Application Status")}
+    `,
+    text: `We received your updated wholesale application for ${companyName}.\n\nYour application is back in review. Check your status: ${appUrl}/login`,
+  });
+}
+
+export async function sendApplicantMoreInfoRequestEmail(to: string, companyName: string, message: string): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Applicant more info request email",
+    to,
+    subject: "More information needed for your wholesale application - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">More Information Needed</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">The Perfect Part Wholesale Program</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>We are reviewing the wholesale application for <strong>${escapeHtml(companyName)}</strong>, but we need a little more information before making a decision.</p>
+      ${infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">Reviewer note</p>
+        <p style="margin:0;">${escapeHtml(message)}</p>
+      `)}
+      <p style="margin:20px 0 0 0;">Sign in to upload documents, update your profile, or contact Support with the requested details.</p>
+      ${ctaButton(`${appUrl}/login`, "Sign In to Respond")}
+    `,
+    text: `We need more information for your wholesale application for ${companyName}.\n\nReviewer note: ${message}\n\nSign in to respond: ${appUrl}/login`,
+  });
+}
+
 // 3. SUPPORT CONFIRMATION (sent to customer)
 // ─────────────────────────────────────────────────────────────────
 
@@ -253,6 +421,327 @@ export async function sendSupportConfirmation(to: string, subject: string): Prom
 }
 
 // ─────────────────────────────────────────────────────────────────
+// 3B. DOCUMENT EMAILS (sent to customer)
+export async function sendDocumentUploadedEmail(
+  to: string,
+  companyName: string,
+  filename: string,
+  docType?: string | null
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Document uploaded email",
+    to,
+    subject: "Document uploaded - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Document Uploaded</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>We received your document upload.</p>
+      ${infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">Uploaded file</p>
+        <p style="margin:0;">${escapeHtml(filename)}${docType ? ` (${escapeHtml(docType)})` : ""}</p>
+      `)}
+      <p style="margin:20px 0 0 0;">You can review your uploaded documents in the wholesale portal.</p>
+      ${ctaButton(`${appUrl}/documents`, "View Documents")}
+    `,
+    text: `We received your document upload for ${companyName}.\n\nFile: ${filename}${docType ? ` (${docType})` : ""}\n\nView documents: ${appUrl}/documents`,
+  });
+}
+
+export async function sendDocumentIssueEmail(
+  to: string,
+  companyName: string,
+  filename: string,
+  issue: "rejected" | "scan_failed",
+  detail: string
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const title = issue === "rejected" ? "Document Not Accepted" : "Document Scan Failed";
+  const summary =
+    issue === "rejected"
+      ? "We could not accept one of your uploaded documents."
+      : "We could not finish scanning one of your uploaded documents.";
+
+  await sendBrandedEmail({
+    logLabel: "Document issue email",
+    to,
+    subject: `${title} - The Perfect Part`,
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">${title}</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>${summary}</p>
+      ${infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">File</p>
+        <p style="margin:0 0 8px 0;">${escapeHtml(filename)}</p>
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">Details</p>
+        <p style="margin:0;">${escapeHtml(detail)}</p>
+      `)}
+      <p style="margin:20px 0 0 0;">Please sign in and upload a replacement document or contact Support if you need help.</p>
+      ${ctaButton(`${appUrl}/documents`, "Upload Replacement")}
+    `,
+    text: `${title} for ${companyName}.\n\nFile: ${filename}\nDetails: ${detail}\n\nUpload a replacement: ${appUrl}/documents`,
+  });
+}
+
+// 3C. ACCOUNT CHANGE EMAILS (sent to customer)
+export async function sendBusinessInfoChangeReviewedEmail(
+  to: string,
+  companyName: string,
+  status: "APPROVED" | "DENIED",
+  fields: string[],
+  reviewNote?: string | null
+): Promise<void> {
+  const approved = status === "APPROVED";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const title = approved ? "Business Information Updated" : "Business Information Update Not Approved";
+  await sendBrandedEmail({
+    logLabel: "Business info change reviewed email",
+    to,
+    subject: `${title} - The Perfect Part`,
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">${title}</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>${approved ? "Your requested business information changes were approved and applied to your account." : "Your requested business information changes were reviewed but were not approved."}</p>
+      ${fields.length ? infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">Reviewed fields</p>
+        ${formatList(fields)}
+      `) : ""}
+      ${reviewNote ? `<p style="margin:20px 0 0 0;"><strong>Review note:</strong> ${escapeHtml(reviewNote)}</p>` : ""}
+      ${ctaButton(`${appUrl}/profile`, "View Profile")}
+    `,
+    text: `${title} for ${companyName}.\n\nFields: ${fields.join(", ") || "Business information"}${reviewNote ? `\nReview note: ${reviewNote}` : ""}\n\nView profile: ${appUrl}/profile`,
+  });
+}
+
+export async function sendTierChangedEmail(
+  to: string,
+  companyName: string,
+  previousTier: string,
+  newTier: string,
+  count: number,
+  windowDays: number,
+  changeType: "achieved" | "downgraded"
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const achieved = changeType === "achieved";
+  const title = achieved ? "New Wholesale Tier Achieved" : "Wholesale Tier Updated";
+  await sendBrandedEmail({
+    logLabel: "Tier changed email",
+    to,
+    subject: `${title} - The Perfect Part`,
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">${title}</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>${achieved ? "Good news - your recent order volume moved you into a new wholesale tier." : "Your wholesale tier changed based on your rolling order volume."}</p>
+      ${infoBox(`
+        <p style="margin:0 0 6px 0;"><strong>Previous tier:</strong> ${escapeHtml(tierLabel(previousTier))}</p>
+        <p style="margin:0 0 6px 0;"><strong>Current tier:</strong> ${escapeHtml(tierLabel(newTier))}</p>
+        <p style="margin:0;"><strong>Qualifying orders:</strong> ${count} in the last ${windowDays} days</p>
+      `)}
+      <p style="margin:20px 0 0 0;">Your portal shows your current tier, progress, and any active coupon code.</p>
+      ${ctaButton(`${appUrl}/dashboard`, "View Dashboard")}
+    `,
+    text: `${title} for ${companyName}.\n\nPrevious tier: ${tierLabel(previousTier)}\nCurrent tier: ${tierLabel(newTier)}\nQualifying orders: ${count} in the last ${windowDays} days\n\nView dashboard: ${appUrl}/dashboard`,
+  });
+}
+
+export async function sendWelcomeDiscountExpiringEmail(
+  to: string,
+  companyName: string,
+  expiresAt: Date,
+  discount: number
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const expires = expiresAt.toLocaleString("en-US", { timeZone: "America/New_York" });
+  await sendBrandedEmail({
+    logLabel: "Welcome discount expiring email",
+    to,
+    subject: "Your welcome discount is expiring soon - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Welcome Discount Expiring Soon</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your ${discount}% welcome discount is almost finished.</p>
+      ${infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">Expiration</p>
+        <p style="margin:0;">${escapeHtml(expires)} ET</p>
+      `)}
+      <p style="margin:20px 0 0 0;">Place eligible orders before it expires to use the welcome discount and build your regular wholesale tier.</p>
+      ${ctaButton("https://theperfectpart.net", "Shop Now")}
+    `,
+    text: `Your ${discount}% welcome discount for ${companyName} is expiring soon.\n\nExpiration: ${expires} ET\n\nShop now: https://theperfectpart.net\nPortal: ${appUrl}/dashboard`,
+  });
+}
+
+// 3D. COUPON EMAILS (sent to customer)
+export async function sendCouponCreatedEmail(
+  to: string,
+  companyName: string,
+  code: string,
+  tier: string,
+  discount: number
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Coupon created email",
+    to,
+    subject: "Your wholesale coupon is ready - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Your Coupon Is Ready</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your wholesale coupon code is ready to use.</p>
+      ${infoBox(`
+        <p style="margin:0 0 6px 0;"><strong>Code:</strong> ${escapeHtml(code)}</p>
+        <p style="margin:0;"><strong>Discount:</strong> ${discount}% (${escapeHtml(tierLabel(tier))})</p>
+      `)}
+      <p style="margin:20px 0 0 0;">Sign in to theperfectpart.net with your registered wholesale email and enter this code at checkout.</p>
+      ${ctaButton(`${appUrl}/dashboard`, "View Coupon")}
+    `,
+    text: `Your wholesale coupon is ready for ${companyName}.\n\nCode: ${code}\nDiscount: ${discount}% (${tierLabel(tier)})\n\nView coupon: ${appUrl}/dashboard`,
+  });
+}
+
+export async function sendCouponChangedEmail(
+  to: string,
+  companyName: string,
+  previousTier: string,
+  newTier: string,
+  code: string,
+  discount: number
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Coupon changed email",
+    to,
+    subject: "Your wholesale coupon changed - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Your Coupon Changed</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your active wholesale coupon changed because your tier changed.</p>
+      ${infoBox(`
+        <p style="margin:0 0 6px 0;"><strong>Previous tier:</strong> ${escapeHtml(tierLabel(previousTier))}</p>
+        <p style="margin:0 0 6px 0;"><strong>Current tier:</strong> ${escapeHtml(tierLabel(newTier))}</p>
+        <p style="margin:0 0 6px 0;"><strong>Current code:</strong> ${escapeHtml(code)}</p>
+        <p style="margin:0;"><strong>Discount:</strong> ${discount}%</p>
+      `)}
+      ${ctaButton(`${appUrl}/dashboard`, "View Current Coupon")}
+    `,
+    text: `Your wholesale coupon changed for ${companyName}.\n\nPrevious tier: ${tierLabel(previousTier)}\nCurrent tier: ${tierLabel(newTier)}\nCurrent code: ${code}\nDiscount: ${discount}%\n\nView current coupon: ${appUrl}/dashboard`,
+  });
+}
+
+export async function sendCouponDisabledEmail(
+  to: string,
+  companyName: string,
+  code: string,
+  reason: string
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Coupon disabled email",
+    to,
+    subject: "Your wholesale coupon was disabled - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Coupon Disabled</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>One of your wholesale coupon codes is no longer active.</p>
+      ${infoBox(`
+        <p style="margin:0 0 6px 0;"><strong>Code:</strong> ${escapeHtml(code)}</p>
+        <p style="margin:0;"><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+      `)}
+      ${ctaButton(`${appUrl}/dashboard`, "View Dashboard")}
+    `,
+    text: `Your wholesale coupon was disabled for ${companyName}.\n\nCode: ${code}\nReason: ${reason}\n\nView dashboard: ${appUrl}/dashboard`,
+  });
+}
+
+// 3E. TEAM EMAILS (sent to account owner/member)
+export async function sendTeamMemberAddedEmail(
+  to: MailRecipient,
+  companyName: string,
+  memberEmail: string,
+  role: string,
+  actorEmail: string
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Team member added email",
+    to,
+    subject: "Team member added - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Team Member Added</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p><strong>${escapeHtml(memberEmail)}</strong> was added to your wholesale team.</p>
+      ${infoBox(`
+        <p style="margin:0 0 6px 0;"><strong>Role:</strong> ${escapeHtml(role)}</p>
+        <p style="margin:0;"><strong>Added by:</strong> ${escapeHtml(actorEmail)}</p>
+      `)}
+      ${ctaButton(`${appUrl}/team`, "View Team")}
+    `,
+    text: `${memberEmail} was added to ${companyName}'s wholesale team.\n\nRole: ${role}\nAdded by: ${actorEmail}\n\nView team: ${appUrl}/team`,
+  });
+}
+
+export async function sendTeamMemberRemovedEmail(
+  to: MailRecipient,
+  companyName: string,
+  memberEmail: string,
+  actorEmail: string
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Team member removed email",
+    to,
+    subject: "Team member removed - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Team Member Removed</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p><strong>${escapeHtml(memberEmail)}</strong> was removed from the wholesale team.</p>
+      ${infoBox(`<p style="margin:0;"><strong>Removed by:</strong> ${escapeHtml(actorEmail)}</p>`)}
+      ${ctaButton(`${appUrl}/team`, "View Team")}
+    `,
+    text: `${memberEmail} was removed from ${companyName}'s wholesale team by ${actorEmail}.\n\nView team: ${appUrl}/team`,
+  });
+}
+
+export async function sendTeamMemberRoleChangedEmail(
+  to: MailRecipient,
+  companyName: string,
+  memberEmail: string,
+  previousRole: string,
+  newRole: string,
+  actorEmail: string
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Team member role changed email",
+    to,
+    subject: "Team member role changed - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Team Role Changed</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(companyName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>The role for <strong>${escapeHtml(memberEmail)}</strong> was changed.</p>
+      ${infoBox(`
+        <p style="margin:0 0 6px 0;"><strong>Previous role:</strong> ${escapeHtml(previousRole)}</p>
+        <p style="margin:0 0 6px 0;"><strong>New role:</strong> ${escapeHtml(newRole)}</p>
+        <p style="margin:0;"><strong>Changed by:</strong> ${escapeHtml(actorEmail)}</p>
+      `)}
+      ${ctaButton(`${appUrl}/team`, "View Team")}
+    `,
+    text: `The team role changed for ${memberEmail} on ${companyName}.\n\nPrevious role: ${previousRole}\nNew role: ${newRole}\nChanged by: ${actorEmail}\n\nView team: ${appUrl}/team`,
+  });
+}
+
 // 4. NEW APPLICANT NOTIFICATION (sent to admin)
 // ─────────────────────────────────────────────────────────────────
 
@@ -263,6 +752,8 @@ export type NewApplicantPayload = {
   companyName: string;
   alias: string;
   source: "portal" | "webhook" | "admin";
+  reapplied?: boolean;
+  previousDenialReason?: string | null;
   firstName?: string;
   lastName?: string;
   legalName?: string;
@@ -294,6 +785,8 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
       ["Company", payload.companyName],
       ["Alias", payload.alias],
       ["Source", sourceLabel],
+      ...(payload.reapplied ? [["Application type", "Reapplication"]] : []),
+      ...(payload.previousDenialReason ? [["Previous denial reason", payload.previousDenialReason]] : []),
       ...(payload.customerId != null ? [["BC Customer ID", `#${payload.customerId}`]] : []),
       ...(payload.firstName ? [["First name", payload.firstName]] : []),
       ...(payload.lastName ? [["Last name", payload.lastName]] : []),
@@ -310,15 +803,19 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
       )
       .join("");
 
-    console.log(`Sending new applicant notification to ${WHOLESALE_NOTIFY} for ${payload.companyName} (${payload.source})`);
+    const heading = payload.reapplied ? "Wholesale Reapplication" : "New Wholesale Applicant";
+    const subjectLabel = payload.reapplied ? "Reapplication" : "New applicant";
+
+    console.log(`Sending ${subjectLabel.toLowerCase()} notification to ${WHOLESALE_NOTIFY} for ${payload.companyName} (${payload.source})`);
     const { data, error } = await resend.emails.send({
       from,
       to: WHOLESALE_NOTIFY,
-      subject: `[Wholesale] New applicant: ${payload.companyName}`,
+      replyTo: payload.email,
+      subject: `[Wholesale] ${subjectLabel}: ${payload.companyName}`,
       html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; padding: 0;">
         <div style="background: #2d2d2d; color: #fff; padding: 20px 24px; border-radius: 8px 8px 0 0;">
-          <h2 style="margin: 0 0 4px 0; font-size: 18px;">New Wholesale Applicant</h2>
+          <h2 style="margin: 0 0 4px 0; font-size: 18px;">${heading}</h2>
           <p style="margin: 0; font-size: 13px; opacity: 0.8;">Review and approve in the admin portal</p>
         </div>
         <div style="border: 1px solid #e5e0dd; border-top: 0; border-radius: 0 0 8px 8px; padding: 24px;">
@@ -330,7 +827,7 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
         </div>
       </div>
     `,
-      text: `New wholesale applicant: ${payload.companyName}\nEmail: ${payload.email}\nSource: ${sourceLabel}\n\nReview at: ${(process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net") + "/admin/applicants"}`,
+      text: `${heading}: ${payload.companyName}\nEmail: ${payload.email}\nSource: ${sourceLabel}${payload.previousDenialReason ? `\nPrevious denial reason: ${payload.previousDenialReason}` : ""}\n\nReview at: ${(process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net") + "/admin/applicants"}`,
     });
     if (error) {
       console.error("Failed to send new applicant notification:", error);

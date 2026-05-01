@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
-import { ensurePromoForTier, loadTiers, type TierId } from "@/lib/tier-engine";
+import { ensurePromoForTier, getTierConfig, loadTierWindowDays, loadTiers, type TierId } from "@/lib/tier-engine";
+import { sendCouponChangedEmail, sendTierChangedEmail } from "@/lib/email";
 
 export async function POST(
   req: NextRequest,
@@ -57,6 +58,40 @@ export async function POST(
     // Always ensure the correct promotion exists and is enabled for this tier.
     // This handles both tier changes and cases where the BC promo failed previously.
     await ensurePromoForTier(id, account.alias, tier);
+
+    if (previousTier !== tier) {
+      const previousConfig = await getTierConfig(previousTier);
+      const newConfig = await getTierConfig(tier);
+      const windowDays = await loadTierWindowDays();
+      const previousDiscount = previousConfig?.discount ?? 0;
+      const newDiscount = newConfig?.discount ?? 0;
+      await sendTierChangedEmail(
+        account.email,
+        account.companyName,
+        previousTier,
+        tier,
+        account.lastCount7d,
+        windowDays,
+        newDiscount >= previousDiscount ? "achieved" : "downgraded"
+      );
+
+      if (previousTier !== "NONE" && tier !== "NONE" && newConfig) {
+        const activePromo = await db.promotionRecord.findFirst({
+          where: { accountId: id, enabled: true, tier },
+          select: { code: true },
+        });
+        if (activePromo) {
+          await sendCouponChangedEmail(
+            account.email,
+            account.companyName,
+            previousTier,
+            tier,
+            activePromo.code,
+            newConfig.discount
+          );
+        }
+      }
+    }
 
     // Audit log
     await db.auditLog.create({

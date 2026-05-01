@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { sendTeamMemberRemovedEmail, sendTeamMemberRoleChangedEmail } from "@/lib/email";
 
 export async function PUT(
   req: NextRequest,
@@ -28,7 +29,10 @@ export async function PUT(
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
-  const target = await db.teamMember.findUnique({ where: { id: memberId } });
+  const target = await db.teamMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { email: true } } },
+  });
   if (!target || target.accountId !== accountId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -48,6 +52,18 @@ export async function PUT(
     where: { id: memberId },
     data: { role },
   });
+
+  if (target.role !== role) {
+    const recipients = Array.from(new Set([user.wholesaleAccount.email, target.user.email]));
+    await sendTeamMemberRoleChangedEmail(
+      recipients,
+      user.wholesaleAccount.companyName,
+      target.user.email,
+      target.role,
+      role,
+      user.email
+    );
+  }
 
   return NextResponse.json({ member: updated });
 }
@@ -78,7 +94,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
-  const target = await db.teamMember.findUnique({ where: { id: memberId } });
+  const target = await db.teamMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { email: true } } },
+  });
   if (!target || target.accountId !== accountId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -89,6 +108,14 @@ export async function DELETE(
   }
 
   await db.teamMember.delete({ where: { id: memberId } });
+
+  const recipients = Array.from(new Set([user.wholesaleAccount.email, target.user.email]));
+  await sendTeamMemberRemovedEmail(
+    recipients,
+    user.wholesaleAccount.companyName,
+    target.user.email,
+    user.email
+  );
 
   return NextResponse.json({ success: true });
 }

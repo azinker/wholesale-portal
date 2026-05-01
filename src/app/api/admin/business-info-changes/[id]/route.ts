@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
+import { sendBusinessInfoChangeReviewedEmail } from "@/lib/email";
 
 /** POST: Approve or deny a business info change request */
 export async function POST(
@@ -38,6 +39,7 @@ export async function POST(
     // Apply changes to the wholesale account
     const newValues = changeRequest.newValues as Record<string, string>;
     const updateData: Record<string, string> = {};
+    const fields = Object.keys(newValues);
 
     for (const [key, value] of Object.entries(newValues)) {
       updateData[key] = value;
@@ -62,11 +64,22 @@ export async function POST(
           actorEmail: user.email,
           action: "business_info_change_approved",
           targetAccountId: changeRequest.accountId,
-          details: { changeRequestId: id, appliedFields: Object.keys(newValues) },
+          details: { changeRequestId: id, appliedFields: fields },
         },
       }),
     ]);
+
+    await sendBusinessInfoChangeReviewedEmail(
+      changeRequest.account.email,
+      changeRequest.account.companyName,
+      "APPROVED",
+      fields,
+      reviewNote
+    );
   } else {
+    const newValues = changeRequest.newValues as Record<string, string>;
+    const fields = Object.keys(newValues);
+
     await db.$transaction([
       db.businessInfoChange.update({
         where: { id },
@@ -86,6 +99,14 @@ export async function POST(
         },
       }),
     ]);
+
+    await sendBusinessInfoChangeReviewedEmail(
+      changeRequest.account.email,
+      changeRequest.account.companyName,
+      "DENIED",
+      fields,
+      reviewNote
+    );
   }
 
   return NextResponse.json({ success: true, status: action === "approve" ? "APPROVED" : "DENIED" });

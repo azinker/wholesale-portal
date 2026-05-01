@@ -95,7 +95,7 @@ export default async function DashboardPage() {
               <p className="font-semibold text-info">Retail Account</p>
               <p className="text-sm text-muted-foreground mt-1">
                 You&apos;re currently shopping at retail prices.{" "}
-                <Link href="/" className="text-info font-medium underline underline-offset-2">
+                <Link href="/?apply=1" className="text-info font-medium underline underline-offset-2">
                   Apply for a wholesale account
                 </Link>{" "}
                 to unlock tiered discounts.
@@ -128,6 +128,11 @@ export default async function DashboardPage() {
               <p className="text-sm text-muted-foreground mt-1">
                 {account?.denialReason || "Your wholesale application was not approved."}
               </p>
+              <Button variant="outline" size="sm" asChild className="mt-3">
+                <Link href="/?reapply=1">
+                  Update and Reapply <ArrowRight className="ml-1 h-3 w-3" />
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

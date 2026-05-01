@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, MessageSquare } from "lucide-react";
 
 export default function ApplicantActions({
   accountId,
@@ -20,6 +20,8 @@ export default function ApplicantActions({
   const [loading, setLoading] = useState(false);
   const [showDeny, setShowDeny] = useState(false);
   const [denyReason, setDenyReason] = useState("");
+  const [showRequestInfo, setShowRequestInfo] = useState(false);
+  const [requestInfoMessage, setRequestInfoMessage] = useState("");
 
   const handleApprove = async () => {
     if (!confirm("Approve this wholesale applicant? They will be assigned to the Wholesale customer group.")) return;
@@ -66,6 +68,34 @@ export default function ApplicantActions({
     }
   };
 
+  const handleRequestInfo = async () => {
+    if (!requestInfoMessage.trim()) {
+      toast.error("Please explain what information is needed");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/applicants/${accountId}/request-info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: requestInfoMessage }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || "Request failed");
+      }
+      toast.success("Information request sent");
+      setShowRequestInfo(false);
+      setRequestInfoMessage("");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -77,11 +107,34 @@ export default function ApplicantActions({
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
             Approve
           </Button>
+          <Button variant="outline" onClick={() => setShowRequestInfo(!showRequestInfo)} disabled={loading}>
+            <MessageSquare className="h-4 w-4" />
+            Request Info
+          </Button>
           <Button variant="destructive" onClick={() => setShowDeny(!showDeny)} disabled={loading}>
             <XCircle className="h-4 w-4" />
             Deny
           </Button>
         </div>
+
+        {showRequestInfo && (
+          <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-2">
+              <Label htmlFor="requestInfoMessage">Information Needed</Label>
+              <Textarea
+                id="requestInfoMessage"
+                value={requestInfoMessage}
+                onChange={(e) => setRequestInfoMessage(e.target.value)}
+                placeholder="Example: Please upload your resale certificate or confirm your business website."
+                rows={3}
+              />
+            </div>
+            <Button variant="outline" onClick={handleRequestInfo} disabled={loading || !requestInfoMessage.trim()}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+              Send Request
+            </Button>
+          </div>
+        )}
 
         {showDeny && (
           <div className="space-y-3 pt-3 border-t">

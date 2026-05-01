@@ -19,7 +19,7 @@ function getInitials(name: string): string {
 
 export default async function ApplicantsPage() {
   const applicants = await db.wholesaleAccount.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" },
     include: {
       user: {
         select: { id: true, avatarKey: true },

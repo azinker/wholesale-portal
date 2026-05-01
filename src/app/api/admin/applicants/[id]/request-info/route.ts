@@ -3,10 +3,10 @@ import { z } from "zod";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
-import { sendApplicantDenialEmail } from "@/lib/email";
+import { sendApplicantMoreInfoRequestEmail } from "@/lib/email";
 
-const denySchema = z.object({
-  reason: z.string().min(1, "Denial reason is required").max(2000, "Denial reason is too long"),
+const requestInfoSchema = z.object({
+  message: z.string().min(1, "Message is required").max(2000, "Message is too long"),
 });
 
 export async function POST(
@@ -21,7 +21,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await req.json();
-    const { reason } = denySchema.parse(body);
+    const { message } = requestInfoSchema.parse(body);
 
     const account = await db.wholesaleAccount.findUnique({
       where: { id },
@@ -31,34 +31,27 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (account.status === "DENIED") {
-      return NextResponse.json({ error: "Already denied" }, { status: 400 });
+    if (account.status !== "PENDING" && account.status !== "RETAIL") {
+      return NextResponse.json(
+        { error: "More information can only be requested for an open application" },
+        { status: 400 }
+      );
     }
 
-    // Update account
-    await db.wholesaleAccount.update({
-      where: { id },
-      data: {
-        status: "DENIED",
-        denialReason: reason,
-      },
-    });
-
-    // Audit log
     await db.auditLog.create({
       data: {
         actorEmail: user.email,
-        action: "applicant_denied",
+        action: "applicant_more_info_requested",
         targetCustomerId: account.customerId,
         targetAccountId: account.id,
         details: {
           companyName: account.companyName,
-          reason,
+          message,
         },
       },
     });
 
-    await sendApplicantDenialEmail(account.email, account.companyName, reason);
+    await sendApplicantMoreInfoRequestEmail(account.email, account.companyName, message);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -68,9 +61,9 @@ export async function POST(
         { status: 400 }
       );
     }
-    console.error("Deny error:", error);
+    console.error("Request info error:", error);
     return NextResponse.json(
-      { error: "Failed to deny applicant" },
+      { error: "Failed to request more information" },
       { status: 500 }
     );
   }

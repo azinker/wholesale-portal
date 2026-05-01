@@ -3,6 +3,13 @@ import { Prisma } from "@prisma/client";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
 import { formatCouponCode, toAlias } from "@/lib/utils";
 import {
+  sendCouponChangedEmail,
+  sendCouponCreatedEmail,
+  sendCouponDisabledEmail,
+  sendTierChangedEmail,
+  sendWelcomeDiscountExpiringEmail,
+} from "@/lib/email";
+import {
   DEFAULT_TIER_WINDOW_DAYS,
   getTierWindowStartDate,
   normalizeTierWindowDays,
@@ -329,6 +336,39 @@ export async function recalcTier(
   await ensurePromoForTier(account.id, account.alias, newTier);
 
   if (changed) {
+    const previousConfig = await getTierConfig(previousTier);
+    const newConfig = await getTierConfig(newTier);
+    const previousDiscount = previousConfig?.discount ?? 0;
+    const newDiscount = newConfig?.discount ?? 0;
+    const changeType = newDiscount >= previousDiscount ? "achieved" : "downgraded";
+
+    await sendTierChangedEmail(
+      account.email,
+      account.companyName,
+      previousTier,
+      newTier,
+      qualifyingCount,
+      windowDays,
+      changeType
+    );
+
+    if (previousTier !== "NONE" && newTier !== "NONE" && newConfig) {
+      const activePromo = await db.promotionRecord.findFirst({
+        where: { accountId: account.id, enabled: true, tier: newTier },
+        select: { code: true },
+      });
+      if (activePromo) {
+        await sendCouponChangedEmail(
+          account.email,
+          account.companyName,
+          previousTier,
+          newTier,
+          activePromo.code,
+          newConfig.discount
+        );
+      }
+    }
+
     // Audit log
     await db.auditLog.create({
       data: {
@@ -346,7 +386,47 @@ export async function recalcTier(
     });
   }
 
+  await maybeSendWelcomeExpiringEmail(account.id, account.email, account.companyName, account.welcomeExpiresAt, newTier);
+
   return { previousTier, newTier, count7d: qualifyingCount, changed, windowDays };
+}
+
+async function maybeSendWelcomeExpiringEmail(
+  accountId: string,
+  email: string,
+  companyName: string,
+  welcomeExpiresAt: Date | null,
+  currentTier: TierId
+): Promise<void> {
+  if (!welcomeExpiresAt || currentTier !== "WELCOME") return;
+
+  const msUntilExpiry = welcomeExpiresAt.getTime() - Date.now();
+  const reminderWindowMs = 24 * 60 * 60 * 1000;
+  if (msUntilExpiry <= 0 || msUntilExpiry > reminderWindowMs) return;
+
+  const alreadySent = await db.auditLog.findFirst({
+    where: {
+      action: "welcome_expiring_email_sent",
+      targetAccountId: accountId,
+      createdAt: { gte: new Date(Date.now() - reminderWindowMs) },
+    },
+    select: { id: true },
+  });
+  if (alreadySent) return;
+
+  const welcomeConfig = await loadWelcomeConfig();
+  await sendWelcomeDiscountExpiringEmail(email, companyName, welcomeExpiresAt, welcomeConfig.discount);
+  await db.auditLog.create({
+    data: {
+      actorEmail: "system",
+      action: "welcome_expiring_email_sent",
+      targetAccountId: accountId,
+      details: {
+        expiresAt: welcomeExpiresAt.toISOString(),
+        discount: welcomeConfig.discount,
+      },
+    },
+  });
 }
 
 /**
@@ -364,6 +444,11 @@ export async function ensurePromoForTier(
   alias: string,
   currentTier: TierId
 ): Promise<void> {
+  const account = await db.wholesaleAccount.findUnique({
+    where: { id: accountId },
+    select: { email: true, companyName: true },
+  });
+
   // Disable all promotions that are NOT for the current tier (or all if NONE)
   const enabledPromos = await db.promotionRecord.findMany({
     where: { accountId, enabled: true },
@@ -386,6 +471,15 @@ export async function ensurePromoForTier(
       where: { id: promo.id },
       data: { enabled: false, disabledAt: new Date() },
     });
+
+    if (currentTier === "NONE" && account) {
+      await sendCouponDisabledEmail(
+        account.email,
+        account.companyName,
+        promo.code,
+        "Your current order volume does not qualify for an active wholesale coupon."
+      );
+    }
   }
 
   // If tier is NONE, no promotion needed
@@ -395,6 +489,7 @@ export async function ensurePromoForTier(
   let promoRecord = await db.promotionRecord.findUnique({
     where: { accountId_tier: { accountId, tier: currentTier } },
   });
+  let createdRecord = false;
 
   const tierConfig = await getTierConfig(currentTier);
   if (!tierConfig) return;
@@ -413,6 +508,7 @@ export async function ensurePromoForTier(
         enabled: false,
       },
     });
+    createdRecord = true;
   }
 
   // If already enabled with a valid BC promo, nothing to do
@@ -429,6 +525,9 @@ export async function ensurePromoForTier(
         where: { id: promoRecord.id },
         data: { enabled: true, disabledAt: null },
       });
+      if (createdRecord && account) {
+        await sendCouponCreatedEmail(account.email, account.companyName, promoRecord.code, currentTier, tierConfig.discount);
+      }
     } catch (err) {
       console.error(`Failed to enable promo ${promoRecord.promoId}:`, err);
       // Still mark as enabled locally so coupon code is visible on dashboard
@@ -436,6 +535,9 @@ export async function ensurePromoForTier(
         where: { id: promoRecord.id },
         data: { enabled: true, disabledAt: null },
       });
+      if (createdRecord && account) {
+        await sendCouponCreatedEmail(account.email, account.companyName, promoRecord.code, currentTier, tierConfig.discount);
+      }
     }
   } else {
     // Create new BC promotion
@@ -506,6 +608,9 @@ export async function ensurePromoForTier(
           disabledAt: null,
         },
       });
+      if (createdRecord && account) {
+        await sendCouponCreatedEmail(account.email, account.companyName, codeToUse, currentTier, tierConfig.discount);
+      }
     } catch (err) {
       console.error("Failed to create BC promotion:", err);
       // Still mark as enabled locally so the coupon code is visible on the dashboard.
@@ -514,6 +619,9 @@ export async function ensurePromoForTier(
         where: { id: promoRecord.id },
         data: { enabled: true, disabledAt: null },
       });
+      if (createdRecord && account) {
+        await sendCouponCreatedEmail(account.email, account.companyName, promoRecord.code, currentTier, tierConfig.discount);
+      }
     }
   }
 }

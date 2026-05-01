@@ -3,7 +3,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { toAlias } from "@/lib/utils";
-import { sendNewApplicantNotification } from "@/lib/email";
+import {
+  sendApplicationReceivedEmail,
+  sendNewApplicantNotification,
+  sendReapplicationReceivedEmail,
+} from "@/lib/email";
 
 const applySchema = z.object({
   email: z.string().email(),
@@ -31,6 +35,107 @@ export async function POST(req: NextRequest) {
       where: { email },
     });
     if (existingAccount) {
+      if (existingAccount.status === "DENIED") {
+        let customerId: number | null = existingAccount.customerId;
+
+        if (!customerId) {
+          try {
+            const bcCustomer = await bc().getCustomerByEmail(email);
+            if (bcCustomer) {
+              customerId = bcCustomer.id;
+            }
+          } catch (err) {
+            console.warn("Could not check BC customer on reapplication:", err);
+          }
+        }
+
+        if (!customerId) {
+          try {
+            const newCustomer = await bc().createCustomer({
+              email,
+              first_name: data.firstName,
+              last_name: data.lastName,
+              company: data.companyName,
+            });
+            customerId = newCustomer.id;
+          } catch (err) {
+            console.warn("Could not create BC customer on reapplication:", err);
+          }
+        }
+
+        if (customerId) {
+          await db.portalUser.update({
+            where: { id: existingAccount.userId },
+            data: { linkedCustomerId: customerId },
+          });
+        }
+
+        const alias = toAlias(data.companyName);
+        const updatedAccount = await db.wholesaleAccount.update({
+          where: { id: existingAccount.id },
+          data: {
+            customerId,
+            email,
+            companyName: data.companyName,
+            alias,
+            legalName: data.legalName || null,
+            businessAddress: data.businessAddress,
+            phone: data.phone,
+            website: data.website || null,
+            primaryState: data.primaryState || null,
+            attestation: true,
+            status: "PENDING",
+            denialReason: null,
+            approvedAt: null,
+            lastTier: "NONE",
+            lastCount7d: 0,
+            welcomeExpiresAt: null,
+            pausedUpgrades: false,
+            onboardingDismissed: false,
+            businessFields: {
+              firstName: data.firstName,
+              lastName: data.lastName,
+            },
+          },
+        });
+
+        await db.auditLog.create({
+          data: {
+            actorEmail: email,
+            action: "application_reapplied",
+            targetCustomerId: updatedAccount.customerId,
+            targetAccountId: updatedAccount.id,
+            details: {
+              companyName: data.companyName,
+              alias,
+              previousDenialReason: existingAccount.denialReason,
+              source: "portal",
+            },
+          },
+        });
+
+        await sendNewApplicantNotification({
+          email,
+          companyName: data.companyName,
+          alias,
+          source: "portal",
+          reapplied: true,
+          previousDenialReason: existingAccount.denialReason,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          legalName: data.legalName || undefined,
+          businessAddress: data.businessAddress,
+          phone: data.phone,
+          website: data.website || undefined,
+          primaryState: data.primaryState || undefined,
+          customerId: updatedAccount.customerId ?? null,
+        });
+        await sendReapplicationReceivedEmail(email, data.companyName);
+
+        console.log("Application resubmitted:", email);
+        return NextResponse.json({ success: true, reapplied: true });
+      }
+
       return NextResponse.json(
         { error: "An application for this email already exists. Sign in to check your status." },
         { status: 409 }
@@ -137,6 +242,7 @@ export async function POST(req: NextRequest) {
       primaryState: data.primaryState || undefined,
       customerId: customerId ?? null,
     });
+    await sendApplicationReceivedEmail(email, data.companyName);
 
     console.log("Application submitted:", email);
     return NextResponse.json({ success: true });

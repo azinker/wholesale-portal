@@ -3,6 +3,7 @@ import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { uploadToClean } from "@/lib/storage";
 import { randomCode } from "@/lib/utils";
+import { sendDocumentUploadedEmail } from "@/lib/email";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = [
@@ -79,6 +80,8 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(`Document ${doc.id} uploaded and marked CLEAN (virus scanning disabled)`);
+
+    await sendDocumentUploadedEmail(user.email, account.companyName, doc.filename, doc.docType);
 
     return NextResponse.json({
       id: doc.id,

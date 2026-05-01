@@ -363,6 +363,7 @@ export default function ApplyPage() {
   const [loading, setLoading] = useState(false);
   const [tosAccepted, setTosAccepted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [reapplyMode, setReapplyMode] = useState(false);
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
@@ -370,7 +371,19 @@ export default function ApplyPage() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shouldOpen = params.get("apply") === "1" || params.get("reapply") === "1";
+    if (!shouldOpen) return;
+
+    const isReapply = params.get("reapply") === "1";
+    setReapplyMode(isReapply);
+    setSheetOpen(true);
+    trackEvent(isReapply ? "wholesale_reapplication_opened" : "wholesale_application_opened");
+  }, []);
+
   const openApplication = () => {
+    setReapplyMode(false);
     setSheetOpen(true);
     trackEvent("wholesale_application_opened");
   };
@@ -405,7 +418,7 @@ export default function ApplyPage() {
         throw new Error(body.error || "Application failed");
       }
       trackEvent("wholesale_application_submitted", {
-        form_name: "Wholesale Application",
+        form_name: reapplyMode ? "Wholesale Reapplication" : "Wholesale Application",
       });
       setSubmitted(true);
     } catch (err) {
@@ -431,11 +444,11 @@ export default function ApplyPage() {
                 <CheckCircle className="h-10 w-10 text-success" />
               </div>
               <div className="space-y-3">
-                <h2 className="text-2xl font-bold">Application Submitted!</h2>
+                <h2 className="text-2xl font-bold">{reapplyMode ? "Application Updated!" : "Application Submitted!"}</h2>
                 <p className="text-sm text-muted-foreground max-w-sm">
-                  Thank you for applying! We review most applications within
-                  24 hours. You&apos;ll receive an email with your portal login
-                  and unique coupon code once approved.
+                  {reapplyMode
+                    ? "Thank you for updating your application. We review most resubmissions within 24 hours and will email you once a decision is made."
+                    : "Thank you for applying! We review most applications within 24 hours. You'll receive an email with your portal login and unique coupon code once approved."}
                 </p>
               </div>
               <Button asChild size="lg" className="cursor-pointer">
@@ -448,9 +461,11 @@ export default function ApplyPage() {
           ) : (
             <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <SheetHeader className="pb-2">
-                <SheetTitle className="text-xl">Apply for Wholesale</SheetTitle>
+                <SheetTitle className="text-xl">{reapplyMode ? "Reapply for Wholesale" : "Apply for Wholesale"}</SheetTitle>
                 <SheetDescription>
-                  Takes about 2 minutes. Most applications are approved within 24 hours.
+                  {reapplyMode
+                    ? "Update your business details and resubmit for review."
+                    : "Takes about 2 minutes. Most applications are approved within 24 hours."}
                 </SheetDescription>
               </SheetHeader>
               <form onSubmit={handleSubmit} className="space-y-5 px-4 pb-8">

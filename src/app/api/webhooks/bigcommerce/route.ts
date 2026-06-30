@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processWebhookEvent } from "@/lib/bigcommerce/webhooks";
-import { verifyBigCommerceWebhookSignature } from "@/lib/bigcommerce/verify-webhook";
+import { isBigCommerceWebhookAuthorized } from "@/lib/bigcommerce/verify-webhook";
 
 /**
  * BigCommerce webhook receiver.
@@ -10,15 +10,17 @@ import { verifyBigCommerceWebhookSignature } from "@/lib/bigcommerce/verify-webh
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get("x-bc-signature");
 
     if (process.env.NODE_ENV === "production") {
-      if (!verifyBigCommerceWebhookSignature(rawBody, signature)) {
-        console.warn("BigCommerce webhook rejected: invalid or missing signature");
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      if (!isBigCommerceWebhookAuthorized(rawBody, req.headers)) {
+        console.warn("BigCommerce webhook rejected: invalid auth");
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-    } else if (signature && !verifyBigCommerceWebhookSignature(rawBody, signature)) {
-      console.warn("BigCommerce webhook signature mismatch (dev — allowing for testing)");
+    } else if (
+      req.headers.get("x-bc-signature") &&
+      !isBigCommerceWebhookAuthorized(rawBody, req.headers)
+    ) {
+      console.warn("BigCommerce webhook auth mismatch (dev — allowing for testing)");
     }
 
     const body = JSON.parse(rawBody) as {

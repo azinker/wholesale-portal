@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { bc } from "@/lib/bigcommerce/client";
+import { WEBHOOK_AUTH_HEADER } from "@/lib/bigcommerce/verify-webhook";
 
 const WEBHOOK_SCOPES = [
   "store/customer/created",
@@ -44,6 +45,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const webhookAuthSecret = process.env.BC_WEBHOOK_AUTH_SECRET?.trim();
+    const headers = webhookAuthSecret
+      ? { [WEBHOOK_AUTH_HEADER]: webhookAuthSecret }
+      : undefined;
+
     const results = [];
     for (const scope of WEBHOOK_SCOPES) {
       try {
@@ -51,6 +57,7 @@ export async function POST(req: NextRequest) {
           scope,
           destination,
           is_active: true,
+          headers,
         });
         results.push({ scope, status: "created", hook });
       } catch (error) {

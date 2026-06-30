@@ -233,6 +233,19 @@ class BigCommerceClient {
     ]);
   }
 
+  async updateCustomerProfile(
+    customerId: number,
+    data: {
+      company?: string;
+      phone?: string;
+      first_name?: string;
+      last_name?: string;
+    }
+  ): Promise<void> {
+    guardWrite("updateCustomerProfile");
+    await this.put(`${this.baseV3}/customers`, [{ id: customerId, ...data }]);
+  }
+
   // ── Customer groups ────────────────────────────────
   async getCustomerGroups(): Promise<BCCustomerGroup[]> {
     const res = await this.get<BCCustomerGroup[]>(`${this.baseV2}/customer_groups`);

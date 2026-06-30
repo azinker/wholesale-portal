@@ -29,6 +29,13 @@ export async function POST(
       );
     }
 
+    if (doc.scanStatus === "INFECTED") {
+      return NextResponse.json(
+        { error: "Cannot bypass scan on infected documents" },
+        { status: 400 }
+      );
+    }
+
     // Move file from quarantine to clean storage
     await moveToClean(doc.storageKey);
 

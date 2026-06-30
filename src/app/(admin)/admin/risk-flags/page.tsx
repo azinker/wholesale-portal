@@ -55,7 +55,7 @@ export default async function RiskFlagsPage() {
                       {flag.type.replace(/_/g, " ")}
                     </Badge>
                     <h3 className="font-semibold">
-                      <Link href={`/admin/applicants/${flag.account.id}`} className="text-primary hover:underline">
+                      <Link href={`/admin/customers/${flag.account.id}`} className="text-primary hover:underline">
                         {flag.account.companyName}
                       </Link>
                     </h3>

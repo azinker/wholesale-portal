@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { requirePortalAccount } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
 import { uploadToClean } from "@/lib/storage";
 import { randomCode } from "@/lib/utils";
@@ -16,18 +16,13 @@ const ALLOWED_TYPES = [
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePortalAccount("upload_documents");
+    if (!auth.user) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
+    const user = auth.user;
 
-    const account = user.wholesaleAccount;
-    if (!account) {
-      return NextResponse.json(
-        { error: "No wholesale account found. Please apply first." },
-        { status: 403 }
-      );
-    }
+    const account = user.wholesaleAccount!;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

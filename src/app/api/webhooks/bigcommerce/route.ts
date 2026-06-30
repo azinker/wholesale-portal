@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processWebhookEvent } from "@/lib/bigcommerce/webhooks";
+import { verifyBigCommerceWebhookSignature } from "@/lib/bigcommerce/verify-webhook";
 
 /**
  * BigCommerce webhook receiver.
@@ -8,20 +9,35 @@ import { processWebhookEvent } from "@/lib/bigcommerce/webhooks";
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { scope, data, hash, created_at } = body;
+    const rawBody = await req.text();
+    const signature = req.headers.get("x-bc-signature");
 
-    // Store the raw event
+    if (process.env.NODE_ENV === "production") {
+      if (!verifyBigCommerceWebhookSignature(rawBody, signature)) {
+        console.warn("BigCommerce webhook rejected: invalid or missing signature");
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
+    } else if (signature && !verifyBigCommerceWebhookSignature(rawBody, signature)) {
+      console.warn("BigCommerce webhook signature mismatch (dev — allowing for testing)");
+    }
+
+    const body = JSON.parse(rawBody) as {
+      scope?: string;
+      data?: Record<string, unknown>;
+      hash?: string;
+      created_at?: number;
+    };
+    const { scope, data } = body;
+
     const event = await db.webhookEvent.create({
       data: {
         type: scope || "unknown",
-        payload: body,
+        payload: JSON.parse(rawBody),
         status: "RECEIVED",
       },
     });
 
-    // Process async (don't block the response)
-    processWebhookEvent(event.id, scope, data).catch((err) => {
+    processWebhookEvent(event.id, scope || "unknown", data || {}).catch((err) => {
       console.error(`Webhook processing failed for ${event.id}:`, err);
     });
 

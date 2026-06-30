@@ -181,6 +181,14 @@ export default function DocumentUploader({ initialDocuments }: { initialDocument
                     </p>
                   </div>
                   <ScanBadge status={doc.scanStatus} />
+                  {doc.scanStatus === "CLEAN" && (
+                    <a
+                      href={`/api/documents/${doc.id}/download`}
+                      className="text-xs text-primary hover:underline whitespace-nowrap"
+                    >
+                      Download
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

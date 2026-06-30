@@ -1,29 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { requirePortalAccount } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
-
-const EDITABLE_FIELDS = [
-  "companyName",
-  "legalName",
-  "phone",
-  "businessAddress",
-  "primaryState",
-  "website",
-] as const;
-
-type EditableField = (typeof EDITABLE_FIELDS)[number];
+import {
+  EDITABLE_BUSINESS_FIELDS,
+  type EditableBusinessField,
+} from "@/lib/business-info-fields";
 
 /** POST: Submit a business info change request */
 export async function POST(req: NextRequest) {
-  const user = await getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requirePortalAccount("edit_business_info");
+  if (!auth.user) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const user = auth.user;
 
-  const account = user.wholesaleAccount;
-  if (!account) {
-    return NextResponse.json({ error: "No wholesale account found" }, { status: 400 });
-  }
+  const account = user.wholesaleAccount!;
 
   // Check for existing pending request
   const existingPending = await db.businessInfoChange.findFirst({
@@ -48,9 +39,9 @@ export async function POST(req: NextRequest) {
   const newValues: Record<string, string> = {};
 
   for (const key of Object.keys(changes)) {
-    if (!EDITABLE_FIELDS.includes(key as EditableField)) continue;
+    if (!EDITABLE_BUSINESS_FIELDS.includes(key as EditableBusinessField)) continue;
 
-    const currentValue = account[key as EditableField] ?? "";
+    const currentValue = account[key as EditableBusinessField] ?? "";
     const newValue = (changes[key] || "").trim();
 
     if (currentValue !== newValue) {

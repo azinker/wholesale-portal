@@ -43,6 +43,8 @@ export default async function AdminDashboardPage() {
     pendingInfoChanges,
     recentLogs,
     topCustomers,
+    tierDistribution,
+    orderSumAgg,
     tierWindowDays,
   ] = await Promise.all([
     db.wholesaleAccount.count(),
@@ -55,10 +57,11 @@ export default async function AdminDashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    // Fetch all approved customers with their data for the leaderboard
+    // Fetch all approved customers with their data for the leaderboard (top 10 only)
     db.wholesaleAccount.findMany({
       where: { status: "APPROVED" },
       orderBy: { lastCount7d: "desc" },
+      take: 10,
       include: {
         user: { select: { id: true, avatarKey: true } },
         promotions: {
@@ -76,9 +79,28 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
+    db.wholesaleAccount.groupBy({
+      by: ["lastTier"],
+      where: { status: "APPROVED" },
+      _count: { _all: true },
+    }),
+    db.wholesaleAccount.aggregate({
+      where: { status: "APPROVED" },
+      _sum: { lastCount7d: true },
+    }),
     loadTierWindowDays(),
   ]);
+
   const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
+
+  const tierCounts = tierDistribution.reduce(
+    (acc, row) => {
+      acc[row.lastTier] = row._count._all;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+  const countAtTier = (tier: string) => tierCounts[tier] ?? 0;
 
   // Batch-fetch avatar URLs
   const avatarMap = await getAvatarUrls(
@@ -121,12 +143,17 @@ export default async function AdminDashboardPage() {
   // Sort by current 7-day orders descending (already done by query), take top 10
   const topWholesalers = customerStats.slice(0, 10);
 
-  // Aggregate stats across all customers
-  const totalCurrent7dOrders = customerStats.reduce((sum, c) => sum + c.lastCount7d, 0);
-  const customersAtT20 = customerStats.filter((c) => c.lastTier === "T20").length;
-  const customersAtT15 = customerStats.filter((c) => c.lastTier === "T15").length;
-  const customersAtT10 = customerStats.filter((c) => c.lastTier === "T10").length;
-  const customersAtNone = customerStats.filter((c) => c.lastTier === "NONE").length;
+  // Aggregate stats across all approved customers
+  const totalCurrent7dOrders = orderSumAgg._sum.lastCount7d ?? 0;
+  const customersAtT20 = countAtTier("T20");
+  const customersAtT15 = countAtTier("T15");
+  const customersAtT10 = countAtTier("T10");
+  const customersAtT25 = countAtTier("T25");
+  const customersAtT30 = countAtTier("T30");
+  const customersAtWelcome = countAtTier("WELCOME");
+  const customersAtNone = countAtTier("NONE");
+  const customersWithActiveTier =
+    approvedCount - customersAtNone - customersAtWelcome;
 
   return (
     <div className="max-w-6xl space-y-8">
@@ -181,9 +208,14 @@ export default async function AdminDashboardPage() {
             <CardDescription>Current tier breakdown of approved customers</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <TierBar label="T20 (20% off)" count={customersAtT20} total={approvedCount} color="bg-success" />
+            <TierBar label="T30 (30% off)" count={customersAtT30} total={approvedCount} color="bg-success" />
+            <TierBar label="T25 (25% off)" count={customersAtT25} total={approvedCount} color="bg-success/80" />
+            <TierBar label="T20 (20% off)" count={customersAtT20} total={approvedCount} color="bg-success/60" />
             <TierBar label="T15 (15% off)" count={customersAtT15} total={approvedCount} color="bg-warning" />
             <TierBar label="T10 (10% off)" count={customersAtT10} total={approvedCount} color="bg-info" />
+            {customersAtWelcome > 0 && (
+              <TierBar label="Welcome" count={customersAtWelcome} total={approvedCount} color="bg-primary/60" />
+            )}
             <TierBar label="None" count={customersAtNone} total={approvedCount} color="bg-muted-foreground/30" />
           </CardContent>
         </Card>
@@ -212,7 +244,7 @@ export default async function AdminDashboardPage() {
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Customers with Active Tier</span>
               <span className="font-mono">
-                {customersAtT10 + customersAtT15 + customersAtT20} / {approvedCount}
+                {customersWithActiveTier} / {approvedCount}
               </span>
             </div>
             <Separator />

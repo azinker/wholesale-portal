@@ -1,33 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { z } from "zod";
+import { requirePortalAccount, type PortalUser } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
 import { sendTeamMemberRemovedEmail, sendTeamMemberRoleChangedEmail } from "@/lib/email";
+
+const roleSchema = z.object({
+  role: z.enum(["ADMIN", "PURCHASER", "VIEWER"]),
+});
+
+async function assertOwnerOrAdmin(user: PortalUser) {
+  const accountId = user.wholesaleAccount!.id;
+  const currentMember = await db.teamMember.findUnique({
+    where: { accountId_userId: { accountId, userId: user.id } },
+  });
+  const isOwnerOrAdmin =
+    user.isAccountOwner || currentMember?.role === "ADMIN";
+  return isOwnerOrAdmin;
+}
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ memberId: string }> }
 ) {
-  const user = await getUser();
-  if (!user?.wholesaleAccount) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requirePortalAccount("manage_team");
+  if (!auth.user) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  const user = auth.user;
+
+  if (!(await assertOwnerOrAdmin(user))) {
+    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
   const { memberId } = await params;
-  const accountId = user.wholesaleAccount.id;
-
-  // Verify requester is OWNER or ADMIN
-  const currentMember = await db.teamMember.findUnique({
-    where: { accountId_userId: { accountId, userId: user.id } },
-  });
-
-  const isOwnerOrAdmin =
-    !currentMember ||
-    currentMember.role === "OWNER" ||
-    currentMember.role === "ADMIN";
-
-  if (!isOwnerOrAdmin) {
-    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
-  }
+  const accountId = user.wholesaleAccount!.id;
 
   const target = await db.teamMember.findUnique({
     where: { id: memberId },
@@ -37,16 +43,23 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Cannot modify OWNER
   if (target.role === "OWNER") {
     return NextResponse.json({ error: "Cannot modify owner role" }, { status: 400 });
   }
 
-  const { role } = await req.json();
-
-  if (role === "OWNER") {
-    return NextResponse.json({ error: "Cannot assign OWNER role" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+
+  const parsed = roleSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+  }
+
+  const { role } = parsed.data;
 
   const updated = await db.teamMember.update({
     where: { id: memberId },
@@ -54,10 +67,10 @@ export async function PUT(
   });
 
   if (target.role !== role) {
-    const recipients = Array.from(new Set([user.wholesaleAccount.email, target.user.email]));
+    const recipients = Array.from(new Set([user.wholesaleAccount!.email, target.user.email]));
     await sendTeamMemberRoleChangedEmail(
       recipients,
-      user.wholesaleAccount.companyName,
+      user.wholesaleAccount!.companyName,
       target.user.email,
       target.role,
       role,
@@ -69,30 +82,21 @@ export async function PUT(
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ memberId: string }> }
 ) {
-  const user = await getUser();
-  if (!user?.wholesaleAccount) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requirePortalAccount("manage_team");
+  if (!auth.user) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  const user = auth.user;
+
+  if (!(await assertOwnerOrAdmin(user))) {
+    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
   const { memberId } = await params;
-  const accountId = user.wholesaleAccount.id;
-
-  // Verify requester is OWNER or ADMIN
-  const currentMember = await db.teamMember.findUnique({
-    where: { accountId_userId: { accountId, userId: user.id } },
-  });
-
-  const isOwnerOrAdmin =
-    !currentMember ||
-    currentMember.role === "OWNER" ||
-    currentMember.role === "ADMIN";
-
-  if (!isOwnerOrAdmin) {
-    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
-  }
+  const accountId = user.wholesaleAccount!.id;
 
   const target = await db.teamMember.findUnique({
     where: { id: memberId },
@@ -102,17 +106,16 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Cannot remove OWNER
   if (target.role === "OWNER") {
     return NextResponse.json({ error: "Cannot remove owner" }, { status: 400 });
   }
 
   await db.teamMember.delete({ where: { id: memberId } });
 
-  const recipients = Array.from(new Set([user.wholesaleAccount.email, target.user.email]));
+  const recipients = Array.from(new Set([user.wholesaleAccount!.email, target.user.email]));
   await sendTeamMemberRemovedEmail(
     recipients,
-    user.wholesaleAccount.companyName,
+    user.wholesaleAccount!.companyName,
     target.user.email,
     user.email
   );

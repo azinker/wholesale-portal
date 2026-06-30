@@ -25,13 +25,7 @@ export async function runPromoAudit(): Promise<PromoAuditResult> {
   // Fetch all promotions
   const { data: promotions } = await bc().getPromotions();
 
-  // Get the wholesale customer group names we manage
-  const wholesaleAccounts = await db.wholesaleAccount.findMany({
-    where: { status: "APPROVED" },
-    select: { alias: true },
-  });
-
-  // Also fetch customer groups to find our "Wholesale" group
+  // Fetch customer groups to find our "Wholesale" group
   let wholesaleGroupId: number | null = null;
   try {
     const group = await bc().getCustomerGroupByName("Wholesale");

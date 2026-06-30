@@ -22,6 +22,13 @@ export async function GET(
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
+    if (doc.scanStatus === "INFECTED") {
+      return NextResponse.json(
+        { error: "Cannot bypass view on infected documents" },
+        { status: 400 }
+      );
+    }
+
     if (doc.scanStatus !== "CLEAN") {
       // Bypass: move to clean and mark CLEAN
       await moveToClean(doc.storageKey);

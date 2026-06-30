@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { z } from "zod";
+import { requirePortalAccount } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { createMagicToken } from "@/lib/auth";
 import { sendTeamMemberAddedEmail } from "@/lib/email";
 
-export async function GET() {
-  const user = await getUser();
-  if (!user?.wholesaleAccount) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+const inviteSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(["ADMIN", "PURCHASER", "VIEWER"]),
+});
 
-  const accountId = user.wholesaleAccount.id;
+export async function GET() {
+  const auth = await requirePortalAccount();
+  if (!auth.user) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  const user = auth.user;
+
+  const accountId = user.wholesaleAccount!.id;
 
   const members = await db.teamMember.findMany({
     where: { accountId },
@@ -27,50 +34,52 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUser();
-  if (!user?.wholesaleAccount) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requirePortalAccount("manage_team");
+  if (!auth.user) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const user = auth.user;
 
-  const accountId = user.wholesaleAccount.id;
+  const accountId = user.wholesaleAccount!.id;
 
-  // Check if current user is OWNER or ADMIN
+  // Account owners have no teamMember row; invited admins do
   const currentMember = await db.teamMember.findUnique({
     where: { accountId_userId: { accountId, userId: user.id } },
   });
 
-  // If no team member record, they're the account owner (legacy)
   const isOwnerOrAdmin =
-    !currentMember ||
-    currentMember.role === "OWNER" ||
-    currentMember.role === "ADMIN";
+    user.isAccountOwner ||
+    currentMember?.role === "ADMIN";
 
   if (!isOwnerOrAdmin) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
-  const { email, role } = await req.json();
-
-  if (!email || !role) {
-    return NextResponse.json({ error: "Email and role required" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Prevent setting OWNER role (there can only be one)
-  if (role === "OWNER") {
-    return NextResponse.json({ error: "Cannot assign OWNER role" }, { status: 400 });
+  const parsed = inviteSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors[0]?.message || "Invalid input" },
+      { status: 400 }
+    );
   }
 
-  // Check if user already exists in the system
+  const { email, role } = parsed.data;
+
   let invitee = await db.portalUser.findUnique({ where: { email } });
 
   if (!invitee) {
-    // Create a new portal user for the invitee
     invitee = await db.portalUser.create({
       data: { email },
     });
   }
 
-  // Check if already a team member
   const existing = await db.teamMember.findUnique({
     where: { accountId_userId: { accountId, userId: invitee.id } },
   });
@@ -79,7 +88,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "User is already a team member" }, { status: 409 });
   }
 
-  // Create team member
   const member = await db.teamMember.create({
     data: {
       accountId,
@@ -89,7 +97,6 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Send branded invite email
   try {
     const token = await createMagicToken(email);
     const appUrl = env().NEXT_PUBLIC_APP_URL;
@@ -98,7 +105,7 @@ export async function POST(req: NextRequest) {
     const { buildTeamInviteHtml } = await import("@/lib/email");
     const { html, text } = buildTeamInviteHtml(
       user.email,
-      user.wholesaleAccount.companyName,
+      user.wholesaleAccount!.companyName,
       role,
       loginUrl,
     );
@@ -109,17 +116,21 @@ export async function POST(req: NextRequest) {
     await resend.emails.send({
       from: env().EMAIL_FROM,
       to: email,
-      subject: `You've been invited to ${user.wholesaleAccount.companyName}'s wholesale team — The Perfect Part`,
+      subject: `You've been invited to ${user.wholesaleAccount!.companyName}'s wholesale team — The Perfect Part`,
       html,
       text,
     });
   } catch (err) {
     console.error("Failed to send invite email:", err);
+    return NextResponse.json(
+      { error: "Member added but invite email failed to send", member },
+      { status: 502 }
+    );
   }
 
   await sendTeamMemberAddedEmail(
-    user.wholesaleAccount.email,
-    user.wholesaleAccount.companyName,
+    user.wholesaleAccount!.email,
+    user.wholesaleAccount!.companyName,
     email,
     role,
     user.email

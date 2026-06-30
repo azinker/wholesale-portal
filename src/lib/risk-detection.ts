@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { bc, type BCOrder, type BCOrderProduct } from "@/lib/bigcommerce/client";
+import { loadTiers, QUALIFYING_TIER_STATUS_IDS } from "@/lib/tier-engine";
 
 /**
  * Risk detection engine.
@@ -48,9 +49,13 @@ export async function runRiskChecks(accountId: string): Promise<RiskCheck[]> {
       if (pageOrders.length < 250) break;
       page++;
     }
-  } catch {
+  } catch (err) {
+    console.error(`Risk check order fetch failed for ${accountId}:`, err);
     return [];
   }
+
+  // Only count qualifying order statuses (consistent with tier engine)
+  orders = orders.filter((o) => QUALIFYING_TIER_STATUS_IDS.includes(o.status_id));
 
   const results: RiskCheck[] = [];
 
@@ -63,7 +68,8 @@ export async function runRiskChecks(accountId: string): Promise<RiskCheck[]> {
   results.push(skuFarming);
 
   // 3. Tier Chasing Check
-  const tierChasing = checkTierChasing(orders, account.lastTier);
+  const tiers = await loadTiers();
+  const tierChasing = checkTierChasing(orders, account.lastTier, tiers.map((t) => t.minOrders));
   results.push(tierChasing);
 
   // Create risk flags for detected issues
@@ -179,8 +185,12 @@ async function checkSameSkuFarming(orders: BCOrder[]): Promise<RiskCheck> {
  * Flag if order count is within 3 of a tier threshold and orders are clustered
  * in the last 24 hours
  */
-function checkTierChasing(orders: BCOrder[], currentTier: string): RiskCheck {
-  const thresholds = [25, 51, 101];
+function checkTierChasing(
+  orders: BCOrder[],
+  currentTier: string,
+  tierThresholds: number[]
+): RiskCheck {
+  const thresholds = tierThresholds.filter((t) => t > 0);
   const count = orders.length;
 
   // Check if count is just below or at a threshold
@@ -232,8 +242,9 @@ export async function runAllRiskChecks(): Promise<{
       const checks = await runRiskChecks(account.id);
       processed++;
       flagsCreated += checks.filter((c) => c.detected).length;
-    } catch {
+    } catch (err) {
       errors++;
+      console.error(`Risk checks failed for ${account.id}:`, err);
     }
   }
 

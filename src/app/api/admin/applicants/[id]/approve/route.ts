@@ -40,6 +40,13 @@ export async function POST(
       return NextResponse.json({ error: "Already approved" }, { status: 400 });
     }
 
+    if (account.status !== "PENDING" && account.status !== "RETAIL") {
+      return NextResponse.json(
+        { error: "Only pending applications can be approved" },
+        { status: 400 }
+      );
+    }
+
     // Find or create the Wholesale customer group in BigCommerce
     let groupId: number | null = null;
     try {

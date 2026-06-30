@@ -179,6 +179,11 @@ async function handleOrderEvent(data: Record<string, unknown>): Promise<void> {
       `Order ${orderId} webhook → tier recalc for ${account.companyName}: ` +
         `${result.previousTier} → ${result.newTier} (${result.count7d} orders)`
     );
+
+    const { runRiskChecks } = await import("@/lib/risk-detection");
+    runRiskChecks(account.id).catch((err) => {
+      console.error(`Risk checks failed for account ${account.id}:`, err);
+    });
   } catch (err) {
     console.error(`Order webhook processing failed for order ${orderId}:`, err);
   }

@@ -35,6 +35,13 @@ export async function POST(
       return NextResponse.json({ error: "Already denied" }, { status: 400 });
     }
 
+    if (account.status !== "PENDING" && account.status !== "RETAIL") {
+      return NextResponse.json(
+        { error: "Only pending applications can be denied" },
+        { status: 400 }
+      );
+    }
+
     // Update account
     await db.wholesaleAccount.update({
       where: { id },

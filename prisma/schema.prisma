@@ -31,6 +31,8 @@ model Session {
 
   user PortalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([expiresAt])
   @@map("sessions")
 }
 
@@ -77,6 +79,10 @@ model WholesaleAccount {
   infoChangeRequests BusinessInfoChange[]
   teamMembers       TeamMember[]
 
+  @@index([status])
+  @@index([email])
+  @@index([customerId])
+  @@index([lastCount7d])
   @@map("wholesale_accounts")
 }
 
@@ -104,6 +110,8 @@ model Document {
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
+  @@index([accountId])
+  @@index([scanStatus, uploadedAt])
   @@map("documents")
 }
 
@@ -136,6 +144,7 @@ model TierSnapshot {
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
+  @@index([accountId, asOf])
   @@map("tier_snapshots")
 }
 
@@ -157,6 +166,8 @@ model RiskFlag {
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
+  @@index([status])
+  @@index([accountId])
   @@map("risk_flags")
 }
 
@@ -177,6 +188,7 @@ model WebhookEvent {
   status      EventStatus @default(RECEIVED)
   error       String?
 
+  @@index([status, receivedAt])
   @@map("webhook_events")
 }
 
@@ -200,6 +212,7 @@ model BusinessInfoChange {
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
+  @@index([accountId, status])
   @@map("business_info_changes")
 }
 
@@ -213,6 +226,7 @@ model AuditLog {
   details          Json?
   createdAt        DateTime @default(now()) @map("created_at")
 
+  @@index([createdAt])
   @@map("audit_logs")
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recalcAllTiers } from "@/lib/tier-engine";
+import { runAllRiskChecks } from "@/lib/risk-detection";
 
 /**
  * POST /api/cron/tier-recalc
@@ -10,12 +11,11 @@ import { recalcAllTiers } from "@/lib/tier-engine";
  * Protected by a simple bearer token (CRON_SECRET env var).
  */
 export async function POST(req: NextRequest) {
-  // Verify cron secret
   const authHeader = req.headers.get("authorization");
-  const cronSecret = (process.env.CRON_SECRET || process.env.JWT_SECRET)?.trim();
+  const cronSecret = process.env.CRON_SECRET?.trim();
 
   if (!cronSecret) {
-    return NextResponse.json({ error: "No cron secret configured" }, { status: 500 });
+    return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 500 });
   }
 
   if (authHeader !== `Bearer ${cronSecret}`) {
@@ -25,14 +25,22 @@ export async function POST(req: NextRequest) {
   try {
     const start = Date.now();
     const result = await recalcAllTiers();
+    const riskResult = await runAllRiskChecks().catch((err) => {
+      console.error("Risk checks failed during cron:", err);
+      return { processed: 0, flagsCreated: 0, errors: 1 };
+    });
     const elapsed = Date.now() - start;
 
     console.log(
       `Tier recalc complete: ${result.processed} processed, ${result.changed} changed, ${result.errors} errors (${elapsed}ms)`
     );
+    console.log(
+      `Risk checks: ${riskResult.processed} accounts, ${riskResult.flagsCreated} flags, ${riskResult.errors} errors`
+    );
 
     return NextResponse.json({
       ...result,
+      riskChecks: riskResult,
       elapsedMs: elapsed,
     });
   } catch (error) {

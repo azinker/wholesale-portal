@@ -2,6 +2,7 @@ import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { bc, type BCProduct } from "@/lib/bigcommerce/client";
 import { db } from "@/lib/db";
+import { getTierDiscountPercent } from "@/lib/tier-engine";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Flame, ExternalLink } from "lucide-react";
@@ -49,15 +50,6 @@ async function trackHotSellersVisit(accountId: string) {
   }
 }
 
-function getTierDiscount(tier: string): number {
-  switch (tier) {
-    case "T10": return 10;
-    case "T15": return 15;
-    case "T20": return 20;
-    default: return 0;
-  }
-}
-
 function getStockStatus(product: BCProduct): {
   label: string;
   variant: "default" | "secondary" | "destructive" | "outline";
@@ -87,7 +79,7 @@ export default async function HotSellersPage() {
   const account = user.wholesaleAccount;
   const isApproved = account?.status === "APPROVED";
   const tier = account?.lastTier || "NONE";
-  const discountPct = getTierDiscount(tier);
+  const discountPct = isApproved ? await getTierDiscountPercent(tier) : 0;
 
   // Track visit for onboarding
   if (account?.id) {

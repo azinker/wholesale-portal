@@ -114,15 +114,15 @@ export async function POST(req: NextRequest) {
             ${account ? `
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">Company</td>
-              <td style="padding: 6px 0;">${account.companyName}</td>
+              <td style="padding: 6px 0;">${escapeHtml(account.companyName)}</td>
             </tr>
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">Status</td>
-              <td style="padding: 6px 0;">${account.status}</td>
+              <td style="padding: 6px 0;">${escapeHtml(account.status)}</td>
             </tr>
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">Tier</td>
-              <td style="padding: 6px 0;">${account.lastTier} (${account.lastCount7d} orders / ${tierWindowLabel})</td>
+              <td style="padding: 6px 0;">${escapeHtml(account.lastTier)} (${account.lastCount7d} orders / ${escapeHtml(tierWindowLabel)})</td>
             </tr>
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">BC Customer ID</td>
@@ -130,12 +130,12 @@ export async function POST(req: NextRequest) {
             </tr>
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">Alias</td>
-              <td style="padding: 6px 0; font-family: monospace; font-size: 12px;">${account.alias}</td>
+              <td style="padding: 6px 0; font-family: monospace; font-size: 12px;">${escapeHtml(account.alias)}</td>
             </tr>
             ${account.phone ? `
             <tr>
               <td style="padding: 6px 12px 6px 0; font-weight: 600; color: #333;">Phone</td>
-              <td style="padding: 6px 0;">${account.phone}</td>
+              <td style="padding: 6px 0;">${escapeHtml(account.phone)}</td>
             </tr>` : ""}
             ` : `
             <tr>

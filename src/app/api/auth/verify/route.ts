@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMagicToken, createSession } from "@/lib/auth";
+import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -14,7 +15,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=invalid_token", req.url));
   }
 
-  // Find or create portal user
   let user = await db.portalUser.findUnique({ where: { email } });
 
   if (!user) {
@@ -23,15 +23,15 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Create session
   await createSession(user.id);
 
-  // Redirect: admin goes to /admin, everyone else to /dashboard
-  const adminList = (process.env.ADMIN_ALLOWLIST || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase());
+  // Mark team membership as accepted on first login
+  await db.teamMember.updateMany({
+    where: { userId: user.id, acceptedAt: null },
+    data: { acceptedAt: new Date() },
+  });
 
-  if (adminList.includes(email.toLowerCase())) {
+  if (isAdmin(email)) {
     return NextResponse.redirect(new URL("/admin", req.url));
   }
 

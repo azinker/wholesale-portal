@@ -2,8 +2,9 @@ import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
-import { loadTierWindowDays, loadTiers, type TierId } from "@/lib/tier-engine";
+import { loadTierWindowDays, loadTiers, getTierDiscountPercent, type TierId } from "@/lib/tier-engine";
 import { formatTierWindowLabel, getTierWindowStartDate } from "@/lib/tier-window";
+import { orderHistoryMinDate } from "@/lib/order-history";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -49,7 +50,12 @@ export default async function InsightsPage() {
     try {
       let page = 1;
       while (true) {
-        const pageOrders = await bc().getOrders({ customer_id: customerId, limit: 250, page });
+        const pageOrders = await bc().getOrders({
+          customer_id: customerId,
+          min_date_created: orderHistoryMinDate(),
+          limit: 250,
+          page,
+        });
         if (!pageOrders || pageOrders.length === 0) break;
         allOrders = allOrders.concat(pageOrders);
         if (pageOrders.length < 250) break;
@@ -79,12 +85,14 @@ export default async function InsightsPage() {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   // Parse order dates and totals
-  const parsed = allOrders.map((o) => ({
-    ...o,
-    _date: new Date(o.date_created),
-    _total: parseFloat(o.total_inc_tax) || 0,
-    _items: o.items_total || 0,
-  }));
+  const parsed = allOrders
+    .map((o) => ({
+      ...o,
+      _date: new Date(o.date_created),
+      _total: parseFloat(o.total_inc_tax) || 0,
+      _items: o.items_total || 0,
+    }))
+    .sort((a, b) => b._date.getTime() - a._date.getTime());
 
   const orders7d = parsed.filter((o) => o._date >= tierWindowStart);
   const orders30d = parsed.filter((o) => o._date >= thirtyDaysAgo);
@@ -133,8 +141,10 @@ export default async function InsightsPage() {
   // Best rolling-window streak from snapshots
   const bestStreak = snapshots.length > 0 ? Math.max(...snapshots.map((s) => s.paidOrders7d)) : count7d;
 
+  const maxTierThreshold = Math.max(...dynamicTiers.map((t) => t.minOrders), 1);
+
   // Estimated monthly savings (based on current tier discount)
-  const currentDiscount = currentTier === "WELCOME" ? 0 : (dynamicTiers.find((t) => t.id === currentTier)?.discount || 0);
+  const currentDiscount = await getTierDiscountPercent(currentTier);
   const estMonthlySavings = revenue30d * (currentDiscount / 100);
 
   return (
@@ -319,7 +329,7 @@ export default async function InsightsPage() {
                   <span className="text-xs text-muted-foreground w-24 flex-shrink-0">{s.asOf.toLocaleDateString()}</span>
                   <TierBadge tier={s.tierLevel} />
                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${Math.min((s.paidOrders7d / 101) * 100, 100)}%` }} />
+                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${Math.min((s.paidOrders7d / maxTierThreshold) * 100, 100)}%` }} />
                   </div>
                   <span className="text-xs font-mono w-16 text-right">{s.paidOrders7d} orders</span>
                 </div>

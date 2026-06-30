@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { TeamRole, WholesaleAccount } from "@prisma/client";
 import { db } from "./db";
+import { getAvatarUrl } from "./avatar";
 
 const SESSION_COOKIE = "wsp_session";
 const ADMIN_SESSION_COOKIE = "wsp_admin_session";
@@ -64,6 +66,38 @@ export async function createSession(userId: string): Promise<void> {
   }
 }
 
+function resolveAccountContext(user: {
+  wholesaleAccount: WholesaleAccount | null;
+  teamMemberships: Array<{ role: TeamRole; account: WholesaleAccount }>;
+}): {
+  wholesaleAccount: WholesaleAccount | null;
+  teamRole: TeamRole | null;
+  isAccountOwner: boolean;
+} {
+  if (user.wholesaleAccount) {
+    return {
+      wholesaleAccount: user.wholesaleAccount,
+      teamRole: null,
+      isAccountOwner: true,
+    };
+  }
+
+  const membership = user.teamMemberships[0];
+  if (membership) {
+    return {
+      wholesaleAccount: membership.account,
+      teamRole: membership.role,
+      isAccountOwner: false,
+    };
+  }
+
+  return {
+    wholesaleAccount: null,
+    teamRole: null,
+    isAccountOwner: false,
+  };
+}
+
 /** Get the current authenticated user from the session cookie */
 export async function getUser() {
   const cookieStore = await cookies();
@@ -80,6 +114,10 @@ export async function getUser() {
         user: {
           include: {
             wholesaleAccount: true,
+            teamMemberships: {
+              include: { account: true },
+              orderBy: { invitedAt: "asc" },
+            },
           },
         },
       },
@@ -89,13 +127,20 @@ export async function getUser() {
       return null;
     }
 
-    // Add computed avatarUrl
     const user = session.user;
+    const { wholesaleAccount, teamRole, isAccountOwner } = resolveAccountContext(user);
+    const linkedCustomerId =
+      user.linkedCustomerId ?? wholesaleAccount?.customerId ?? null;
+
+    const avatarUrl = await getAvatarUrl(user.avatarKey);
+
     return {
       ...user,
-      avatarUrl: user.avatarKey
-        ? `/api/profile/avatar?t=${Date.now()}`
-        : null,
+      wholesaleAccount,
+      teamRole,
+      isAccountOwner,
+      linkedCustomerId,
+      avatarUrl,
     };
   } catch {
     return null;

@@ -198,6 +198,12 @@ export async function getTierConfig(tierId: TierId): Promise<TierDef | null> {
   return tiers.find((t) => t.id === tierId) ?? null;
 }
 
+/** Discount percentage for a tier ID (includes WELCOME). */
+export async function getTierDiscountPercent(tierId: TierId): Promise<number> {
+  const config = await getTierConfig(tierId);
+  return config?.discount ?? 0;
+}
+
 /**
  * Recalculate tier for a single wholesale account.
  *
@@ -315,6 +321,19 @@ export async function recalcTier(
       activeCode: account.promotions.find((p) => p.enabled)?.code || null,
     },
   });
+
+  // Retain last 30 snapshots per account
+  const staleSnapshots = await db.tierSnapshot.findMany({
+    where: { accountId: account.id },
+    orderBy: { asOf: "desc" },
+    skip: 30,
+    select: { id: true },
+  });
+  if (staleSnapshots.length > 0) {
+    await db.tierSnapshot.deleteMany({
+      where: { id: { in: staleSnapshots.map((s) => s.id) } },
+    });
+  }
 
   // Update account
   await db.wholesaleAccount.update({
@@ -659,14 +678,24 @@ export async function recalcAllTiers(): Promise<{
   let changed = 0;
   let errors = 0;
 
-  for (const account of accounts) {
-    try {
-      const result = await recalcTier(account.id, { windowDays });
+  const CONCURRENCY = 5;
+  for (let i = 0; i < accounts.length; i += CONCURRENCY) {
+    const batch = accounts.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map(async (account) => {
+        try {
+          const result = await recalcTier(account.id, { windowDays });
+          return { ok: true as const, changed: result.changed };
+        } catch (err) {
+          console.error(`Tier recalc failed for ${account.id}:`, err);
+          return { ok: false as const, changed: false };
+        }
+      })
+    );
+    for (const r of batchResults) {
       processed++;
-      if (result.changed) changed++;
-    } catch (err) {
-      errors++;
-      console.error(`Tier recalc failed for ${account.id}:`, err);
+      if (!r.ok) errors++;
+      else if (r.changed) changed++;
     }
   }
 

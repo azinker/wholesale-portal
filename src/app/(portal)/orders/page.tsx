@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
 import { getTierStatusForOrder, loadTierWindowDays, loadTiers } from "@/lib/tier-engine";
 import { formatTierWindowLabel } from "@/lib/tier-window";
+import { orderHistoryMinDate } from "@/lib/order-history";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { OrdersTable } from "./orders-table";
@@ -24,6 +25,7 @@ export default async function OrdersPage() {
       while (true) {
         const pageOrders = await bc().getOrders({
           customer_id: customerId,
+          min_date_created: orderHistoryMinDate(),
           limit: BC_PAGE_LIMIT,
           page,
         });

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
+import { bc } from "@/lib/bigcommerce/client";
 import { sendBusinessInfoChangeReviewedEmail } from "@/lib/email";
+import { filterEditableBusinessFields } from "@/lib/business-info-fields";
 
 /** POST: Approve or deny a business info change request */
 export async function POST(
@@ -36,19 +38,19 @@ export async function POST(
   }
 
   if (action === "approve") {
-    // Apply changes to the wholesale account
-    const newValues = changeRequest.newValues as Record<string, string>;
-    const updateData: Record<string, string> = {};
+    const newValues = filterEditableBusinessFields(
+      changeRequest.newValues as Record<string, unknown>
+    );
     const fields = Object.keys(newValues);
 
-    for (const [key, value] of Object.entries(newValues)) {
-      updateData[key] = value;
+    if (fields.length === 0) {
+      return NextResponse.json({ error: "No valid fields to apply" }, { status: 400 });
     }
 
     await db.$transaction([
       db.wholesaleAccount.update({
         where: { id: changeRequest.accountId },
-        data: updateData,
+        data: newValues,
       }),
       db.businessInfoChange.update({
         where: { id },
@@ -68,6 +70,22 @@ export async function POST(
         },
       }),
     ]);
+
+    if (changeRequest.account.customerId) {
+      try {
+        const bcUpdate: {
+          company?: string;
+          phone?: string;
+        } = {};
+        if (newValues.companyName) bcUpdate.company = newValues.companyName;
+        if (newValues.phone) bcUpdate.phone = newValues.phone;
+        if (Object.keys(bcUpdate).length > 0) {
+          await bc().updateCustomerProfile(changeRequest.account.customerId, bcUpdate);
+        }
+      } catch (err) {
+        console.error("Failed to sync business info to BigCommerce:", err);
+      }
+    }
 
     await sendBusinessInfoChangeReviewedEmail(
       changeRequest.account.email,

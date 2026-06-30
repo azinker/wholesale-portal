@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { requirePortalAccount } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
 
 /** GET /api/documents — list the current user's documents */
 export async function GET() {
   try {
-    const user = await getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePortalAccount("view_documents");
+    if (!auth.user) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
+    const user = auth.user;
 
-    const account = user.wholesaleAccount;
-    if (!account) {
-      return NextResponse.json({ documents: [] });
-    }
+    const account = user.wholesaleAccount!;
 
     const documents = await db.document.findMany({
       where: { accountId: account.id },

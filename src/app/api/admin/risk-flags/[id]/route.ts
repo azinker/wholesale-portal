@@ -30,6 +30,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    if (flag.status !== "OPEN") {
+      return NextResponse.json({ error: "Flag is already resolved" }, { status: 409 });
+    }
+
     await db.riskFlag.update({
       where: { id },
       data: {

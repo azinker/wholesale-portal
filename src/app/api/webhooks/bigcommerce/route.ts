@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processWebhookEvent } from "@/lib/bigcommerce/webhooks";
@@ -39,8 +40,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    processWebhookEvent(event.id, scope || "unknown", data || {}).catch((err) => {
-      console.error(`Webhook processing failed for ${event.id}:`, err);
+    after(async () => {
+      try {
+        await processWebhookEvent(event.id, scope || "unknown", data || {});
+      } catch (err) {
+        console.error(`Webhook processing failed for ${event.id}:`, err);
+      }
     });
 
     return NextResponse.json({ received: true }, { status: 200 });

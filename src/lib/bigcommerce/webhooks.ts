@@ -2,6 +2,14 @@ import { db } from "@/lib/db";
 import { sendNewApplicantNotification } from "@/lib/email";
 import { bc } from "./client";
 
+/** BC form fields may return strings, numbers, or booleans. */
+export function isWholesaleFormValue(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "1" || normalized === "yes" || normalized === "true";
+}
+
 /**
  * Process a webhook event asynchronously.
  * Called after the event is stored in the database.
@@ -67,11 +75,7 @@ async function handleCustomerEvent(data: Record<string, unknown>): Promise<void>
       f.name.toLowerCase().includes("wholesale account")
   );
 
-  const wantsWholesale =
-    wholesaleField &&
-    (wholesaleField.value === "1" ||
-      wholesaleField.value.toLowerCase() === "yes" ||
-      wholesaleField.value.toLowerCase() === "true");
+  const wantsWholesale = wholesaleField && isWholesaleFormValue(wholesaleField.value);
 
   if (!wantsWholesale) return;
 

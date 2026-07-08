@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const elapsed = Date.now() - start;
 
     console.log(
-      `Tier recalc complete: ${result.processed} processed, ${result.changed} changed, ${result.errors} errors (${elapsed}ms)`
+      `Tier recalc complete: ${result.processed} processed, ${result.changed} changed, ${result.errors} errors, ${result.staleSynced} stale synced (${elapsed}ms)`
     );
     console.log(
       `Risk checks: ${riskResult.processed} accounts, ${riskResult.flagsCreated} flags, ${riskResult.errors} errors`

@@ -311,7 +311,22 @@ export async function recalcTier(
 
   const changed = newTier !== previousTier;
 
-  // Save tier snapshot
+  // Update the account first so portal counts stay current even if later
+  // steps (snapshot write, promo sync) are interrupted on serverless.
+  await db.wholesaleAccount.update({
+    where: { id: account.id },
+    data: {
+      lastTier: newTier,
+      lastCount7d: qualifyingCount,
+      // Once earned tier is equal/higher (or welcome has ended), clear welcome expiry
+      // so welcome messaging no longer appears.
+      welcomeExpiresAt: account.welcomeExpiresAt && newTier !== "WELCOME"
+        ? null
+        : undefined,
+    },
+  });
+
+  // Save tier snapshot (audit trail; non-critical for portal display)
   await db.tierSnapshot.create({
     data: {
       accountId: account.id,
@@ -334,20 +349,6 @@ export async function recalcTier(
       where: { id: { in: staleSnapshots.map((s) => s.id) } },
     });
   }
-
-  // Update account
-  await db.wholesaleAccount.update({
-    where: { id: account.id },
-    data: {
-      lastTier: newTier,
-      lastCount7d: qualifyingCount,
-      // Once earned tier is equal/higher (or welcome has ended), clear welcome expiry
-      // so welcome messaging no longer appears.
-      welcomeExpiresAt: account.welcomeExpiresAt && newTier !== "WELCOME"
-        ? null
-        : undefined,
-    },
-  });
 
   // Always ensure the correct promotion is active for the current tier.
   // This handles: tier changes, retries after failed BC API calls, and
@@ -659,6 +660,88 @@ export async function handleTierChange(
 }
 
 /**
+ * Repair wholesale accounts whose last_count_7d / last_tier drifted behind
+ * the latest tier snapshot (e.g. serverless timeout after snapshot write).
+ */
+export async function syncStaleAccountCountsFromSnapshots(): Promise<{
+  synced: number;
+  accounts: Array<{
+    accountId: string;
+    companyName: string;
+    customerId: number | null;
+    previousTier: TierId;
+    previousCount: number;
+    newTier: TierId;
+    newCount: number;
+  }>;
+}> {
+  const accounts = await db.wholesaleAccount.findMany({
+    where: { status: "APPROVED" },
+    select: {
+      id: true,
+      companyName: true,
+      customerId: true,
+      lastTier: true,
+      lastCount7d: true,
+      snapshots: {
+        orderBy: { asOf: "desc" },
+        take: 1,
+        select: { tierLevel: true, paidOrders7d: true },
+      },
+    },
+  });
+
+  const repaired: Array<{
+    accountId: string;
+    companyName: string;
+    customerId: number | null;
+    previousTier: TierId;
+    previousCount: number;
+    newTier: TierId;
+    newCount: number;
+  }> = [];
+
+  for (const account of accounts) {
+    const snapshot = account.snapshots[0];
+    if (!snapshot) continue;
+
+    const snapshotTier = snapshot.tierLevel as TierId;
+    if (
+      snapshot.paidOrders7d === account.lastCount7d &&
+      snapshotTier === account.lastTier
+    ) {
+      continue;
+    }
+
+    await db.wholesaleAccount.update({
+      where: { id: account.id },
+      data: {
+        lastTier: snapshotTier,
+        lastCount7d: snapshot.paidOrders7d,
+      },
+    });
+
+    repaired.push({
+      accountId: account.id,
+      companyName: account.companyName,
+      customerId: account.customerId,
+      previousTier: account.lastTier as TierId,
+      previousCount: account.lastCount7d,
+      newTier: snapshotTier,
+      newCount: snapshot.paidOrders7d,
+    });
+  }
+
+  if (repaired.length > 0) {
+    console.log(
+      `Synced ${repaired.length} stale wholesale account count(s) from latest snapshots`
+    );
+  }
+
+  return { synced: repaired.length, accounts: repaired };
+}
+
+/**
  * Recalculate tiers for ALL approved wholesale accounts.
  * Called by the cron job.
  */
@@ -667,7 +750,9 @@ export async function recalcAllTiers(): Promise<{
   changed: number;
   errors: number;
   windowDays: number;
+  staleSynced: number;
 }> {
+  const { synced: staleSynced } = await syncStaleAccountCountsFromSnapshots();
   const windowDays = await loadTierWindowDays();
   const accounts = await db.wholesaleAccount.findMany({
     where: { status: "APPROVED" },
@@ -699,5 +784,5 @@ export async function recalcAllTiers(): Promise<{
     }
   }
 
-  return { processed, changed, errors, windowDays };
+  return { processed, changed, errors, windowDays, staleSynced };
 }

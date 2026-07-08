@@ -24,13 +24,24 @@ export async function GET() {
     return NextResponse.json({ skipped: true, reason: "no_approved_account" });
   }
 
-  // Rate limit: skip if we have a recent tier snapshot for this account
+  // Rate limit: skip if we have a recent tier snapshot for this account,
+  // unless the stored account count/tier is behind the latest snapshot.
   const latest = await db.tierSnapshot.findFirst({
     where: { accountId: account.id },
     orderBy: { asOf: "desc" },
-    select: { asOf: true },
+    select: { asOf: true, paidOrders7d: true, tierLevel: true },
   });
-  if (latest && Date.now() - latest.asOf.getTime() < RATE_LIMIT_MS) {
+  const accountBehindSnapshot =
+    latest != null &&
+    (latest.paidOrders7d !== account.lastCount7d ||
+      latest.tierLevel !== account.lastTier ||
+      account.updatedAt < latest.asOf);
+
+  if (
+    latest &&
+    Date.now() - latest.asOf.getTime() < RATE_LIMIT_MS &&
+    !accountBehindSnapshot
+  ) {
     return NextResponse.json({
       skipped: true,
       reason: "rate_limited",

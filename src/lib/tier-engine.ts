@@ -14,6 +14,11 @@ import {
   getTierWindowStartDate,
   normalizeTierWindowDays,
 } from "@/lib/tier-window";
+import {
+  buildWholesaleCouponPromotionBody,
+  getWholesaleCustomerGroupId,
+  syncWholesalePromotionEligibility,
+} from "@/lib/bigcommerce/wholesale-promotions";
 
 // ── Tier types ──────────────────────────────────────────
 export interface TierDef {
@@ -531,8 +536,24 @@ export async function ensurePromoForTier(
     createdRecord = true;
   }
 
-  // If already enabled with a valid BC promo, nothing to do
+  const wholesaleGroupId = await getWholesaleCustomerGroupId();
+  if (!wholesaleGroupId) {
+    console.error(
+      `Cannot create or sync wholesale promotion for ${accountId}: Wholesale customer group not found`
+    );
+    return;
+  }
+
+  // Keep legacy promotions restricted to logged-in Wholesale customers.
   if (promoRecord.enabled && promoRecord.promoId) {
+    try {
+      await syncWholesalePromotionEligibility(promoRecord.promoId, wholesaleGroupId);
+    } catch (err) {
+      console.warn(
+        `Failed to sync Wholesale eligibility for promo ${promoRecord.promoId}:`,
+        err
+      );
+    }
     return;
   }
 
@@ -540,7 +561,10 @@ export async function ensurePromoForTier(
   if (promoRecord.promoId) {
     // Re-enable existing promotion
     try {
-      await bc().updatePromotion(promoRecord.promoId, { status: "ENABLED" });
+      await bc().updatePromotion(promoRecord.promoId, {
+        status: "ENABLED",
+        customer: { group_ids: [wholesaleGroupId] },
+      });
       await db.promotionRecord.update({
         where: { id: promoRecord.id },
         data: { enabled: true, disabledAt: null },
@@ -562,39 +586,13 @@ export async function ensurePromoForTier(
   } else {
     // Create new BC promotion
     try {
-      const bcPromo = await bc().createPromotion({
-        name: `Wholesale ${promoRecord.code}`,
-        redemption_type: "COUPON",
-        status: "ENABLED",
-        can_be_used_with_other_promotions: false,
-        rules: [
-          // Rule 1: Discount on order subtotal (must come BEFORE free shipping)
-          {
-            action: {
-              cart_value: {
-                discount: {
-                  percentage_amount: tierConfig.discount.toString(),
-                },
-              },
-            },
-            apply_once: true,
-            stop: false,
-          },
-          // Rule 2: Free shipping (must come AFTER discount)
-          {
-            action: {
-              shipping: {
-                free_shipping: true,
-                zone_ids: "*",
-              },
-            },
-            apply_once: true,
-            stop: false,
-          },
-        ],
-        notifications: [],
-        currency_code: "USD",
-      });
+      const bcPromo = await bc().createPromotion(
+        buildWholesaleCouponPromotionBody({
+          code: promoRecord.code,
+          discountPercent: tierConfig.discount,
+          wholesaleGroupId,
+        })
+      );
 
       const promoId = (bcPromo.data as { id: number }).id;
 

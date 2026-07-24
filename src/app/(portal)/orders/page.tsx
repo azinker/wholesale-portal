@@ -13,6 +13,7 @@ const BC_PAGE_LIMIT = 250;
 export default async function OrdersPage() {
   const user = await getUser();
   if (!user) redirect("/");
+  if (user.wholesaleAccount?.partnerType === "AFFILIATE_PUBLISHER") redirect("/performance");
 
   const customerId = user.linkedCustomerId;
   let allOrders: BCOrder[] = [];

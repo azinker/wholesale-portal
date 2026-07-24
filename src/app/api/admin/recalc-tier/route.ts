@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { recalcTier } from "@/lib/tier-engine";
+import { recalcPublisherTier } from "@/lib/publisher-tier-engine";
+import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,16 +22,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await recalcTier(accountId);
-
-    return NextResponse.json({
-      success: true,
-      previousTier: result.previousTier,
-      newTier: result.newTier,
-      count7d: result.count7d,
-      changed: result.changed,
-      windowDays: result.windowDays,
+    const account = await db.wholesaleAccount.findUnique({
+      where: { id: accountId },
+      select: { partnerType: true },
     });
+    const result =
+      account?.partnerType === "AFFILIATE_PUBLISHER"
+        ? await recalcPublisherTier(accountId)
+        : await recalcTier(accountId);
+
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error("Manual tier recalc error:", error);
     return NextResponse.json(

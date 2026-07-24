@@ -13,6 +13,11 @@ import {
 } from "@/lib/tier-engine";
 import { getTierWindowStartDate } from "@/lib/tier-window";
 import { sendApplicantApprovalEmail } from "@/lib/email";
+import { sendPublisherApprovalEmail } from "@/lib/email";
+import {
+  ensurePublisherPromoForTier,
+  withPublisherTierLock,
+} from "@/lib/publisher-tier-engine";
 
 const WHOLESALE_GROUP_NAME = "Wholesale";
 
@@ -45,6 +50,48 @@ export async function POST(
         { error: "Only pending applications can be approved" },
         { status: 400 }
       );
+    }
+
+    if (account.partnerType === "AFFILIATE_PUBLISHER") {
+      const promotion = await withPublisherTierLock(account.id, async () => {
+        // Create the guest-eligible audience promotion before changing status so
+        // an external BC failure cannot leave an approved publisher with a dead code.
+        const created = await ensurePublisherPromoForTier(
+          account.id,
+          account.alias,
+          "P15"
+        );
+        await db.wholesaleAccount.update({
+          where: { id },
+          data: {
+            status: "APPROVED",
+            approvedAt: new Date(),
+            lastTier: "P15",
+            lastCount14d: 0,
+            welcomeExpiresAt: null,
+          },
+        });
+        await db.auditLog.create({
+          data: {
+            actorEmail: user.email,
+            action: "publisher_applicant_approved",
+            targetAccountId: account.id,
+            details: {
+              companyName: account.companyName,
+              initialTier: "P15",
+              code: created.code,
+              wholesaleGroupAssigned: false,
+            },
+          },
+        });
+        return created;
+      });
+      sendPublisherApprovalEmail(
+        account.email,
+        account.companyName,
+        promotion.code
+      ).catch((err) => console.warn("Publisher approval email send failed:", err));
+      return NextResponse.json({ success: true, tier: "P15", code: promotion.code });
     }
 
     // Find or create the Wholesale customer group in BigCommerce

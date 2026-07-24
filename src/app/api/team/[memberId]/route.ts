@@ -27,6 +27,12 @@ export async function PUT(
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const user = auth.user;
+  if (user.wholesaleAccount!.partnerType === "AFFILIATE_PUBLISHER") {
+    return NextResponse.json(
+      { error: "Team management is not available for publisher accounts" },
+      { status: 403 }
+    );
+  }
 
   if (!(await assertOwnerOrAdmin(user))) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
@@ -90,6 +96,12 @@ export async function DELETE(
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const user = auth.user;
+  if (user.wholesaleAccount!.partnerType === "AFFILIATE_PUBLISHER") {
+    return NextResponse.json(
+      { error: "Team management is not available for publisher accounts" },
+      { status: 403 }
+    );
+  }
 
   if (!(await assertOwnerOrAdmin(user))) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });

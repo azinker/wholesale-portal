@@ -438,3 +438,81 @@ export function TermsOfServiceContent() {
     </div>
   );
 }
+
+export function PublisherTermsOfServiceContent() {
+  return (
+    <div className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-strong:text-foreground prose-p:text-muted-foreground prose-li:text-muted-foreground prose-a:text-primary">
+      <p className="text-xs text-muted-foreground italic">Last Updated: July 24, 2026</p>
+      <p>
+        These Affiliate Publisher Program Terms (&quot;Agreement&quot;) govern your
+        participation in The Perfect Part&apos;s publisher program. By applying,
+        accessing the partner portal, or promoting an audience discount code, you
+        agree to these terms and the applicable AWIN publisher terms.
+      </p>
+      <h2>1. PROGRAM PARTICIPATION</h2>
+      <p>
+        Applications are reviewed at The Perfect Part&apos;s discretion. You must
+        provide accurate contact, audience, website, and promotional-channel
+        information and keep it current.
+      </p>
+      <h2>2. AWIN TRACKING AND COMMISSIONS</h2>
+      <p>
+        You must use your approved AWIN tracking link when promoting The Perfect
+        Part. Audience coupon codes provide a customer discount but do not by
+        themselves track or guarantee commission. Commission attribution, validation,
+        payment, reversals, and eligibility are governed by AWIN and our AWIN program terms.
+      </p>
+      <h2>3. AUDIENCE DISCOUNT CODES</h2>
+      <p>
+        Publisher codes are intended to be shared publicly with your audience.
+        Approved publishers begin at a 15% audience discount. Qualifying attributed
+        order volume may increase the audience discount to 20% or 25% under the
+        current tier rules.
+      </p>
+      <p>
+        Codes may rotate whenever your tier changes. The prior code will be disabled,
+        and you are responsible for promptly replacing it across websites, posts,
+        newsletters, and offers. Codes may not be combined with other promotions
+        unless expressly authorized.
+      </p>
+      <h2>4. PROMOTION STANDARDS</h2>
+      <ul>
+        <li>Make truthful, current claims and clearly disclose your affiliate relationship.</li>
+        <li>Do not impersonate The Perfect Part or bid on restricted brand terms.</li>
+        <li>Do not use spam, misleading redirects, cookie stuffing, bots, or forced clicks.</li>
+        <li>Do not advertise expired codes or guarantee prices, inventory, or commission.</li>
+        <li>Comply with FTC disclosure rules and all applicable laws and platform policies.</li>
+      </ul>
+      <h2>5. ORDERS, TAX, AND SHIPPING</h2>
+      <p>
+        Audience purchases are retail transactions. Standard retail taxes and
+        shipping rules apply, and audience customers are not placed in the Wholesale
+        customer group. Orders may be canceled, returned, or excluded from attribution
+        under our retail policies and AWIN&apos;s validation rules.
+      </p>
+      <h2>6. SUSPENSION AND CHANGES</h2>
+      <p>
+        We may investigate abuse, disable codes, withhold validation, or suspend or
+        terminate participation for violations, fraud, misleading promotion, or risk
+        to customers or the brand. Program thresholds and terms may change with notice
+        through the portal or email.
+      </p>
+      <h2>7. GENERAL TERMS</h2>
+      <p>
+        You participate as an independent contractor. Nothing creates an employment,
+        franchise, agency, or partnership relationship. To the fullest extent allowed
+        by law, the program is provided as-is and The Perfect Part is not liable for
+        indirect or consequential damages arising from participation.
+      </p>
+      <p>
+        Arizona law governs this Agreement. Disputes will be resolved individually
+        through binding arbitration in Maricopa County, Arizona, except where a
+        qualifying small-claims action is available. Class and jury proceedings are waived.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        By submitting a publisher application, you acknowledge that you have read,
+        understood, and agree to these Affiliate Publisher Program Terms.
+      </p>
+    </div>
+  );
+}

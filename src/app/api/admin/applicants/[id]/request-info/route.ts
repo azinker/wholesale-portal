@@ -3,7 +3,10 @@ import { z } from "zod";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
-import { sendApplicantMoreInfoRequestEmail } from "@/lib/email";
+import {
+  sendApplicantMoreInfoRequestEmail,
+  sendPublisherMoreInfoRequestEmail,
+} from "@/lib/email";
 
 const requestInfoSchema = z.object({
   message: z.string().min(1, "Message is required").max(2000, "Message is too long"),
@@ -51,7 +54,11 @@ export async function POST(
       },
     });
 
-    await sendApplicantMoreInfoRequestEmail(account.email, account.companyName, message);
+    if (account.partnerType === "AFFILIATE_PUBLISHER") {
+      await sendPublisherMoreInfoRequestEmail(account.email, account.companyName, message);
+    } else {
+      await sendApplicantMoreInfoRequestEmail(account.email, account.companyName, message);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

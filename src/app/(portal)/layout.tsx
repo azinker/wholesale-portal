@@ -3,6 +3,7 @@ import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { SidebarNav, type NavItem } from "@/components/sidebar-nav";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { getPortalNav, type PortalNavIcon } from "@/lib/portal-nav";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -16,7 +17,25 @@ import {
   Calculator,
   Users,
   ScrollText,
+  Share2,
 } from "lucide-react";
+
+const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
+  dashboard: <LayoutDashboard size={18} />,
+  "hot-sellers": <Flame size={18} />,
+  orders: <ShoppingCart size={18} />,
+  tracking: <Truck size={18} />,
+  insights: <BarChart3 size={18} />,
+  calculator: <Calculator size={18} />,
+  documents: <Upload size={18} />,
+  performance: <BarChart3 size={18} />,
+  share: <Share2 size={18} />,
+  profile: <UserCircle size={18} />,
+  team: <Users size={18} />,
+  support: <Headphones size={18} />,
+  terms: <ScrollText size={18} />,
+  apply: <FileText size={18} />,
+};
 
 export default async function PortalLayout({
   children,
@@ -31,28 +50,13 @@ export default async function PortalLayout({
   const isImpersonating = !!cookieStore.get("wsp_admin_session")?.value;
 
   const status = user.wholesaleAccount?.status || "RETAIL";
-
-  const navItems: NavItem[] = [
-    { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} />, exact: true },
-    { href: "/hot-sellers", label: "Hot Sellers", icon: <Flame size={18} /> },
-    { href: "/orders", label: "Orders", icon: <ShoppingCart size={18} /> },
-    { href: "/tracking", label: "Tracking", icon: <Truck size={18} /> },
-    { href: "/insights", label: "Insights", icon: <BarChart3 size={18} /> },
-    { href: "/margin-calculator", label: "Margin Calculator", icon: <Calculator size={18} /> },
-    { href: "/documents", label: "Documents", icon: <Upload size={18} /> },
-    { href: "/profile", label: "Profile", icon: <UserCircle size={18} /> },
-    { href: "/team", label: "Team", icon: <Users size={18} /> },
-    { href: "/support", label: "Support", icon: <Headphones size={18} /> },
-    { href: "/terms", label: "Terms of Service", icon: <ScrollText size={18} /> },
-  ];
-
-  if (status === "RETAIL" || status === "DENIED") {
-    navItems.push({
-      href: status === "DENIED" ? "/?reapply=1" : "/?apply=1",
-      label: status === "DENIED" ? "Reapply for Wholesale" : "Apply for Wholesale",
-      icon: <FileText size={18} />,
-    });
-  }
+  const partnerType = user.wholesaleAccount?.partnerType ?? "DROPSHIPPER";
+  const navItems: NavItem[] = getPortalNav(partnerType, status).map((item) => ({
+    href: item.href,
+    label: item.label,
+    icon: NAV_ICONS[item.icon],
+    exact: item.exact,
+  }));
 
   const badgeVariant =
     status === "APPROVED"
@@ -70,7 +74,7 @@ export default async function PortalLayout({
         items={navItems}
         userEmail={user.email}
         companyName={user.wholesaleAccount?.companyName ?? null}
-        subtitle="Wholesale Portal"
+        subtitle={partnerType === "AFFILIATE_PUBLISHER" ? "Publisher Portal" : "Wholesale Portal"}
         badge={{ label: status, variant: badgeVariant }}
         avatarUrl={user.avatarUrl ?? null}
         notificationEndpoint="/api/portal/notifications"

@@ -12,10 +12,13 @@ import { CheckCircle, XCircle, Loader2, MessageSquare } from "lucide-react";
 export default function ApplicantActions({
   accountId,
   currentStatus,
+  partnerType,
 }: {
   accountId: string;
   currentStatus: string;
+  partnerType: string;
 }) {
+  const publisher = partnerType === "AFFILIATE_PUBLISHER";
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showDeny, setShowDeny] = useState(false);
@@ -24,7 +27,9 @@ export default function ApplicantActions({
   const [requestInfoMessage, setRequestInfoMessage] = useState("");
 
   const handleApprove = async () => {
-    if (!confirm("Approve this wholesale applicant? They will be assigned to the Wholesale customer group.")) return;
+    if (!confirm(publisher
+      ? "Approve this publisher? A P15 public audience code will be issued. They will not be assigned to the Wholesale customer group."
+      : "Approve this wholesale applicant? They will be assigned to the Wholesale customer group.")) return;
 
     setLoading(true);
     try {
@@ -33,7 +38,7 @@ export default function ApplicantActions({
         const body = await res.json();
         throw new Error(body.error || "Approval failed");
       }
-      toast.success("Applicant approved successfully");
+      toast.success(`${publisher ? "Publisher" : "Reseller"} approved successfully`);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -125,7 +130,7 @@ export default function ApplicantActions({
                 id="requestInfoMessage"
                 value={requestInfoMessage}
                 onChange={(e) => setRequestInfoMessage(e.target.value)}
-                placeholder="Example: Please upload your resale certificate or confirm your business website."
+                placeholder={publisher ? "Example: Please confirm your AWIN publisher ID or promotion method." : "Example: Please upload your resale certificate or confirm your business website."}
                 rows={3}
               />
             </div>

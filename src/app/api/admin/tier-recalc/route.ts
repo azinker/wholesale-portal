@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { recalcTier, recalcAllTiers } from "@/lib/tier-engine";
+import {
+  recalcAllPublisherTiers,
+  recalcPublisherTier,
+} from "@/lib/publisher-tier-engine";
+import { db } from "@/lib/db";
 
 /**
  * POST /api/admin/tier-recalc
@@ -20,12 +25,20 @@ export async function POST(req: NextRequest) {
     const accountId = body.accountId as string | undefined;
 
     if (accountId) {
-      const result = await recalcTier(accountId);
+      const account = await db.wholesaleAccount.findUnique({
+        where: { id: accountId },
+        select: { partnerType: true },
+      });
+      const result =
+        account?.partnerType === "AFFILIATE_PUBLISHER"
+          ? await recalcPublisherTier(accountId)
+          : await recalcTier(accountId);
       return NextResponse.json(result);
     }
 
     const result = await recalcAllTiers();
-    return NextResponse.json(result);
+    const publishers = await recalcAllPublisherTiers();
+    return NextResponse.json({ dropshippers: result, publishers });
   } catch (error) {
     console.error("Admin tier recalc error:", error);
     return NextResponse.json(

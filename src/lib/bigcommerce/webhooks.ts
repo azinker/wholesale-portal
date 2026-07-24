@@ -156,49 +156,60 @@ async function handleCustomerEvent(data: Record<string, unknown>): Promise<void>
  * Handle order created/updated webhook.
  * Triggers a tier recalculation for the customer if they're an approved wholesale customer.
  */
-async function handleOrderEvent(data: Record<string, unknown>): Promise<void> {
+export async function handleOrderEvent(data: Record<string, unknown>): Promise<void> {
   const orderId = (data as { id?: number }).id;
   if (!orderId) return;
 
   // Look up the order to get the customer_id
   try {
     const order = await fetchOrderById(orderId);
-    if (!order || !order.customer_id) return;
+    if (!order) return;
 
-    // Find the wholesale account for this customer
-    const account = await db.wholesaleAccount.findFirst({
-      where: {
-        customerId: order.customer_id,
-        status: "APPROVED",
-      },
-    });
+    if (order.customer_id) {
+      // Existing reseller path remains customer-ID based and Wholesale-only.
+      const account = await db.wholesaleAccount.findFirst({
+        where: {
+          customerId: order.customer_id,
+          status: "APPROVED",
+          partnerType: "DROPSHIPPER",
+        },
+      });
 
-    if (!account) return;
+      if (account) {
+        const { recalcTier } = await import("@/lib/tier-engine");
+        const result = await recalcTier(account.id);
 
-    // Trigger async tier recalc
-    const { recalcTier } = await import("@/lib/tier-engine");
-    const result = await recalcTier(account.id);
+        console.log(
+          `Order ${orderId} webhook → tier recalc for ${account.companyName}: ` +
+            `${result.previousTier} → ${result.newTier} (${result.count7d} orders)`
+        );
 
-    console.log(
-      `Order ${orderId} webhook → tier recalc for ${account.companyName}: ` +
-        `${result.previousTier} → ${result.newTier} (${result.count7d} orders)`
+        const { runRiskChecks } = await import("@/lib/risk-detection");
+        runRiskChecks(account.id).catch((err) => {
+          console.error(`Risk checks failed for account ${account.id}:`, err);
+        });
+      }
+    }
+
+    // Publisher attribution is coupon-based and intentionally supports guest checkout.
+    const { attributePublisherOrder, recalcPublisherTier } = await import(
+      "@/lib/publisher-tier-engine"
     );
-
-    const { runRiskChecks } = await import("@/lib/risk-detection");
-    runRiskChecks(account.id).catch((err) => {
-      console.error(`Risk checks failed for account ${account.id}:`, err);
-    });
+    const attribution = await attributePublisherOrder(order);
+    if (attribution.accountId) {
+      await recalcPublisherTier(attribution.accountId);
+      const { runPublisherBurstRiskCheck } = await import("@/lib/risk-detection");
+      runPublisherBurstRiskCheck(attribution.accountId).catch((err) => {
+        console.error(`Publisher burst check failed for ${attribution.accountId}:`, err);
+      });
+    }
   } catch (err) {
     console.error(`Order webhook processing failed for order ${orderId}:`, err);
+    throw err;
   }
 }
 
 /** Fetch a single order by ID from BC V2 */
 async function fetchOrderById(orderId: number) {
-  try {
-    const order = await bc().getOrderById(orderId);
-    return order;
-  } catch {
-    return null;
-  }
+  return bc().getOrderByIdStrict(orderId);
 }

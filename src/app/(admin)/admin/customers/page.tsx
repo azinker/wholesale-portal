@@ -51,7 +51,7 @@ export default async function CustomersPage() {
             Customers
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage approved wholesale customers, tiers, and promotions.
+            Manage approved resellers and affiliate publishers, tiers, and promotions.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -77,7 +77,8 @@ export default async function CustomersPage() {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-4 py-3 font-medium">Customer</th>
                   <th className="text-left px-4 py-3 font-medium">Tier</th>
-                  <th className="text-left px-4 py-3 font-medium">{tierWindowDays}d Orders</th>
+                  <th className="text-left px-4 py-3 font-medium">Program</th>
+                  <th className="text-left px-4 py-3 font-medium">Window Orders</th>
                   <th className="text-left px-4 py-3 font-medium">Active Code</th>
                   <th className="text-left px-4 py-3 font-medium">BC ID</th>
                   <th className="text-left px-4 py-3 font-medium"></th>
@@ -113,7 +114,8 @@ export default async function CustomersPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono">{c.lastCount7d}</td>
+                      <td className="px-4 py-3"><Badge variant={c.partnerType === "AFFILIATE_PUBLISHER" ? "secondary" : "outline"}>{c.partnerType === "AFFILIATE_PUBLISHER" ? "Publisher" : "Reseller"}</Badge></td>
+                      <td className="px-4 py-3 font-mono">{c.partnerType === "AFFILIATE_PUBLISHER" ? `${c.lastCount14d} / 14d` : `${c.lastCount7d} / ${tierWindowDays}d`}</td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {activePromo ? activePromo.code : "—"}
                       </td>
@@ -151,6 +153,9 @@ function TierBadge({ tier }: { tier: string }) {
     T20: "bg-success-light text-success",
     T25: "bg-emerald-100 text-emerald-700",
     T30: "bg-emerald-200 text-emerald-800",
+    P15: "bg-warning-light text-warning",
+    P20: "bg-success-light text-success",
+    P25: "bg-emerald-200 text-emerald-800",
   };
   const label = tier === "NONE" ? "None" : tier === "WELCOME" ? "Welcome" : tier;
   return (

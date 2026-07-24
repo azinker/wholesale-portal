@@ -17,6 +17,12 @@ export async function GET() {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const user = auth.user;
+  if (user.wholesaleAccount!.partnerType === "AFFILIATE_PUBLISHER") {
+    return NextResponse.json(
+      { error: "Team management is not available for publisher accounts" },
+      { status: 403 }
+    );
+  }
 
   const accountId = user.wholesaleAccount!.id;
 
@@ -39,6 +45,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const user = auth.user;
+  if (user.wholesaleAccount!.partnerType === "AFFILIATE_PUBLISHER") {
+    return NextResponse.json(
+      { error: "Team management is not available for publisher accounts" },
+      { status: 403 }
+    );
+  }
 
   const accountId = user.wholesaleAccount!.id;
 

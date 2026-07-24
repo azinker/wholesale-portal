@@ -26,7 +26,12 @@ export async function runRiskChecks(accountId: string): Promise<RiskCheck[]> {
     where: { id: accountId },
   });
 
-  if (!account || !account.customerId || account.status !== "APPROVED") {
+  if (
+    !account ||
+    account.partnerType !== "DROPSHIPPER" ||
+    !account.customerId ||
+    account.status !== "APPROVED"
+  ) {
     return [];
   }
 
@@ -108,6 +113,64 @@ export async function runRiskChecks(accountId: string): Promise<RiskCheck[]> {
   }
 
   return results;
+}
+
+export const PUBLISHER_BURST_THRESHOLD_PER_HOUR = 20;
+
+export function checkPublisherRedemptionBurst(
+  orderDates: Date[],
+  now = new Date()
+): RiskCheck {
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const ordersLastHour = orderDates.filter(
+    (date) => date >= oneHourAgo && date <= now
+  ).length;
+  return {
+    type: "publisher_redemption_burst",
+    detected: ordersLastHour > PUBLISHER_BURST_THRESHOLD_PER_HOUR,
+    details: {
+      ordersLastHour,
+      threshold: PUBLISHER_BURST_THRESHOLD_PER_HOUR,
+      sharingAllowed: true,
+    },
+  };
+}
+
+export async function runPublisherBurstRiskCheck(accountId: string): Promise<RiskCheck[]> {
+  const account = await db.wholesaleAccount.findUnique({ where: { id: accountId } });
+  if (
+    !account ||
+    account.status !== "APPROVED" ||
+    account.partnerType !== "AFFILIATE_PUBLISHER"
+  ) {
+    return [];
+  }
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const orders = await db.publisherOrderAttribution.findMany({
+    where: { accountId, orderDate: { gte: oneHourAgo } },
+    select: { orderDate: true, couponCode: true },
+  });
+  const check = checkPublisherRedemptionBurst(orders.map((order) => order.orderDate));
+  if (check.detected) {
+    const existing = await db.riskFlag.findFirst({
+      where: { accountId, type: check.type, status: "OPEN" },
+      select: { id: true },
+    });
+    if (!existing) {
+      await db.riskFlag.create({
+        data: {
+          accountId,
+          type: check.type,
+          details: {
+            ...check.details,
+            couponCodes: [...new Set(orders.map((order) => order.couponCode))],
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
+  }
+  return [check];
 }
 
 /**
@@ -230,7 +293,7 @@ export async function runAllRiskChecks(): Promise<{
 }> {
   const accounts = await db.wholesaleAccount.findMany({
     where: { status: "APPROVED" },
-    select: { id: true },
+    select: { id: true, partnerType: true },
   });
 
   let processed = 0;
@@ -239,7 +302,10 @@ export async function runAllRiskChecks(): Promise<{
 
   for (const account of accounts) {
     try {
-      const checks = await runRiskChecks(account.id);
+      const checks =
+        account.partnerType === "AFFILIATE_PUBLISHER"
+          ? await runPublisherBurstRiskCheck(account.id)
+          : await runRiskChecks(account.id);
       processed++;
       flagsCreated += checks.filter((c) => c.detected).length;
     } catch (err) {

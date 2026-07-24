@@ -240,7 +240,12 @@ export async function recalcTier(
     include: { promotions: true },
   });
 
-  if (!account || account.status !== "APPROVED" || !account.customerId) {
+  if (
+    !account ||
+    account.status !== "APPROVED" ||
+    account.partnerType !== "DROPSHIPPER" ||
+    !account.customerId
+  ) {
     return {
       previousTier: "NONE",
       newTier: "NONE",
@@ -379,7 +384,7 @@ export async function recalcTier(
 
     if (previousTier !== "NONE" && newTier !== "NONE" && newConfig) {
       const activePromo = await db.promotionRecord.findFirst({
-        where: { accountId: account.id, enabled: true, tier: newTier },
+        where: { accountId: account.id, enabled: true, tier: newTier, promoKind: "DROPSHIPPER" },
         select: { code: true },
       });
       if (activePromo) {
@@ -476,7 +481,7 @@ export async function ensurePromoForTier(
 
   // Disable all promotions that are NOT for the current tier (or all if NONE)
   const enabledPromos = await db.promotionRecord.findMany({
-    where: { accountId, enabled: true },
+    where: { accountId, enabled: true, promoKind: "DROPSHIPPER" },
   });
 
   for (const promo of enabledPromos) {
@@ -511,8 +516,8 @@ export async function ensurePromoForTier(
   if (currentTier === "NONE") return;
 
   // Find or create the promotion record for this tier
-  let promoRecord = await db.promotionRecord.findUnique({
-    where: { accountId_tier: { accountId, tier: currentTier } },
+  let promoRecord = await db.promotionRecord.findFirst({
+    where: { accountId, tier: currentTier, promoKind: "DROPSHIPPER" },
   });
   let createdRecord = false;
 
@@ -529,6 +534,7 @@ export async function ensurePromoForTier(
       data: {
         accountId,
         tier: currentTier,
+        promoKind: "DROPSHIPPER",
         code,
         enabled: false,
       },
@@ -674,7 +680,7 @@ export async function syncStaleAccountCountsFromSnapshots(): Promise<{
   }>;
 }> {
   const accounts = await db.wholesaleAccount.findMany({
-    where: { status: "APPROVED" },
+    where: { status: "APPROVED", partnerType: "DROPSHIPPER" },
     select: {
       id: true,
       companyName: true,
@@ -753,7 +759,7 @@ export async function recalcAllTiers(): Promise<{
   const { synced: staleSynced } = await syncStaleAccountCountsFromSnapshots();
   const windowDays = await loadTierWindowDays();
   const accounts = await db.wholesaleAccount.findMany({
-    where: { status: "APPROVED" },
+    where: { status: "APPROVED", partnerType: "DROPSHIPPER" },
     select: { id: true },
   });
 

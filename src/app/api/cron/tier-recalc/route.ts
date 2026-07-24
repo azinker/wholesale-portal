@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recalcAllTiers } from "@/lib/tier-engine";
 import { runAllRiskChecks } from "@/lib/risk-detection";
+import { recalcAllPublisherTiers } from "@/lib/publisher-tier-engine";
 
 /**
  * POST /api/cron/tier-recalc
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     const start = Date.now();
     const result = await recalcAllTiers();
+    const publisherResult = await recalcAllPublisherTiers();
     const riskResult = await runAllRiskChecks().catch((err) => {
       console.error("Risk checks failed during cron:", err);
       return { processed: 0, flagsCreated: 0, errors: 1 };
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ...result,
+      publishers: publisherResult,
       riskChecks: riskResult,
       elapsedMs: elapsed,
     });

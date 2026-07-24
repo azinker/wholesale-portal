@@ -129,6 +129,7 @@ async function sendBrandedEmail({
   bodyHtml,
   text,
   replyTo,
+  throwOnError = false,
 }: {
   logLabel: string;
   to: MailRecipient;
@@ -136,12 +137,15 @@ async function sendBrandedEmail({
   bodyHtml: string;
   text: string;
   replyTo?: string;
+  throwOnError?: boolean;
 }): Promise<void> {
   try {
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
     if (!apiKey) {
-      console.error(`${logLabel} skipped: RESEND_API_KEY is not set`);
+      const error = new Error(`${logLabel} skipped: RESEND_API_KEY is not set`);
+      console.error(error.message);
+      if (throwOnError) throw error;
       return;
     }
 
@@ -156,11 +160,17 @@ async function sendBrandedEmail({
 
     if (error) {
       console.error(`Failed to send ${logLabel}:`, error);
+      if (throwOnError) {
+        throw new Error(
+          `Failed to send ${logLabel}: ${error.message || "unknown Resend error"}`
+        );
+      }
     } else if (data?.id) {
       console.log(`${logLabel} sent to ${Array.isArray(to) ? to.join(", ") : to}, Resend id: ${data.id}`);
     }
   } catch (err) {
     console.error(`${logLabel} failed:`, err);
+    if (throwOnError) throw err;
   }
 }
 
@@ -338,6 +348,66 @@ export async function sendApplicationReceivedEmail(to: string, companyName: stri
       ${ctaButton(`${appUrl}/login`, "Check Application Status")}
     `,
     text: `We received your wholesale application for ${companyName}.\n\nMost applications are reviewed within 1 business day. Check your status: ${appUrl}/login`,
+  });
+}
+
+export async function sendPublisherApplicationReceivedEmail(to: string, companyName: string): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Publisher application received email",
+    to,
+    subject: "We received your publisher application - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Publisher Application Received</h1>
+      <p>Thanks for applying for <strong>${escapeHtml(companyName)}</strong>. Our team will review your promotion methods and AWIN details.</p>
+      <p>Most applications are reviewed within 1 business day.</p>
+      ${ctaButton(`${appUrl}/login`, "Check Application Status")}
+    `,
+    text: `We received your affiliate publisher application for ${companyName}.\n\nCheck your status: ${appUrl}/login`,
+  });
+}
+
+export async function sendPublisherApprovalEmail(
+  to: string,
+  companyName: string,
+  code: string
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const awinUrl = "https://ui.awin.com/merchant-profile/121802";
+  await sendBrandedEmail({
+    logLabel: "Publisher approval email",
+    to,
+    subject: "Your publisher account has been approved - The Perfect Part",
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">You&rsquo;re Approved!</h1>
+      <p>The publisher account for <strong>${escapeHtml(companyName)}</strong> is approved.</p>
+      ${infoBox(`<p style="margin:0 0 6px 0;"><strong>Audience code:</strong> ${escapeHtml(code)}</p><p style="margin:0;"><strong>Audience discount:</strong> 15%</p>`)}
+      <p>Promote your AWIN tracking link together with this audience code. The link attributes commission; the code gives your audience the discount.</p>
+      ${ctaButton(awinUrl, "Open AWIN Merchant Profile")}
+      ${ctaButton(`${appUrl}/dashboard`, "Open Publisher Portal")}
+    `,
+    text: `Your publisher account for ${companyName} is approved.\n\nAudience code: ${code} (15% off)\nUse it together with your AWIN tracking link for merchant 121802.\n\nPortal: ${appUrl}/dashboard\nAWIN: ${awinUrl}`,
+  });
+}
+
+export async function sendPublisherDenialEmail(to: string, companyName: string, reason: string): Promise<void> {
+  await sendBrandedEmail({
+    logLabel: "Publisher denial email",
+    to,
+    subject: "Publisher application update - The Perfect Part",
+    bodyHtml: `<h1 style="color:${BRAND_DARK};">Publisher Application Update</h1><p>We could not approve the application for <strong>${escapeHtml(companyName)}</strong> as submitted.</p>${infoBox(`<p style="margin:0;">${escapeHtml(reason)}</p>`)}`,
+    text: `Your publisher application for ${companyName} was not approved.\n\nReason: ${reason}`,
+  });
+}
+
+export async function sendPublisherMoreInfoRequestEmail(to: string, companyName: string, message: string): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Publisher more info request email",
+    to,
+    subject: "More information needed for your publisher application - The Perfect Part",
+    bodyHtml: `<h1 style="color:${BRAND_DARK};">More Information Needed</h1><p>We need more information to review <strong>${escapeHtml(companyName)}</strong>.</p>${infoBox(`<p style="margin:0;">${escapeHtml(message)}</p>`)}${ctaButton(`${appUrl}/login`, "Sign In to Respond")}`,
+    text: `We need more information for your publisher application for ${companyName}.\n\n${message}\n\n${appUrl}/login`,
   });
 }
 
@@ -548,6 +618,34 @@ export async function sendTierChangedEmail(
     text: `${title} for ${companyName}.\n\nPrevious tier: ${tierLabel(previousTier)}\nCurrent tier: ${tierLabel(newTier)}\nQualifying orders: ${count} in the last ${windowDays} days\n\nView dashboard: ${appUrl}/dashboard`,
   });
 }
+
+export async function sendPublisherTierChangedEmail(
+  to: string,
+  companyName: string,
+  previousTier: string,
+  newTier: string,
+  count: number,
+  code: string,
+  discount: number
+): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "Publisher tier changed email",
+    to,
+    subject: "Your publisher audience code changed - The Perfect Part",
+    bodyHtml: `
+      <h1 style="color:${BRAND_DARK};">Update Your Published Code</h1>
+      <p><strong>${escapeHtml(companyName)}</strong> moved from ${escapeHtml(previousTier)} to ${escapeHtml(newTier)} based on ${count} attributed orders in 14 days.</p>
+      ${infoBox(`<p style="margin:0 0 6px 0;"><strong>New code:</strong> ${escapeHtml(code)}</p><p style="margin:0;"><strong>Audience discount:</strong> ${discount}%</p>`)}
+      <p>The old code is disabled. Update every site, offer, and social placement immediately.</p>
+      ${ctaButton(`${appUrl}/dashboard`, "View Current Code")}
+    `,
+    text: `Your publisher tier changed from ${previousTier} to ${newTier}.\nNew code: ${code} (${discount}% off)\nThe old code is disabled; update your offers immediately.\n\n${appUrl}/dashboard`,
+    throwOnError: true,
+  });
+}
+
+export const sendPublisherCouponChangedEmail = sendPublisherTierChangedEmail;
 
 export async function sendWelcomeDiscountExpiringEmail(
   to: string,
@@ -762,6 +860,12 @@ export type NewApplicantPayload = {
   website?: string;
   primaryState?: string;
   customerId?: number | null;
+  partnerType?: "DROPSHIPPER" | "AFFILIATE_PUBLISHER";
+  promoWebsite?: string;
+  promoTypes?: string[];
+  promoDescription?: string;
+  audienceReach?: string;
+  awinPublisherId?: string;
 };
 
 const SOURCE_LABELS: Record<NewApplicantPayload["source"], string> = {
@@ -781,6 +885,7 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
     const resend = new Resend(apiKey);
     const sourceLabel = SOURCE_LABELS[payload.source] ?? payload.source;
     const rows = [
+      ["Partner type", payload.partnerType === "AFFILIATE_PUBLISHER" ? "Affiliate Publisher" : "Drop shipper / Reseller"],
       ["Email", payload.email],
       ["Company", payload.companyName],
       ["Alias", payload.alias],
@@ -795,6 +900,11 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
       ...(payload.phone ? [["Phone", payload.phone]] : []),
       ...(payload.website ? [["Website", payload.website]] : []),
       ...(payload.primaryState ? [["Primary state", payload.primaryState]] : []),
+      ...(payload.promoWebsite ? [["Promotion website", payload.promoWebsite]] : []),
+      ...(payload.promoTypes?.length ? [["Promotion types", payload.promoTypes.join(", ")]] : []),
+      ...(payload.promoDescription ? [["Promotion description", payload.promoDescription]] : []),
+      ...(payload.audienceReach ? [["Audience reach", payload.audienceReach]] : []),
+      ...(payload.awinPublisherId ? [["AWIN publisher ID", payload.awinPublisherId]] : []),
     ];
     const tableRows = rows
       .map(
@@ -803,7 +913,8 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
       )
       .join("");
 
-    const heading = payload.reapplied ? "Wholesale Reapplication" : "New Wholesale Applicant";
+    const partnerLabel = payload.partnerType === "AFFILIATE_PUBLISHER" ? "Publisher" : "Wholesale";
+    const heading = payload.reapplied ? `${partnerLabel} Reapplication` : `New ${partnerLabel} Applicant`;
     const subjectLabel = payload.reapplied ? "Reapplication" : "New applicant";
 
     console.log(`Sending ${subjectLabel.toLowerCase()} notification to ${WHOLESALE_NOTIFY} for ${payload.companyName} (${payload.source})`);
@@ -811,7 +922,7 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
       from,
       to: WHOLESALE_NOTIFY,
       replyTo: payload.email,
-      subject: `[Wholesale] ${subjectLabel}: ${payload.companyName}`,
+      subject: `[${partnerLabel}] ${subjectLabel}: ${payload.companyName}`,
       html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; padding: 0;">
         <div style="background: #2d2d2d; color: #fff; padding: 20px 24px; border-radius: 8px 8px 0 0;">

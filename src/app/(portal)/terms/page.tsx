@@ -2,11 +2,12 @@ import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollText } from "lucide-react";
-import { TermsOfServiceContent } from "@/components/terms-of-service";
+import { PublisherTermsOfServiceContent, TermsOfServiceContent } from "@/components/terms-of-service";
 
 export default async function TermsPage() {
   const user = await getUser();
   if (!user) redirect("/");
+  const publisher = user.wholesaleAccount?.partnerType === "AFFILIATE_PUBLISHER";
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -16,7 +17,7 @@ export default async function TermsPage() {
           Terms of Service
         </h1>
         <p className="text-muted-foreground mt-1">
-          The Wholesale Program Terms of Service you agreed to when applying.
+          The {publisher ? "Affiliate Publisher" : "Wholesale"} Program Terms you agreed to when applying.
         </p>
       </div>
 
@@ -24,11 +25,11 @@ export default async function TermsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <ScrollText className="h-4 w-4 text-primary" />
-            Wholesale Program Terms of Service
+            {publisher ? "Affiliate Publisher Program Terms" : "Wholesale Program Terms of Service"}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <TermsOfServiceContent />
+          {publisher ? <PublisherTermsOfServiceContent /> : <TermsOfServiceContent />}
         </CardContent>
       </Card>
     </div>

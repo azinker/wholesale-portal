@@ -4,9 +4,9 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Wholesale Products for Resellers | The Perfect Part",
+  title: "Reseller & Affiliate Partner Programs | The Perfect Part",
   description:
-    "Apply for wholesale pricing from The Perfect Part. Exclusive tiered discounts up to 30% off, drop-ship fulfillment, tax-free purchasing, personal coupon codes, and a dedicated partner portal. Get your welcome bonus today.",
+    "Join The Perfect Part as a wholesale reseller or affiliate publisher. Access tiered reseller pricing or earn AWIN commission while sharing 15–25% audience discounts.",
   keywords: [
     "wholesale products for resale",
     "bulk wholesale supplier",
@@ -18,11 +18,14 @@ export const metadata: Metadata = {
     "wholesale distributor",
     "reseller program with portal",
     "wholesale discount program",
+    "auto parts affiliate program",
+    "AWIN affiliate publisher",
+    "automotive publisher discount codes",
   ],
   openGraph: {
-    title: "Wholesale Products for Resellers | The Perfect Part",
+    title: "Reseller & Affiliate Partner Programs | The Perfect Part",
     description:
-      "Apply for wholesale pricing from The Perfect Part. Exclusive tiered discounts up to 30% off, drop-ship fulfillment, tax-free purchasing, personal coupon codes, and a dedicated partner portal. Get your welcome bonus today.",
+      "Resell with wholesale pricing or promote to your audience with AWIN commission and 15–25% public discount codes.",
     url: "https://wholesale.theperfectpart.net",
     siteName: "The Perfect Part",
     type: "website",
@@ -32,15 +35,15 @@ export const metadata: Metadata = {
         url: "https://wholesale.theperfectpart.net/og-apply.png",
         width: 1200,
         height: 630,
-        alt: "The Perfect Part — Wholesale Program for Resellers",
+        alt: "The Perfect Part reseller and affiliate publisher programs",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Wholesale Products for Resellers | The Perfect Part",
+    title: "Reseller & Affiliate Partner Programs | The Perfect Part",
     description:
-      "Apply for wholesale pricing from The Perfect Part. Exclusive tiered discounts up to 30% off, drop-ship fulfillment, tax-free purchasing, personal coupon codes, and a dedicated partner portal.",
+      "Resell with wholesale pricing or promote with AWIN commission and audience discount codes.",
     images: ["https://wholesale.theperfectpart.net/og-apply.png"],
   },
   alternates: { canonical: "https://wholesale.theperfectpart.net" },
@@ -89,7 +92,7 @@ const jsonLd = {
       url: "https://theperfectpart.net",
       logo: "https://wholesale.theperfectpart.net/logo.png",
       description:
-        "Wholesale distributor offering tiered pricing up to 30% off, drop-ship fulfillment, tax-free purchasing, and a dedicated reseller portal.",
+        "Automotive partner programs for wholesale resellers and affiliate publishers using AWIN.",
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "sales",
@@ -109,19 +112,19 @@ const jsonLd = {
     },
     {
       "@type": "WebPage",
-      name: "Wholesale Products for Resellers | The Perfect Part",
+      name: "Reseller & Affiliate Partner Programs | The Perfect Part",
       description:
-        "Apply for wholesale pricing from The Perfect Part. Exclusive tiered discounts up to 30% off, drop-ship fulfillment, tax-free purchasing, personal coupon codes, and a dedicated partner portal.",
+        "Apply as a wholesale reseller or affiliate publisher with The Perfect Part.",
       url: "https://wholesale.theperfectpart.net",
       isPartOf: {
         "@type": "WebSite",
-        name: "The Perfect Part Wholesale Portal",
+        name: "The Perfect Part Partner Portal",
         url: "https://wholesale.theperfectpart.net",
       },
       potentialAction: {
         "@type": "Action",
-        name: "Apply for Wholesale Account",
-        target: "https://wholesale.theperfectpart.net",
+        name: "Choose a Partner Program",
+        target: "https://wholesale.theperfectpart.net/#choose-path",
       },
     },
   ],

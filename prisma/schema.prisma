@@ -9,16 +9,16 @@ datasource db {
 
 // ── Portal user (magic-link auth) ──────────────────────
 model PortalUser {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  linkedCustomerId  Int?     @map("linked_customer_id")
-  avatarKey         String?  @map("avatar_key")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  email            String   @unique
+  linkedCustomerId Int?     @map("linked_customer_id")
+  avatarKey        String?  @map("avatar_key")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  wholesaleAccount  WholesaleAccount?
-  sessions          Session[]
-  teamMemberships   TeamMember[]
+  wholesaleAccount WholesaleAccount?
+  sessions         Session[]
+  teamMemberships  TeamMember[]
 
   @@map("portal_users")
 }
@@ -44,40 +44,53 @@ enum AccountStatus {
   DENIED
 }
 
+enum PartnerType {
+  DROPSHIPPER
+  AFFILIATE_PUBLISHER
+}
+
 model WholesaleAccount {
-  id              String        @id @default(cuid())
-  userId          String        @unique @map("user_id")
-  customerId      Int?          @map("customer_id")
-  email           String
-  companyName     String        @map("company_name")
-  alias           String        // sanitized, stable, admin-editable
-  legalName       String?       @map("legal_name")
-  businessAddress String?       @map("business_address")
-  phone           String?
-  website         String?
-  primaryState    String?       @map("primary_state")
-  attestation     Boolean       @default(false)
-  status          AccountStatus @default(RETAIL)
-  denialReason    String?       @map("denial_reason")
-  approvedAt      DateTime?     @map("approved_at")
-  lastTier        String        @default("NONE") @map("last_tier") // NONE, T10, T15, T20
-  lastCount7d     Int           @default(0) @map("last_count_7d")
-  pausedUpgrades    Boolean       @default(false) @map("paused_upgrades")
-  welcomeExpiresAt  DateTime?     @map("welcome_expires_at") // welcome discount expiry
-  businessFields    Json?         @map("business_fields")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id               String        @id @default(cuid())
+  userId           String        @unique @map("user_id")
+  customerId       Int?          @map("customer_id")
+  email            String
+  companyName      String        @map("company_name")
+  alias            String // sanitized, stable, admin-editable
+  legalName        String?       @map("legal_name")
+  businessAddress  String?       @map("business_address")
+  phone            String?
+  website          String?
+  primaryState     String?       @map("primary_state")
+  attestation      Boolean       @default(false)
+  status           AccountStatus @default(RETAIL)
+  partnerType      PartnerType   @default(DROPSHIPPER) @map("partner_type")
+  denialReason     String?       @map("denial_reason")
+  approvedAt       DateTime?     @map("approved_at")
+  lastTier         String        @default("NONE") @map("last_tier") // NONE, T10, T15, T20
+  lastCount7d      Int           @default(0) @map("last_count_7d")
+  lastCount14d     Int           @default(0) @map("last_count_14d")
+  awinPublisherId  String?       @map("awin_publisher_id")
+  promoWebsite     String?       @map("promo_website")
+  promoTypes       Json?         @map("promo_types")
+  audienceReach    String?       @map("audience_reach")
+  promoDescription String?       @map("promo_description")
+  pausedUpgrades   Boolean       @default(false) @map("paused_upgrades")
+  welcomeExpiresAt DateTime?     @map("welcome_expires_at") // welcome discount expiry
+  businessFields   Json?         @map("business_fields")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
-  onboardingDismissed Boolean  @default(false) @map("onboarding_dismissed")
-  onboardingFlags    Json?    @map("onboarding_flags") // e.g. { browsedHotSellers: true }
+  onboardingDismissed Boolean @default(false) @map("onboarding_dismissed")
+  onboardingFlags     Json?   @map("onboarding_flags") // e.g. { browsedHotSellers: true }
 
-  user              PortalUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documents         Document[]
-  promotions        PromotionRecord[]
-  snapshots         TierSnapshot[]
-  riskFlags         RiskFlag[]
-  infoChangeRequests BusinessInfoChange[]
-  teamMembers       TeamMember[]
+  user                       PortalUser                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents                  Document[]
+  promotions                 PromotionRecord[]
+  snapshots                  TierSnapshot[]
+  riskFlags                  RiskFlag[]
+  infoChangeRequests         BusinessInfoChange[]
+  teamMembers                TeamMember[]
+  publisherOrderAttributions PublisherOrderAttribution[]
 
   @@index([status])
   @@index([email])
@@ -95,18 +108,18 @@ enum ScanStatus {
 }
 
 model Document {
-  id          String     @id @default(cuid())
-  accountId   String     @map("account_id")
-  filename    String
-  mime        String
-  size        Int
-  storageKey  String     @map("storage_key")
-  scanStatus  ScanStatus @default(PENDING) @map("scan_status")
-  state       String?    // US state, optional
-  docType     String?    @map("doc_type") // resale_cert, business_license, etc.
-  permitId    String?    @map("permit_id")
-  note        String?
-  uploadedAt  DateTime   @default(now()) @map("uploaded_at")
+  id         String     @id @default(cuid())
+  accountId  String     @map("account_id")
+  filename   String
+  mime       String
+  size       Int
+  storageKey String     @map("storage_key")
+  scanStatus ScanStatus @default(PENDING) @map("scan_status")
+  state      String? // US state, optional
+  docType    String?    @map("doc_type") // resale_cert, business_license, etc.
+  permitId   String?    @map("permit_id")
+  note       String?
+  uploadedAt DateTime   @default(now()) @map("uploaded_at")
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
@@ -119,7 +132,8 @@ model Document {
 model PromotionRecord {
   id         String    @id @default(cuid())
   accountId  String    @map("account_id")
-  tier       String    // T10, T15, T20
+  tier       String // T10, T15, T20
+  promoKind  String    @default("DROPSHIPPER") @map("promo_kind")
   promoId    Int?      @map("promo_id") // BigCommerce promotion ID
   code       String
   enabled    Boolean   @default(false)
@@ -128,8 +142,23 @@ model PromotionRecord {
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([accountId, tier])
+  @@unique([accountId, tier, promoKind])
   @@map("promotion_records")
+}
+
+model PublisherOrderAttribution {
+  id         String   @id @default(cuid())
+  accountId  String   @map("account_id")
+  orderId    Int      @unique @map("order_id")
+  couponCode String   @map("coupon_code")
+  orderDate  DateTime @map("order_date")
+  subtotal   Decimal? @db.Decimal(10, 2)
+  countedAt  DateTime @default(now()) @map("counted_at")
+
+  account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, orderDate])
+  @@map("publisher_order_attributions")
 }
 
 // ── Tier snapshots (history) ───────────────────────────
@@ -156,13 +185,13 @@ enum FlagStatus {
 }
 
 model RiskFlag {
-  id         String     @id @default(cuid())
-  accountId  String     @map("account_id")
-  type       String     // rapid_low_value, same_sku_farming, tier_chasing
-  details    Json
-  status     FlagStatus @default(OPEN)
-  clearedAt  DateTime?  @map("cleared_at")
-  createdAt  DateTime   @default(now()) @map("created_at")
+  id        String     @id @default(cuid())
+  accountId String     @map("account_id")
+  type      String // rapid_low_value, same_sku_farming, tier_chasing
+  details   Json
+  status    FlagStatus @default(OPEN)
+  clearedAt DateTime?  @map("cleared_at")
+  createdAt DateTime   @default(now()) @map("created_at")
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
@@ -200,15 +229,15 @@ enum ChangeRequestStatus {
 }
 
 model BusinessInfoChange {
-  id          String              @id @default(cuid())
-  accountId   String              @map("account_id")
-  oldValues   Json                @map("old_values")
-  newValues   Json                @map("new_values")
-  status      ChangeRequestStatus @default(PENDING)
-  reviewNote  String?             @map("review_note")
-  reviewedBy  String?             @map("reviewed_by") // admin email
-  reviewedAt  DateTime?           @map("reviewed_at")
-  createdAt   DateTime            @default(now()) @map("created_at")
+  id         String              @id @default(cuid())
+  accountId  String              @map("account_id")
+  oldValues  Json                @map("old_values")
+  newValues  Json                @map("new_values")
+  status     ChangeRequestStatus @default(PENDING)
+  reviewNote String?             @map("review_note")
+  reviewedBy String?             @map("reviewed_by") // admin email
+  reviewedAt DateTime?           @map("reviewed_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
 
   account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
@@ -273,7 +302,7 @@ model TeamMember {
 // ── Global settings (admin-editable) ───────────────────
 model GlobalSettings {
   id        String   @id @default("global")
-  settings  Json     // tier thresholds, risk rules, shipping label, etc.
+  settings  Json // tier thresholds, risk rules, shipping label, etc.
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("global_settings")

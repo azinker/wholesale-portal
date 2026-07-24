@@ -12,6 +12,7 @@ import {
   useSpring,
 } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -62,7 +63,7 @@ import {
   LogIn,
   ClipboardList,
 } from "lucide-react";
-import { TermsOfServiceContent } from "@/components/terms-of-service";
+import { PublisherTermsOfServiceContent, TermsOfServiceContent } from "@/components/terms-of-service";
 
 /* ─── Animated section (scroll-triggered) ────────────────────────── */
 
@@ -383,9 +384,8 @@ export default function ApplyPage() {
   }, []);
 
   const openApplication = () => {
-    setReapplyMode(false);
-    setSheetOpen(true);
-    trackEvent("wholesale_application_opened");
+    trackEvent("wholesale_application_opened", { partner_type: "DROPSHIPPER" });
+    window.location.href = "/apply/reseller";
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -645,14 +645,60 @@ export default function ApplyPage() {
             <Button variant="ghost" size="sm" asChild className="cursor-pointer hidden sm:inline-flex">
               <Link href="/login">Sign In</Link>
             </Button>
-            <Button size="sm" onClick={openApplication} className="cursor-pointer">
+            <Button size="sm" asChild className="cursor-pointer">
+              <Link href="#choose-path">
               Apply Now <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
             </Button>
           </div>
         </div>
       </header>
 
       <main>
+        <section id="choose-path" className="scroll-mt-16 bg-white px-4 pb-14 pt-28">
+          <div className="mx-auto max-w-5xl">
+            <Anim className="mb-9 text-center">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-primary">Choose your partner path</p>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">How do you want to grow with The Perfect Part?</h1>
+              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
+                Buy at wholesale prices for your resale business, or promote products to your audience and earn through AWIN.
+              </p>
+            </Anim>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Anim>
+                <div className="flex h-full flex-col rounded-2xl border-2 border-border bg-card p-7 shadow-sm transition hover:border-primary/40 hover:shadow-lg">
+                  <Package className="mb-5 h-9 w-9 text-primary" />
+                  <h2 className="text-2xl font-bold">Resell &amp; fulfill</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Purchase at tiered wholesale prices, receive tax-free pricing and free flat-rate shipping, and let us drop-ship to your customers.
+                  </p>
+                  <ul className="my-6 space-y-2 text-sm">
+                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Discounts up to 30%</li>
+                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> 20% welcome offer for 72 hours</li>
+                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Reseller ordering and fulfillment tools</li>
+                  </ul>
+                  <Button asChild size="lg" className="mt-auto"><Link href="/apply/reseller">Apply as a reseller <ArrowRight className="h-4 w-4" /></Link></Button>
+                </div>
+              </Anim>
+              <Anim delay={0.1}>
+                <div className="flex h-full flex-col rounded-2xl border-2 border-primary/30 bg-primary/[0.03] p-7 shadow-sm transition hover:border-primary hover:shadow-lg">
+                  <Users className="mb-5 h-9 w-9 text-primary" />
+                  <h2 className="text-2xl font-bold">Promote to your audience</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Share your AWIN tracking link and a public audience code. Your audience saves 15–25%, and you earn eligible AWIN commission.
+                  </p>
+                  <ul className="my-6 space-y-2 text-sm">
+                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> 15% audience discount from approval</li>
+                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Grow to 20% and 25% by attributed volume</li>
+                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Built for blogs, creators, newsletters, and deal sites</li>
+                  </ul>
+                  <Button asChild size="lg" className="mt-auto"><Link href="/apply/publisher">Apply as a publisher <ArrowRight className="h-4 w-4" /></Link></Button>
+                </div>
+              </Anim>
+            </div>
+          </div>
+        </section>
+
         {/* ══════════════════════════════════════════════════════
            HERO — Dark
            ══════════════════════════════════════════════════════ */}
@@ -682,10 +728,10 @@ export default function ApplyPage() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]"
             >
-              Your Wholesale Supplier.
+              Two Ways to Partner.
               <br />
               <span className="bg-gradient-to-r from-primary via-red-400 to-primary bg-clip-text text-transparent">
-                We Ship. You Profit.
+                One Powerful Catalog.
               </span>
             </motion.h1>
 
@@ -695,9 +741,8 @@ export default function ApplyPage() {
               transition={{ duration: 0.6, delay: 0.35 }}
               className="mt-6 text-lg sm:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed"
             >
-              Source from thousands of products at up to 30% off retail with
-              tax-free purchasing. We handle fulfillment and ship directly to
-              your customers — you focus on growing your business.
+              Resell with wholesale pricing and hands-free fulfillment, or promote
+              to your audience with AWIN tracking and exclusive public discount codes.
             </motion.p>
 
             <motion.div
@@ -711,7 +756,7 @@ export default function ApplyPage() {
                 onClick={openApplication}
                 className="text-base px-8 h-12 cursor-pointer shadow-[0_4px_20px_rgba(184,40,46,0.4)] hover:shadow-[0_6px_30px_rgba(184,40,46,0.5)] transition-shadow"
               >
-                Apply Now — Get 20% Welcome Bonus
+                Explore the Reseller Program
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Button
@@ -732,7 +777,7 @@ export default function ApplyPage() {
               className="mt-10 text-sm text-white/50 font-medium flex items-center justify-center gap-2"
             >
               <Users className="h-4 w-4 text-primary" />
-              Join 1,000+ Sellers Already Growing With Us
+              Join 1,000+ Partners Already Growing With Us
             </motion.p>
             <motion.div
               initial={{ opacity: 0 }}
@@ -989,6 +1034,75 @@ export default function ApplyPage() {
           </div>
         </section>
 
+        <section id="publisher-program" className="border-y border-border/40 bg-card px-4 py-20 sm:py-28">
+          <div className="mx-auto max-w-5xl space-y-16">
+            <Anim className="text-center">
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">Affiliate Publisher Program</p>
+              <h2 className="text-3xl font-bold sm:text-4xl">Turn your audience into earnings</h2>
+              <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+                Use your AWIN tracking link and audience code together: the link attributes eligible commission, while the code gives your audience an immediate discount.
+              </p>
+            </Anim>
+
+            <div>
+              <h3 className="mb-6 text-center text-xl font-semibold">How it works</h3>
+              <div className="grid gap-5 md:grid-cols-3">
+                {[
+                  ["1", "Join through AWIN", "Apply to our publisher program and connect to advertiser 121802 on AWIN."],
+                  ["2", "Share link + code", "Promote your AWIN tracking link alongside your current public audience code."],
+                  ["3", "Grow your audience tier", "Attributed orders in a rolling 14-day window unlock larger customer discounts."],
+                ].map(([number, title, description]) => (
+                  <div key={number} className="rounded-xl border bg-background p-6">
+                    <span className="mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{number}</span>
+                    <h4 className="font-semibold">{title}</h4>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+              <div>
+                <h3 className="text-2xl font-bold">Publisher benefits</h3>
+                <ul className="mt-5 space-y-4 text-sm">
+                  {[
+                    "Earn eligible sales commission through AWIN",
+                    "Give every visitor at least 15% off from day one",
+                    "Public sharing is encouraged across approved channels",
+                    "Guest checkout works; no wholesale login is required",
+                    "Track attributed orders and tier progress in your portal",
+                  ].map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle className="h-5 w-5 shrink-0 text-success" />{benefit}</li>)}
+                </ul>
+                <Button asChild size="lg" className="mt-7"><Link href="/apply/publisher">Become a publisher <ArrowRight className="h-4 w-4" /></Link></Button>
+              </div>
+              <div className="rounded-2xl border bg-muted/20 p-6">
+                <h3 className="text-lg font-semibold">14-day audience discount tiers</h3>
+                <div className="mt-5 space-y-3">
+                  {[
+                    ["P15", "15% off", "0+ attributed orders", "Your permanent approved floor"],
+                    ["P20", "20% off", "50+ attributed orders", "Automatic upgrade"],
+                    ["P25", "25% off", "125+ attributed orders", "Maximum audience tier"],
+                  ].map(([id, discount, orders, note]) => (
+                    <div key={id} className="grid grid-cols-[52px_1fr] gap-3 rounded-lg border bg-background p-4 sm:grid-cols-[52px_100px_1fr]">
+                      <Badge variant="outline">{id}</Badge>
+                      <strong>{discount}</strong>
+                      <div className="col-start-2 text-xs text-muted-foreground sm:col-start-auto">{orders} · {note}</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  If your tier changes, the old code is disabled and a new code is issued. Update active placements promptly. Publisher purchases use standard retail tax and shipping.
+                </p>
+              </div>
+            </div>
+
+            <div className="mx-auto max-w-2xl">
+              <h3 className="mb-4 text-center text-2xl font-bold">Publisher FAQ</h3>
+              {PUBLISHER_FAQ_ITEMS.map((item, i) => <FAQItem key={item.question} {...item} index={i} />)}
+            </div>
+          </div>
+        </section>
+
         {/* ══════════════════════════════════════════════════════
            FAQ — Light
            ══════════════════════════════════════════════════════ */}
@@ -1017,21 +1131,19 @@ export default function ApplyPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(184,40,46,0.12),transparent_70%)]" />
           <Anim className="relative max-w-3xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Ready to Grow Your Resale Business?
+              Ready to Grow With The Perfect Part?
             </h2>
             <p className="text-lg text-white/50 max-w-xl mx-auto mb-8">
-              Join The Perfect Part wholesale program — up to 30% off,
-              tax-free purchasing, free shipping, and your own partner portal.
-              Apply today and get your 20% welcome bonus.
+              Choose the program that fits your business: purchase for resale with
+              wholesale benefits, or promote to your audience and earn through AWIN.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
                 size="lg"
-                onClick={openApplication}
+                asChild
                 className="text-base px-8 h-12 cursor-pointer shadow-[0_4px_20px_rgba(184,40,46,0.4)] hover:shadow-[0_6px_30px_rgba(184,40,46,0.5)] transition-shadow"
               >
-                Apply Now — It Takes 2 Minutes
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <Link href="#choose-path">Choose Your Partner Path <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-white/35">
@@ -1072,6 +1184,20 @@ export default function ApplyPage() {
                   </DialogTitle>
                 </DialogHeader>
                 <TermsOfServiceContent />
+              </DialogContent>
+            </Dialog>
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="hover:text-white/70 transition-colors cursor-pointer">Publisher Terms</button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <ScrollText className="h-5 w-5 text-primary" />
+                    Affiliate Publisher Program Terms
+                  </DialogTitle>
+                </DialogHeader>
+                <PublisherTermsOfServiceContent />
               </DialogContent>
             </Dialog>
           </div>
@@ -1228,6 +1354,25 @@ const FAQ_ITEMS = [
     question: "How long does approval take?",
     answer:
       "Most applications are reviewed within 24 hours during business days. Once approved, you'll receive an email with your portal login credentials, your unique wholesale coupon code, and your 20% welcome discount activation.",
+  },
+];
+
+const PUBLISHER_FAQ_ITEMS = [
+  {
+    question: "Do I use the AWIN link or the audience code?",
+    answer: "Use both together. Your AWIN link handles eligible commission attribution; the audience code gives shoppers their current discount.",
+  },
+  {
+    question: "Can I publish my discount code publicly?",
+    answer: "Yes. Publisher audience codes are designed for approved public channels such as blogs, newsletters, social media, videos, and deal sites.",
+  },
+  {
+    question: "Will my audience receive tax-free pricing or free shipping?",
+    answer: "No. Publisher audience orders are retail purchases and use standard retail tax and shipping rules. They do not require a wholesale account or login.",
+  },
+  {
+    question: "Can I lose my audience code?",
+    answer: "Approved publishers keep a 15% floor. Your tier may move down from 25% to 20% or 15%, but normal tier recalculation never removes the base code.",
   },
 ];
 

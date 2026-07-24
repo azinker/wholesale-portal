@@ -84,8 +84,8 @@ export default async function LoginPage({
               </span>
             </h2>
             <p className="mt-4 text-white/45 max-w-sm leading-relaxed text-[15px]">
-              Access your wholesale dashboard to manage orders, track shipments,
-              and grow your business.
+              Access your partner dashboard to manage reseller orders or publisher
+              links, codes, and performance.
             </p>
           </div>
 
@@ -138,7 +138,7 @@ export default async function LoginPage({
             <div className="flex items-center gap-2.5">
               <div className="h-px w-10 bg-border" />
               <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">
-                Wholesale Portal
+                Partner Portal
               </p>
               <div className="h-px w-10 bg-border" />
             </div>
@@ -150,7 +150,7 @@ export default async function LoginPage({
               Sign in
             </h1>
             <p className="text-muted-foreground">
-              Access your wholesale partner dashboard
+              Access your partner dashboard
             </p>
           </div>
 
@@ -185,7 +185,7 @@ export default async function LoginPage({
             </CardHeader>
             <CardHeader className="pb-2 hidden lg:block">
               <CardDescription className="text-[15px]">
-                Enter your wholesale email and we&apos;ll send you a link to sign in.
+                Enter your partner email and we&apos;ll send you a link to sign in.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
@@ -224,9 +224,9 @@ export default async function LoginPage({
 
           <div className="space-y-3 text-center">
             <p className="text-sm text-muted-foreground">
-              Don&apos;t have a wholesale account?{" "}
+              Don&apos;t have a partner account?{" "}
               <Link
-                href="/"
+                href="/#choose-path"
                 className="text-primary font-semibold underline underline-offset-4 hover:opacity-80 transition-opacity"
               >
                 Apply here

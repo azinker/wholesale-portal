@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
-import { sendNewApplicantNotification } from "@/lib/email";
+import {
+  sendNewApplicantNotification,
+  sendPublisherApprovalEmail,
+} from "@/lib/email";
 import { bc, type BCOrder } from "@/lib/bigcommerce/client";
 import { Prisma } from "@prisma/client";
 import {
@@ -14,6 +17,8 @@ import {
   getTierConfig,
 } from "@/lib/tier-engine";
 import { getTierWindowStartDate } from "@/lib/tier-window";
+import { ensurePublisherPromoForTier } from "@/lib/publisher-tier-engine";
+import { toAlias } from "@/lib/utils";
 
 const WHOLESALE_GROUP_NAME = "Wholesale";
 
@@ -25,7 +30,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { email, companyName } = body;
+    const {
+      email,
+      companyName,
+      partnerType = "DROPSHIPPER",
+      promoWebsite,
+      awinPublisherId,
+    } = body;
 
     if (!email || !companyName) {
       return NextResponse.json(
@@ -45,6 +56,66 @@ export async function POST(req: NextRequest) {
         { error: "This email already has a wholesale account" },
         { status: 409 }
       );
+    }
+
+    if (partnerType === "AFFILIATE_PUBLISHER") {
+      let portalUser = await db.portalUser.findUnique({
+        where: { email: normalizedEmail },
+      });
+      if (!portalUser) {
+        portalUser = await db.portalUser.create({ data: { email: normalizedEmail } });
+      }
+      const account = await db.wholesaleAccount.create({
+        data: {
+          userId: portalUser.id,
+          customerId: null,
+          email: normalizedEmail,
+          companyName: companyName.trim(),
+          alias: toAlias(companyName),
+          partnerType: "AFFILIATE_PUBLISHER",
+          promoWebsite: promoWebsite || null,
+          awinPublisherId: awinPublisherId || null,
+          status: "PENDING",
+          lastTier: "P15",
+          lastCount14d: 0,
+          welcomeExpiresAt: null,
+        },
+      });
+      const promotion = await ensurePublisherPromoForTier(
+        account.id,
+        account.alias,
+        "P15"
+      );
+      await db.wholesaleAccount.update({
+        where: { id: account.id },
+        data: { status: "APPROVED", approvedAt: new Date() },
+      });
+      await sendNewApplicantNotification({
+        email: normalizedEmail,
+        companyName: account.companyName,
+        alias: account.alias,
+        source: "admin",
+        partnerType: "AFFILIATE_PUBLISHER",
+        promoWebsite,
+        awinPublisherId,
+      });
+      await sendPublisherApprovalEmail(
+        normalizedEmail,
+        account.companyName,
+        promotion.code
+      );
+      return NextResponse.json({
+        success: true,
+        account: {
+          id: account.id,
+          email: normalizedEmail,
+          companyName: account.companyName,
+          partnerType: "AFFILIATE_PUBLISHER",
+          initialTier: "P15",
+          code: promotion.code,
+          groupAssigned: false,
+        },
+      });
     }
 
     // Step 1: Check if customer exists in BigCommerce

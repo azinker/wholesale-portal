@@ -18,6 +18,7 @@ import { ResetWelcomeButton } from "./reset-welcome-button";
 import { RecalcTierButton } from "./recalc-tier-button";
 import { VerifyCustomerGroupButton } from "./verify-customer-group-button";
 import { DocumentScanActions } from "../../applicants/[id]/document-scan-actions";
+import { loadPublisherTierConfig } from "@/lib/publisher-tier-engine";
 
 export default async function CustomerDetailPage({
   params,
@@ -54,16 +55,19 @@ export default async function CustomerDetailPage({
     notFound();
   }
 
+  const publisher = account.partnerType === "AFFILIATE_PUBLISHER";
   const activePromo = account.promotions.find((p) => p.enabled);
-  const tierConfig = await getTierConfig(account.lastTier);
-  const dynamicTiers = await loadTiers();
+  const publisherConfig = publisher ? await loadPublisherTierConfig() : null;
+  const dynamicTiers = publisher ? publisherConfig!.tiers : await loadTiers();
+  const tierConfig = publisher ? dynamicTiers.find((tier) => tier.id === account.lastTier) ?? null : await getTierConfig(account.lastTier);
   const avatarUrl = await getAvatarUrl(account.user.avatarKey);
 
   // Welcome discount info
   const welcomeActive = isWelcomeActive(account.welcomeExpiresAt);
   const welcomeConfig = await loadWelcomeConfig();
-  const tierWindowDays = await loadTierWindowDays();
+  const tierWindowDays = publisher ? publisherConfig!.windowDays : await loadTierWindowDays();
   const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
+  const rollingCount = publisher ? account.lastCount14d : account.lastCount7d;
 
   // Check if this customer was manually enrolled by an admin
   const enrollAudit = await db.auditLog.findFirst({
@@ -97,7 +101,7 @@ export default async function CustomerDetailPage({
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{account.companyName}</h1>
+          <div className="flex items-center gap-2"><h1 className="text-2xl font-bold">{account.companyName}</h1><Badge variant={publisher ? "secondary" : "outline"}>{publisher ? "Publisher" : "Reseller"}</Badge></div>
           <p className="text-muted-foreground text-sm">{account.email}</p>
         </div>
         <ImpersonateButton userId={account.userId} userEmail={account.email} size="sm" />
@@ -172,14 +176,17 @@ export default async function CustomerDetailPage({
                 </div>
               </>
             )}
+            {publisher && (
+              <>
+                <Separator />
+                <div className="flex justify-between"><span className="text-muted-foreground">AWIN Publisher ID</span><span className="font-mono text-xs">{account.awinPublisherId || "—"}</span></div>
+                <Separator />
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Promotion Website</span><span className="truncate text-xs">{account.promoWebsite || "—"}</span></div>
+              </>
+            )}
             <Separator />
             <ResetOnboardingButton accountId={account.id} />
-            <ResetWelcomeButton
-              accountId={account.id}
-              companyName={account.companyName}
-              welcomeExpiresAt={account.welcomeExpiresAt?.toISOString() ?? null}
-              welcomeHours={welcomeConfig.hours}
-            />
+            {!publisher && <ResetWelcomeButton accountId={account.id} companyName={account.companyName} welcomeExpiresAt={account.welcomeExpiresAt?.toISOString() ?? null} welcomeHours={welcomeConfig.hours} />}
           </CardContent>
         </Card>
 
@@ -191,7 +198,7 @@ export default async function CustomerDetailPage({
               Current Tier
             </CardTitle>
             <CardDescription>
-              {tierWindowLabel} rolling window: {account.lastCount7d} qualifying orders
+              {tierWindowLabel} rolling window: {rollingCount} {publisher ? "attributed" : "qualifying"} orders
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -210,7 +217,7 @@ export default async function CustomerDetailPage({
             </div>
 
             {/* Welcome Discount Status */}
-            {welcomeActive && account.welcomeExpiresAt && (
+            {!publisher && welcomeActive && account.welcomeExpiresAt && (
               <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 p-3">
                 <div className="flex items-center gap-2">
                   <Badge className="bg-purple-600 text-white text-[10px]">Welcome Discount</Badge>
@@ -221,7 +228,7 @@ export default async function CustomerDetailPage({
                 </p>
               </div>
             )}
-            {!welcomeActive && account.welcomeExpiresAt && (
+            {!publisher && !welcomeActive && account.welcomeExpiresAt && (
               <div className="rounded-lg bg-muted/50 border p-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px] text-muted-foreground">Welcome Expired</Badge>
@@ -246,10 +253,10 @@ export default async function CustomerDetailPage({
             )}
             <Separator />
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">{tierWindowLabel} qualifying count: <strong className="text-foreground">{account.lastCount7d}</strong></p>
+              <p className="text-xs text-muted-foreground">{tierWindowLabel} {publisher ? "attributed" : "qualifying"} count: <strong className="text-foreground">{rollingCount}</strong></p>
               <div className="flex gap-2">
                 <RecalcTierButton accountId={account.id} />
-                <VerifyCustomerGroupButton accountId={account.id} />
+                {!publisher && <VerifyCustomerGroupButton accountId={account.id} />}
               </div>
             </div>
           </CardContent>
@@ -274,7 +281,7 @@ export default async function CustomerDetailPage({
             currentTier={account.lastTier}
             isLocked={account.pausedUpgrades}
             tierOptions={[
-              { value: "NONE", label: "None (0% discount)" },
+              ...(publisher ? [] : [{ value: "NONE", label: "None (0% discount)" }]),
               ...dynamicTiers.map((t) => ({
                 value: t.id,
                 label: `${t.id} (${t.discount}% discount)`,
@@ -296,7 +303,7 @@ export default async function CustomerDetailPage({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {dynamicTiers.map((t) => {
               const isActive = account.lastTier === t.id;
-              const isAchieved = account.lastCount7d >= t.minOrders;
+              const isAchieved = rollingCount >= t.minOrders;
               return (
                 <div
                   key={t.id}

@@ -6,29 +6,17 @@ import { toAlias } from "@/lib/utils";
 import {
   sendApplicationReceivedEmail,
   sendNewApplicantNotification,
+  sendPublisherApplicationReceivedEmail,
   sendReapplicationReceivedEmail,
 } from "@/lib/email";
-
-const applySchema = z.object({
-  email: z.string().email(),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  companyName: z.string().min(1),
-  legalName: z.string().optional().default(""),
-  businessAddress: z.string().min(1),
-  phone: z.string().min(1),
-  website: z.string().optional().default(""),
-  primaryState: z.string().optional().default(""),
-  attestation: z.literal(true, {
-    errorMap: () => ({ message: "You must accept the attestation" }),
-  }),
-});
+import { applySchema } from "@/lib/partner-types";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const data = applySchema.parse(body);
     const email = data.email.trim().toLowerCase();
+    const publisher = data.partnerType === "AFFILIATE_PUBLISHER";
 
     // Check if already applied
     const existingAccount = await db.wholesaleAccount.findFirst({
@@ -38,7 +26,7 @@ export async function POST(req: NextRequest) {
       if (existingAccount.status === "DENIED") {
         let customerId: number | null = existingAccount.customerId;
 
-        if (!customerId) {
+        if (!publisher && !customerId) {
           try {
             const bcCustomer = await bc().getCustomerByEmail(email);
             if (bcCustomer) {
@@ -49,7 +37,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (!customerId) {
+        if (!publisher && !customerId) {
           try {
             const newCustomer = await bc().createCustomer({
               email,
@@ -74,7 +62,7 @@ export async function POST(req: NextRequest) {
         const updatedAccount = await db.wholesaleAccount.update({
           where: { id: existingAccount.id },
           data: {
-            customerId,
+            customerId: publisher ? null : customerId,
             email,
             companyName: data.companyName,
             alias,
@@ -83,18 +71,26 @@ export async function POST(req: NextRequest) {
             phone: data.phone,
             website: data.website || null,
             primaryState: data.primaryState || null,
+            partnerType: data.partnerType,
+            awinPublisherId: publisher ? data.awinPublisherId || null : null,
+            promoWebsite: publisher ? data.promoWebsite : null,
+            promoTypes: publisher ? data.promoTypes : undefined,
+            audienceReach: publisher ? data.audienceReach || null : null,
+            promoDescription: publisher ? data.promoDescription : null,
             attestation: true,
             status: "PENDING",
             denialReason: null,
             approvedAt: null,
-            lastTier: "NONE",
+            lastTier: publisher ? "P15" : "NONE",
             lastCount7d: 0,
+            lastCount14d: 0,
             welcomeExpiresAt: null,
             pausedUpgrades: false,
             onboardingDismissed: false,
             businessFields: {
               firstName: data.firstName,
               lastName: data.lastName,
+              ...(publisher ? { awinJoined: data.awinJoined } : {}),
             },
           },
         });
@@ -128,9 +124,21 @@ export async function POST(req: NextRequest) {
           phone: data.phone,
           website: data.website || undefined,
           primaryState: data.primaryState || undefined,
+          partnerType: data.partnerType,
+          ...(publisher ? {
+            promoWebsite: data.promoWebsite,
+            promoTypes: data.promoTypes,
+            promoDescription: data.promoDescription,
+            audienceReach: data.audienceReach || undefined,
+            awinPublisherId: data.awinPublisherId || undefined,
+          } : {}),
           customerId: updatedAccount.customerId ?? null,
         });
-        await sendReapplicationReceivedEmail(email, data.companyName);
+        if (publisher) {
+          await sendPublisherApplicationReceivedEmail(email, data.companyName);
+        } else {
+          await sendReapplicationReceivedEmail(email, data.companyName);
+        }
 
         console.log("Application resubmitted:", email);
         return NextResponse.json({ success: true, reapplied: true });
@@ -151,7 +159,7 @@ export async function POST(req: NextRequest) {
     // Check if a BigCommerce customer exists with this email
     let customerId: number | null = portalUser.linkedCustomerId;
 
-    if (!customerId) {
+    if (!publisher && !customerId) {
       try {
         const bcCustomer = await bc().getCustomerByEmail(email);
         if (bcCustomer) {
@@ -169,7 +177,7 @@ export async function POST(req: NextRequest) {
     }
 
     // If no BC customer exists, create one
-    if (!customerId) {
+    if (!publisher && !customerId) {
       try {
         const newCustomer = await bc().createCustomer({
           email,
@@ -195,7 +203,7 @@ export async function POST(req: NextRequest) {
     await db.wholesaleAccount.create({
       data: {
         userId: portalUser.id,
-        customerId,
+        customerId: publisher ? null : customerId,
         email,
         companyName: data.companyName,
         alias,
@@ -204,11 +212,18 @@ export async function POST(req: NextRequest) {
         phone: data.phone,
         website: data.website || null,
         primaryState: data.primaryState || null,
+        partnerType: data.partnerType,
+        awinPublisherId: publisher ? data.awinPublisherId || null : null,
+        promoWebsite: publisher ? data.promoWebsite : null,
+        promoTypes: publisher ? data.promoTypes : undefined,
+        audienceReach: publisher ? data.audienceReach || null : null,
+        promoDescription: publisher ? data.promoDescription : null,
         attestation: true,
         status: "PENDING",
         businessFields: {
           firstName: data.firstName,
           lastName: data.lastName,
+          ...(publisher ? { awinJoined: data.awinJoined } : {}),
         },
       },
     });
@@ -218,12 +233,13 @@ export async function POST(req: NextRequest) {
       data: {
         actorEmail: email,
         action: "application_submitted",
-        targetCustomerId: customerId,
+        targetCustomerId: publisher ? null : customerId,
         details: {
           companyName: data.companyName,
           alias,
           source: "portal",
-          bcCustomerLinked: !!customerId,
+          bcCustomerLinked: !publisher && !!customerId,
+          partnerType: data.partnerType,
         },
       },
     });
@@ -240,9 +256,21 @@ export async function POST(req: NextRequest) {
       phone: data.phone,
       website: data.website || undefined,
       primaryState: data.primaryState || undefined,
-      customerId: customerId ?? null,
+      partnerType: data.partnerType,
+      ...(publisher ? {
+        promoWebsite: data.promoWebsite,
+        promoTypes: data.promoTypes,
+        promoDescription: data.promoDescription,
+        audienceReach: data.audienceReach || undefined,
+        awinPublisherId: data.awinPublisherId || undefined,
+      } : {}),
+      customerId: publisher ? null : customerId ?? null,
     });
-    await sendApplicationReceivedEmail(email, data.companyName);
+    if (publisher) {
+      await sendPublisherApplicationReceivedEmail(email, data.companyName);
+    } else {
+      await sendApplicationReceivedEmail(email, data.companyName);
+    }
 
     console.log("Application submitted:", email);
     return NextResponse.json({ success: true });

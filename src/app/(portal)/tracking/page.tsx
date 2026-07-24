@@ -65,6 +65,7 @@ function getCarrierUrl(trackingNumber: string, carrier: string): string | null {
 export default async function TrackingPage() {
   const user = await getUser();
   if (!user) redirect("/");
+  if (user.wholesaleAccount?.partnerType === "AFFILIATE_PUBLISHER") redirect("/performance");
 
   const customerId = user.linkedCustomerId;
   let allShipments: ShipmentWithOrder[] = [];

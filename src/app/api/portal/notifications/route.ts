@@ -3,6 +3,7 @@ import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loadTierWindowDays, loadTiers, type TierId } from "@/lib/tier-engine";
 import { formatTierWindowLabel } from "@/lib/tier-window";
+import { loadPublisherTierConfig } from "@/lib/publisher-tier-engine";
 
 export interface PortalNotification {
   id: string;
@@ -24,6 +25,52 @@ export async function GET() {
   const account = user.wholesaleAccount;
 
   if (!account) {
+    return NextResponse.json({ notifications });
+  }
+
+  if (account.partnerType === "AFFILIATE_PUBLISHER") {
+    const config = await loadPublisherTierConfig();
+    const currentIndex = config.tiers.findIndex((tier) => tier.id === account.lastTier);
+    const nextTier =
+      currentIndex >= 0 && currentIndex < config.tiers.length - 1
+        ? config.tiers[currentIndex + 1]
+        : null;
+    if (nextTier) {
+      notifications.push({
+        id: "publisher-tier-progress",
+        type: "tier_progress",
+        title: "Audience Tier Progress",
+        message: `${Math.max(0, nextTier.minOrders - account.lastCount14d)} more attributed orders needed for a ${nextTier.discount}% audience discount.`,
+        variant: "info",
+      });
+    } else {
+      notifications.push({
+        id: "publisher-tier-max",
+        type: "tier_achieved",
+        title: "Top Publisher Tier",
+        message: "Your audience receives the maximum configured discount.",
+        variant: "success",
+      });
+    }
+    const recentTierChange = await db.auditLog.findFirst({
+      where: {
+        targetAccountId: account.id,
+        action: "publisher_tier_changed",
+        createdAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (recentTierChange) {
+      const details = recentTierChange.details as Record<string, unknown> | null;
+      notifications.unshift({
+        id: `publisher-tier-change-${recentTierChange.id}`,
+        type: "tier_achieved",
+        title: "Publisher Code Changed",
+        message: `Your tier changed to ${String(details?.to ?? account.lastTier)}. Update all offers with code ${String(details?.code ?? "shown on your dashboard")}.`,
+        variant: "warning",
+        timestamp: recentTierChange.createdAt.toISOString(),
+      });
+    }
     return NextResponse.json({ notifications });
   }
 

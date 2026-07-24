@@ -17,8 +17,18 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export default async function ApplicantsPage() {
+export default async function ApplicantsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const { type } = await searchParams;
   const applicants = await db.wholesaleAccount.findMany({
+    where: type === "publisher"
+      ? { partnerType: "AFFILIATE_PUBLISHER" }
+      : type === "reseller"
+        ? { partnerType: "DROPSHIPPER" }
+        : undefined,
     orderBy: { updatedAt: "desc" },
     include: {
       user: {
@@ -44,7 +54,7 @@ export default async function ApplicantsPage() {
             Applicants
           </h1>
           <p className="text-muted-foreground mt-1">
-            Review and manage wholesale applications.
+            Review and manage reseller and affiliate publisher applications.
             {pendingCount > 0 && (
               <Badge variant="secondary" className="ml-2 text-warning border-warning/30">
                 {pendingCount} pending
@@ -52,6 +62,12 @@ export default async function ApplicantsPage() {
             )}
           </p>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant={!type ? "default" : "outline"} size="sm" asChild><Link href="/admin/applicants">All</Link></Button>
+        <Button variant={type === "reseller" ? "default" : "outline"} size="sm" asChild><Link href="/admin/applicants?type=reseller">Resellers</Link></Button>
+        <Button variant={type === "publisher" ? "default" : "outline"} size="sm" asChild><Link href="/admin/applicants?type=publisher">Publishers</Link></Button>
       </div>
 
       {applicants.length === 0 ? (
@@ -70,6 +86,7 @@ export default async function ApplicantsPage() {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-4 py-3 font-medium">Applicant</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
+                  <th className="text-left px-4 py-3 font-medium">Program</th>
                   <th className="text-left px-4 py-3 font-medium">Docs</th>
                   <th className="text-left px-4 py-3 font-medium">Applied</th>
                   <th className="text-left px-4 py-3 font-medium"></th>
@@ -101,6 +118,9 @@ export default async function ApplicantsPage() {
                       <td className="px-4 py-3">
                         <StatusBadge status={a.status} />
                       </td>
+                      <td className="px-4 py-3">
+                        <PartnerBadge partnerType={a.partnerType} />
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         {totalDocs === 0 ? "—" : `${cleanDocs}/${totalDocs} clean`}
                       </td>
@@ -127,6 +147,10 @@ export default async function ApplicantsPage() {
       )}
     </div>
   );
+}
+
+function PartnerBadge({ partnerType }: { partnerType: string }) {
+  return <Badge variant={partnerType === "AFFILIATE_PUBLISHER" ? "secondary" : "outline"} className="whitespace-nowrap">{partnerType === "AFFILIATE_PUBLISHER" ? "Publisher" : "Reseller"}</Badge>;
 }
 
 function StatusBadge({ status }: { status: string }) {

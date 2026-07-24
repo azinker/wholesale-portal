@@ -297,6 +297,11 @@ class BigCommerceClient {
     }
   }
 
+  /** Webhook processing must retry rather than silently lose transient API failures. */
+  async getOrderByIdStrict(orderId: number): Promise<BCOrder> {
+    return this.get<BCOrder>(`${this.baseV2}/orders/${orderId}`);
+  }
+
   async getOrderProducts(orderId: number): Promise<BCOrderProduct[]> {
     return this.get(`${this.baseV2}/orders/${orderId}/products`);
   }
@@ -315,6 +320,11 @@ class BigCommerceClient {
     } catch {
       return [];
     }
+  }
+
+  /** Strict coupon fetch for durable webhook attribution. */
+  async getOrderCouponsStrict(orderId: number): Promise<{ id: number; coupon_id: number; code: string; amount: string; type: number; discount: string }[]> {
+    return this.get(`${this.baseV2}/orders/${orderId}/coupons`);
   }
 
   // ── Promotions ─────────────────────────────────────

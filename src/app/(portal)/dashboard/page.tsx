@@ -15,6 +15,7 @@ import { WelcomeCountdown } from "./welcome-countdown";
 import { TierActivatesCountdown } from "./tier-activates-countdown";
 import { DashboardRecalcTrigger } from "./dashboard-recalc-trigger";
 import { RollingWindowHelpDialog } from "./rolling-window-help-dialog";
+import { PublisherDashboard } from "./publisher-dashboard";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -22,6 +23,10 @@ export default async function DashboardPage() {
 
   const account = user.wholesaleAccount;
   const status = account?.status || "RETAIL";
+
+  if (account?.partnerType === "AFFILIATE_PUBLISHER") {
+    return <PublisherDashboard account={account} />;
+  }
 
   // Fetch recent announcements
   const announcements = await db.announcement.findMany({

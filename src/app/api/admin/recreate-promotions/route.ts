@@ -3,6 +3,11 @@ import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
 import { ensurePromoForTier } from "@/lib/tier-engine";
+import {
+  ensurePublisherPromoForTier,
+  withPublisherTierLock,
+} from "@/lib/publisher-tier-engine";
+import { PUBLISHER_PROMO_KIND } from "@/lib/bigcommerce/publisher-promotions";
 
 /**
  * POST /api/admin/recreate-promotions
@@ -26,13 +31,13 @@ export async function POST(req: NextRequest) {
     if (accountId) {
       const account = await db.wholesaleAccount.findUnique({
         where: { id: accountId, status: "APPROVED" },
-        select: { id: true, alias: true, lastTier: true },
+        select: { id: true, alias: true, lastTier: true, partnerType: true },
       });
       accounts = account ? [account] : [];
     } else {
       accounts = await db.wholesaleAccount.findMany({
         where: { status: "APPROVED" },
-        select: { id: true, alias: true, lastTier: true },
+        select: { id: true, alias: true, lastTier: true, partnerType: true },
       });
     }
 
@@ -42,15 +47,33 @@ export async function POST(req: NextRequest) {
 
     for (const account of accounts) {
       try {
-        // Clear promoId from all promotion records for this account
-        // This forces ensurePromoForTier to recreate them in BigCommerce
-        await db.promotionRecord.updateMany({
-          where: { accountId: account.id },
-          data: { promoId: null, enabled: false },
-        });
-
-        // Re-run promotion creation
-        await ensurePromoForTier(account.id, account.alias, account.lastTier as string);
+        if (account.partnerType === "AFFILIATE_PUBLISHER") {
+          await withPublisherTierLock(account.id, async () => {
+            await db.promotionRecord.updateMany({
+              where: {
+                accountId: account.id,
+                promoKind: PUBLISHER_PROMO_KIND,
+              },
+              data: { promoId: null, enabled: false },
+            });
+            await ensurePublisherPromoForTier(
+              account.id,
+              account.alias,
+              account.lastTier,
+              { rotate: true }
+            );
+          });
+        } else {
+          // Preserve the existing dropshipper recreation path.
+          await db.promotionRecord.updateMany({
+            where: {
+              accountId: account.id,
+              promoKind: "DROPSHIPPER",
+            },
+            data: { promoId: null, enabled: false },
+          });
+          await ensurePromoForTier(account.id, account.alias, account.lastTier as string);
+        }
 
         processed++;
         if (account.lastTier !== "NONE") {

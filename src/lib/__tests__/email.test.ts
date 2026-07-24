@@ -5,6 +5,7 @@ import {
   sendApplicantMoreInfoRequestEmail,
   sendApplicationReceivedEmail,
   sendCouponCreatedEmail,
+  sendPublisherTierChangedEmail,
 } from "../email";
 
 const mockSend = vi.fn().mockResolvedValue({ data: { id: "resend-123" }, error: null });
@@ -87,6 +88,22 @@ describe("sendApplicantApprovalEmail", () => {
     expect(payload.html).toContain("10%");
   });
 
+  it("warns publishers to replace the old code after tier rotation", async () => {
+    await sendPublisherTierChangedEmail(
+      "publisher@example.com",
+      "Parts Media",
+      "P15",
+      "P20",
+      50,
+      "PUB-PARTS-P20-ABC123",
+      20
+    );
+    const payload = mockSend.mock.calls[0][0];
+    expect(payload.subject).toContain("publisher audience code changed");
+    expect(payload.html).toContain("PUB-PARTS-P20-ABC123");
+    expect(payload.html).toContain("old code is disabled");
+  });
+
   it("does not throw when Resend returns success", async () => {
     mockSend.mockResolvedValueOnce({ data: { id: "ok" }, error: null });
     await expect(
@@ -99,6 +116,21 @@ describe("sendApplicantApprovalEmail", () => {
     await expect(
       sendApplicantApprovalEmail("a@b.com", "Biz")
     ).resolves.toBeUndefined();
+  });
+
+  it("propagates publisher tier email failures so webhook delivery can retry", async () => {
+    mockSend.mockResolvedValueOnce({ data: null, error: { message: "Rate limited" } });
+    await expect(
+      sendPublisherTierChangedEmail(
+        "publisher@example.com",
+        "Parts Media",
+        "P15",
+        "P20",
+        50,
+        "PUB-PARTS-P20-ABC123",
+        20
+      )
+    ).rejects.toThrow("Rate limited");
   });
 
   it("skips sending and returns early when RESEND_API_KEY is not set", async () => {

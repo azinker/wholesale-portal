@@ -4,6 +4,12 @@ import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
 import { ensurePromoForTier, getTierConfig, loadTierWindowDays, loadTiers, type TierId } from "@/lib/tier-engine";
 import { sendCouponChangedEmail, sendTierChangedEmail } from "@/lib/email";
+import { sendPublisherTierChangedEmail } from "@/lib/email";
+import {
+  ensurePublisherPromoForTier,
+  loadPublisherTierConfig,
+  withPublisherTierLock,
+} from "@/lib/publisher-tier-engine";
 
 export async function POST(
   req: NextRequest,
@@ -19,14 +25,6 @@ export async function POST(
   try {
     const body = await req.json();
     const { tier, locked } = body as { tier: TierId; locked: boolean };
-
-    // Validate tier against dynamic config
-    const tiers = await loadTiers();
-    const validTierIds = ["NONE", ...tiers.map((t) => t.id)];
-
-    if (!validTierIds.includes(tier)) {
-      return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
-    }
 
     // Fetch the account
     const account = await db.wholesaleAccount.findUnique({
@@ -44,22 +42,66 @@ export async function POST(
       );
     }
 
-    const previousTier = account.lastTier as TierId;
+    const publisher = account.partnerType === "AFFILIATE_PUBLISHER";
+    const tiers = publisher
+      ? (await loadPublisherTierConfig()).tiers
+      : await loadTiers();
+    const validTierIds = publisher
+      ? tiers.map((item) => item.id)
+      : ["NONE", ...tiers.map((item) => item.id)];
+    if (!validTierIds.includes(tier)) {
+      return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
+    }
 
-    // Update the account
-    await db.wholesaleAccount.update({
-      where: { id },
-      data: {
-        lastTier: tier,
-        pausedUpgrades: locked,
-      },
-    });
+    const previousTier = account.lastTier as TierId;
+    let effectivePreviousTier = previousTier;
 
     // Always ensure the correct promotion exists and is enabled for this tier.
     // This handles both tier changes and cases where the BC promo failed previously.
-    await ensurePromoForTier(id, account.alias, tier);
+    if (publisher) {
+      await withPublisherTierLock(id, async () => {
+        const latest = await db.wholesaleAccount.findUniqueOrThrow({
+          where: { id },
+        });
+        const latestTier = latest.lastTier as TierId;
+        effectivePreviousTier = latestTier;
+        const promotion = await ensurePublisherPromoForTier(id, latest.alias, tier, {
+          rotate: latestTier !== tier,
+        });
+        if (latestTier !== tier) {
+          const config = tiers.find((item) => item.id === tier);
+          await sendPublisherTierChangedEmail(
+            latest.email,
+            latest.companyName,
+            latestTier,
+            tier,
+            latest.lastCount14d,
+            promotion.code,
+            config?.discount ?? 15
+          );
+        }
+        // Publish the override only after BC rotation and required email succeed.
+        await db.wholesaleAccount.update({
+          where: { id },
+          data: {
+            lastTier: tier,
+            pausedUpgrades: locked,
+          },
+        });
+      });
+    } else {
+      // Preserve the existing dropshipper override sequence.
+      await db.wholesaleAccount.update({
+        where: { id },
+        data: {
+          lastTier: tier,
+          pausedUpgrades: locked,
+        },
+      });
+      await ensurePromoForTier(id, account.alias, tier);
+    }
 
-    if (previousTier !== tier) {
+    if (!publisher && previousTier !== tier) {
       const previousConfig = await getTierConfig(previousTier);
       const newConfig = await getTierConfig(tier);
       const windowDays = await loadTierWindowDays();
@@ -101,7 +143,7 @@ export async function POST(
         targetAccountId: id,
         targetCustomerId: account.customerId,
         details: {
-          previousTier,
+          previousTier: effectivePreviousTier,
           newTier: tier,
           locked,
           manual: true,
@@ -111,7 +153,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      previousTier,
+      previousTier: effectivePreviousTier,
       newTier: tier,
       locked,
     });

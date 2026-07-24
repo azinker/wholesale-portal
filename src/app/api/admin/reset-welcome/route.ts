@@ -34,11 +34,18 @@ export async function POST(req: NextRequest) {
         email: true,
         customerId: true,
         welcomeExpiresAt: true,
+        partnerType: true,
       },
     });
 
     if (!account) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+    if (account.partnerType === "AFFILIATE_PUBLISHER") {
+      return NextResponse.json(
+        { error: "Welcome discounts are only available to dropshippers" },
+        { status: 400 }
+      );
     }
 
     const welcomeCfg = await loadWelcomeConfig();

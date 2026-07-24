@@ -77,9 +77,10 @@ export default async function HotSellersPage() {
   if (!user) redirect("/");
 
   const account = user.wholesaleAccount;
+  const publisher = account?.partnerType === "AFFILIATE_PUBLISHER";
   const isApproved = account?.status === "APPROVED";
   const tier = account?.lastTier || "NONE";
-  const discountPct = isApproved ? await getTierDiscountPercent(tier) : 0;
+  const discountPct = isApproved && !publisher ? await getTierDiscountPercent(tier) : 0;
 
   // Track visit for onboarding
   if (account?.id) {
@@ -121,14 +122,14 @@ export default async function HotSellersPage() {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Flame className="h-6 w-6 text-orange-500" />
-          Hot Sellers
+          {publisher ? "Products to Promote" : "Hot Sellers"}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Best-selling products from The Perfect Part. Refreshes regularly with new picks.
+          {publisher ? "Popular products to feature in your publisher placements. Use your AWIN link as the destination." : "Best-selling products from The Perfect Part. Refreshes regularly with new picks."}
         </p>
       </div>
 
-      {!isApproved && (
+      {!isApproved && !publisher && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="pt-6">
             <p className="text-sm">
@@ -138,6 +139,14 @@ export default async function HotSellersPage() {
               </Link>{" "}
               to see discounted tier prices on all products.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {publisher && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-6 text-sm">
+            Product prices shown here are retail prices. Share your AWIN tracking link and current audience code together; standard retail tax and shipping apply.
           </CardContent>
         </Card>
       )}
@@ -241,7 +250,7 @@ export default async function HotSellersPage() {
                 </a>
 
                 {/* Inline margin calc for approved users */}
-                {tierPrice && <MarginInput costPrice={tierPrice} />}
+                {tierPrice && !publisher && <MarginInput costPrice={tierPrice} />}
               </CardContent>
             </Card>
           );

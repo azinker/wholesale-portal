@@ -28,8 +28,15 @@ export async function POST(req: NextRequest) {
 
     const account = await db.wholesaleAccount.findUnique({
       where: { id: accountId },
-      select: { customerId: true, companyName: true, email: true },
+      select: { customerId: true, companyName: true, email: true, partnerType: true },
     });
+
+    if (account?.partnerType === "AFFILIATE_PUBLISHER") {
+      return NextResponse.json(
+        { error: "Customer-group verification applies only to drop shippers" },
+        { status: 400 }
+      );
+    }
 
     if (!account || !account.customerId) {
       return NextResponse.json(

@@ -27,8 +27,93 @@ export default function SettingsPage() {
       <BigCommerceConnectionCard />
       <WebhookRegistrationCard />
       <TierSettingsCard />
+      <PublisherTierSettingsCard />
       <WelcomeDiscountCard />
     </div>
+  );
+}
+
+function PublisherTierSettingsCard() {
+  const [tiers, setTiers] = useState([
+    { id: "P15", label: "15% Audience", minOrders: 0, discount: 15 },
+    { id: "P20", label: "20% Audience", minOrders: 50, discount: 20 },
+    { id: "P25", label: "25% Audience", minOrders: 125, discount: 25 },
+  ]);
+  const [windowDays, setWindowDays] = useState(14);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [baseTiers, setBaseTiers] = useState<unknown[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/tier-config");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        if (Array.isArray(data.publisherTiers)) setTiers(data.publisherTiers);
+        setWindowDays(data.publisherTierWindowDays ?? 14);
+        setBaseTiers(data.tiers ?? []);
+      } catch {
+        toast.error("Failed to load publisher tier configuration");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function save() {
+    const p20 = tiers.find((tier) => tier.id === "P20");
+    const p25 = tiers.find((tier) => tier.id === "P25");
+    if (!p20 || !p25 || p20.minOrders < 1 || p25.minOrders <= p20.minOrders) {
+      toast.error("P20 and P25 thresholds must be positive and increasing.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/tier-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tiers: baseTiers,
+          publisherTiers: tiers,
+          publisherTierWindowDays: windowDays,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      toast.success("Publisher tier configuration saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base"><Layers className="h-4 w-4 text-primary" /> Publisher Audience Tiers</CardTitle>
+        <CardDescription>Configure the rolling window and attributed-order thresholds. P15 remains fixed as the permanent 15% floor.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : (
+          <>
+            <div className="max-w-xs space-y-2"><Label htmlFor="publisher-window">Rolling Window (Days)</Label><Input id="publisher-window" type="number" min={1} max={90} value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))} /><p className="text-xs text-muted-foreground">Publisher attribution is evaluated independently from reseller order volume.</p></div>
+            <Separator />
+            <div className="space-y-2">
+              {tiers.map((tier, index) => (
+                <div key={tier.id} className="grid grid-cols-[70px_1fr_1fr] items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                  <Badge variant="outline">{tier.id}</Badge>
+                  <div><Label className="text-xs">Min attributed orders</Label><Input type="number" min={tier.id === "P15" ? 0 : 1} disabled={tier.id === "P15"} value={tier.minOrders} onChange={(e) => setTiers((current) => current.map((item, i) => i === index ? { ...item, minOrders: Number(e.target.value) } : item))} /></div>
+                  <div><Label className="text-xs">Audience discount</Label><Input type="number" disabled value={tier.discount} /></div>
+                </div>
+              ))}
+            </div>
+            <Button onClick={save} disabled={saving || baseTiers.length === 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Publisher Tiers</Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

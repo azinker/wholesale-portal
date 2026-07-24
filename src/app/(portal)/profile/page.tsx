@@ -4,17 +4,21 @@ import { db } from "@/lib/db";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { UserCircle, Building2, Mail } from "lucide-react";
+import { UserCircle, Building2, Mail, ExternalLink } from "lucide-react";
 import AvatarUploader from "./avatar-uploader";
 import BusinessInfoForm from "./business-info-form";
 import { loadTierWindowDays } from "@/lib/tier-engine";
+import { loadPublisherTierConfig } from "@/lib/publisher-tier-engine";
 
 export default async function ProfilePage() {
   const user = await getUser();
   if (!user) redirect("/");
-  const tierWindowDays = await loadTierWindowDays();
 
   const account = user.wholesaleAccount;
+  const publisher = account?.partnerType === "AFFILIATE_PUBLISHER";
+  const tierWindowDays = publisher
+    ? (await loadPublisherTierConfig()).windowDays
+    : await loadTierWindowDays();
 
   // Fetch pending business info change if account exists
   let pendingChange = null;
@@ -90,8 +94,32 @@ export default async function ProfilePage() {
               <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{tierWindowDays}-Day Orders</span>
-                <span className="text-sm font-mono">{account.lastCount7d}</span>
+                <span className="text-sm font-mono">{publisher ? account.lastCount14d : account.lastCount7d}</span>
               </div>
+              {publisher && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Partner Type</span>
+                    <Badge variant="secondary">Affiliate Publisher</Badge>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">AWIN Publisher ID</span>
+                    <span className="text-sm font-mono">{account.awinPublisherId || "Not added"}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm text-muted-foreground">Promotion Website</span>
+                    {account.promoWebsite ? <a href={account.promoWebsite} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center gap-1 truncate text-sm text-primary">{account.promoWebsite}<ExternalLink className="h-3 w-3 shrink-0" /></a> : <span className="text-sm">—</span>}
+                  </div>
+                  <Separator />
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-sm text-muted-foreground">Promotion Types</span>
+                    <span className="text-right text-sm">{Array.isArray(account.promoTypes) ? account.promoTypes.join(", ") : "—"}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
         </CardContent>

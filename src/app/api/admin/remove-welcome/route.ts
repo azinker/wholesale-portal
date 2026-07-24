@@ -32,10 +32,17 @@ export async function POST(req: NextRequest) {
         email: true,
         customerId: true,
         welcomeExpiresAt: true,
+        partnerType: true,
       },
     });
     if (!account) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+    if (account.partnerType === "AFFILIATE_PUBLISHER") {
+      return NextResponse.json(
+        { error: "Publisher accounts do not use welcome discounts" },
+        { status: 400 }
+      );
     }
 
     await db.wholesaleAccount.update({

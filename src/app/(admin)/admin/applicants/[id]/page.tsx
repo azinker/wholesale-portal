@@ -70,7 +70,7 @@ export default async function ApplicantDetailPage({
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{account.companyName}</h1>
+          <div className="flex items-center gap-2"><h1 className="text-2xl font-bold">{account.companyName}</h1><Badge variant={account.partnerType === "AFFILIATE_PUBLISHER" ? "secondary" : "outline"}>{account.partnerType === "AFFILIATE_PUBLISHER" ? "Publisher" : "Reseller"}</Badge></div>
           <p className="text-muted-foreground text-sm">{account.email}</p>
         </div>
         <ImpersonateButton userId={account.userId} userEmail={account.email} size="sm" />
@@ -118,9 +118,32 @@ export default async function ApplicantDetailPage({
             <Field label="BC Customer" value={account.customerId ? `#${account.customerId}` : "Not linked"} />
             <Field label="Applied" value={account.createdAt.toLocaleString()} />
             <Field label="Attestation" value={account.attestation ? "Yes" : "No"} />
+            {account.partnerType === "AFFILIATE_PUBLISHER" && (
+              <>
+                <Field label="Promotion Website" value={account.promoWebsite} />
+                <Field label="AWIN Publisher ID" value={account.awinPublisherId || "Not joined / not provided"} />
+                <Field label="Audience Reach" value={account.audienceReach} />
+                <Field label="Promotion Types" value={Array.isArray(account.promoTypes) ? account.promoTypes.join(", ") : null} />
+                <div className="md:col-span-2"><Field label="Promotion Plan" value={account.promoDescription} /></div>
+              </>
+            )}
           </dl>
         </CardContent>
       </Card>
+
+      {account.partnerType === "AFFILIATE_PUBLISHER" && (account.status === "PENDING" || account.status === "RETAIL") && (
+        <Card className="border-primary/25">
+          <CardHeader className="pb-3"><CardTitle className="text-base">Publisher Approval Checklist</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {[
+              ["Promotion site / method fits auto parts", !!account.promoWebsite && !!account.promoDescription],
+              ["On The Perfect Part AWIN program, or invite before approval", !!account.awinPublisherId],
+              ["AWIN publisher ID manually noted", !!account.awinPublisherId],
+              ["Approval will issue a P15 code (no Wholesale customer group)", true],
+            ].map(([label, done]) => <div key={String(label)} className="flex items-center gap-2"><span className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${done ? "border-success bg-success text-white" : "border-border"}`}>{done ? "✓" : ""}</span>{label}</div>)}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Documents */}
       <Card>
@@ -213,7 +236,7 @@ export default async function ApplicantDetailPage({
 
       {/* Actions or Status */}
       {(account.status === "PENDING" || account.status === "RETAIL") && (
-        <ApplicantActions accountId={account.id} currentStatus={account.status} />
+        <ApplicantActions accountId={account.id} currentStatus={account.status} partnerType={account.partnerType} />
       )}
 
       {account.status === "DENIED" && account.denialReason && (

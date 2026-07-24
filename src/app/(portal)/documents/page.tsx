@@ -8,6 +8,7 @@ import DocumentUploader from "./document-uploader";
 export default async function DocumentsPage() {
   const user = await getUser();
   if (!user) redirect("/");
+  if (user.wholesaleAccount?.partnerType === "AFFILIATE_PUBLISHER") redirect("/dashboard");
 
   const account = user.wholesaleAccount;
 

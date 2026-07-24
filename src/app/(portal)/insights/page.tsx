@@ -24,6 +24,7 @@ import {
 export default async function InsightsPage() {
   const user = await getUser();
   if (!user) redirect("/");
+  if (user.wholesaleAccount?.partnerType === "AFFILIATE_PUBLISHER") redirect("/performance");
 
   const account = user.wholesaleAccount;
   if (!account || account.status !== "APPROVED") {

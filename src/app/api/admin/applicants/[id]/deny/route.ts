@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
-import { sendApplicantDenialEmail } from "@/lib/email";
+import { sendApplicantDenialEmail, sendPublisherDenialEmail } from "@/lib/email";
 
 const denySchema = z.object({
   reason: z.string().min(1, "Denial reason is required").max(2000, "Denial reason is too long"),
@@ -65,7 +65,11 @@ export async function POST(
       },
     });
 
-    await sendApplicantDenialEmail(account.email, account.companyName, reason);
+    if (account.partnerType === "AFFILIATE_PUBLISHER") {
+      await sendPublisherDenialEmail(account.email, account.companyName, reason);
+    } else {
+      await sendApplicantDenialEmail(account.email, account.companyName, reason);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

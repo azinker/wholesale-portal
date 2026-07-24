@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recalcTier } from "@/lib/tier-engine";
+import { recalcPublisherTier } from "@/lib/publisher-tier-engine";
 
 /** Minimum time between recalc attempts per account (ms) */
 const RATE_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
@@ -22,6 +23,23 @@ export async function GET() {
   const account = user.wholesaleAccount;
   if (!account || account.status !== "APPROVED") {
     return NextResponse.json({ skipped: true, reason: "no_approved_account" });
+  }
+
+  if (account.partnerType === "AFFILIATE_PUBLISHER") {
+    try {
+      const result = await recalcPublisherTier(account.id);
+      return NextResponse.json({
+        skipped: false,
+        previousTier: result.previousTier,
+        newTier: result.newTier,
+        count14d: result.count14d,
+        changed: result.changed,
+        windowDays: result.windowDays,
+      });
+    } catch (err) {
+      console.error("Publisher portal tier recalc error:", err);
+      return NextResponse.json({ error: "Tier recalculation failed" }, { status: 500 });
+    }
   }
 
   // Rate limit: skip if we have a recent tier snapshot for this account,

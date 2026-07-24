@@ -9,6 +9,37 @@ function getResend(): Resend {
   return _resend;
 }
 
+/**
+ * Resend + inbox providers prefer a human From display name over bare
+ * "no-reply@" addresses, which Outlook often treats as junk.
+ * Format: "The Perfect Part <partners@wholesale.theperfectpart.net>"
+ */
+function getEmailFrom(): string {
+  const raw =
+    process.env.EMAIL_FROM?.trim() ||
+    "partners@wholesale.theperfectpart.net";
+
+  if (raw.includes("<") && raw.includes(">")) {
+    return raw;
+  }
+
+  const name =
+    process.env.EMAIL_FROM_NAME?.trim() || "The Perfect Part";
+  return `${name} <${raw}>`;
+}
+
+function getEmailReplyTo(): string | undefined {
+  const replyTo = process.env.EMAIL_REPLY_TO?.trim();
+  return replyTo || undefined;
+}
+
+function getCompanyMailingAddress(): string {
+  return (
+    process.env.COMPANY_MAILING_ADDRESS?.trim() ||
+    "The Perfect Part, LLC - Los Angeles, CA 91605, USA"
+  );
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -76,13 +107,15 @@ function brandedEmail(bodyHtml: string): string {
           <tr>
             <td style="padding:28px 0 0 0;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#a1a1aa;line-height:1.5;">
               <p style="margin:0 0 6px 0;">&copy; ${year} The Perfect Part, LLC. All rights reserved.</p>
+              <p style="margin:0 0 6px 0;color:#71717a;">${escapeHtml(getCompanyMailingAddress())}</p>
               <p style="margin:0 0 6px 0;">
                 <a href="https://wholesale.theperfectpart.net" style="color:#71717a;text-decoration:underline;">Wholesale Portal</a>
                 &nbsp;&middot;&nbsp;
                 <a href="https://theperfectpart.net" style="color:#71717a;text-decoration:underline;">Shop</a>
               </p>
               <p style="margin:0;color:#d4d4d8;font-size:11px;">
-                You received this email because you have an account with The Perfect Part wholesale program.
+                You received this email because you have an account with The Perfect Part partner program.
+                This is a transactional message about your account — not a marketing newsletter.
               </p>
             </td>
           </tr>
@@ -141,7 +174,7 @@ async function sendBrandedEmail({
 }): Promise<void> {
   try {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    const from = getEmailFrom();
     if (!apiKey) {
       const error = new Error(`${logLabel} skipped: RESEND_API_KEY is not set`);
       console.error(error.message);
@@ -152,7 +185,7 @@ async function sendBrandedEmail({
     const { data, error } = await getResend().emails.send({
       from,
       to,
-      replyTo,
+      replyTo: replyTo || getEmailReplyTo(),
       subject,
       html: brandedEmail(bodyHtml),
       text,
@@ -207,9 +240,10 @@ export async function sendMagicLink(email: string, token: string): Promise<void>
   const text = `Sign in to your wholesale dashboard at The Perfect Part.\n\nClick here to sign in: ${verifyUrl}\n\nThis link expires in 15 minutes. If you didn't request this, ignore this email.`;
 
   const { error } = await getResend().emails.send({
-    from: process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net",
+    from: getEmailFrom(),
     to: email,
-    subject: "Sign in to your wholesale dashboard — The Perfect Part",
+    replyTo: getEmailReplyTo(),
+    subject: "Sign in to your partner dashboard — The Perfect Part",
     html,
     text,
   });
@@ -227,7 +261,7 @@ export async function sendMagicLink(email: string, token: string): Promise<void>
 export async function sendApplicantApprovalEmail(to: string, companyName: string): Promise<void> {
   try {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    const from = getEmailFrom();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
     if (!apiKey) {
       console.error("Applicant approval email skipped: RESEND_API_KEY is not set");
@@ -264,6 +298,7 @@ export async function sendApplicantApprovalEmail(to: string, companyName: string
     const { data, error } = await resend.emails.send({
       from,
       to,
+      replyTo: getEmailReplyTo(),
       subject: "Your wholesale account has been approved — The Perfect Part",
       html,
       text,
@@ -283,7 +318,7 @@ export async function sendApplicantApprovalEmail(to: string, companyName: string
 export async function sendApplicantDenialEmail(to: string, companyName: string, reason: string): Promise<void> {
   try {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    const from = getEmailFrom();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
     if (!apiKey) {
       console.error("Applicant denial email skipped: RESEND_API_KEY is not set");
@@ -317,6 +352,7 @@ export async function sendApplicantDenialEmail(to: string, companyName: string, 
     const { data, error } = await resend.emails.send({
       from,
       to,
+      replyTo: getEmailReplyTo(),
       subject: "Wholesale application update - The Perfect Part",
       html,
       text,
@@ -455,7 +491,7 @@ export async function sendApplicantMoreInfoRequestEmail(to: string, companyName:
 // ─────────────────────────────────────────────────────────────────
 
 export async function sendSupportConfirmation(to: string, subject: string): Promise<void> {
-  const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+  const from = getEmailFrom();
 
   const html = brandedEmail(`
     <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We Got Your Message</h1>
@@ -481,6 +517,7 @@ export async function sendSupportConfirmation(to: string, subject: string): Prom
   const { error } = await getResend().emails.send({
     from,
     to,
+    replyTo: getEmailReplyTo(),
     subject: "We received your support request — The Perfect Part",
     html,
     text,
@@ -877,7 +914,7 @@ const SOURCE_LABELS: Record<NewApplicantPayload["source"], string> = {
 export async function sendNewApplicantNotification(payload: NewApplicantPayload): Promise<void> {
   try {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM || "no-reply@wholesale.theperfectpart.net";
+    const from = getEmailFrom();
     if (!apiKey) {
       console.error("New applicant notification skipped: RESEND_API_KEY is not set");
       return;

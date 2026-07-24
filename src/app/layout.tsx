@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Bebas_Neue, DM_Sans } from "next/font/google";
+import { Space_Grotesk, DM_Sans } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -10,10 +10,9 @@ const dmSans = DM_Sans({
   display: "swap",
 });
 
-const bebasNeue = Bebas_Neue({
-  weight: "400",
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-bebas",
+  variable: "--font-grotesk",
   display: "swap",
 });
 
@@ -152,7 +151,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${bebasNeue.variable}`}>
+    <html lang="en" className={`${dmSans.variable} ${spaceGrotesk.variable}`}>
       <head>
         {gtmId ? (
           <Script id="google-tag-manager" strategy="afterInteractive">

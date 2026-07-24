@@ -36,7 +36,7 @@ function getEmailReplyTo(): string | undefined {
 function getCompanyMailingAddress(): string {
   return (
     process.env.COMPANY_MAILING_ADDRESS?.trim() ||
-    "The Perfect Part, LLC - Los Angeles, CA 91605, USA"
+    "The Perfect Part, LLC - 1407 SW 10TH AVE, POMPANO BEACH, FL 33069, USA"
   );
 }
 

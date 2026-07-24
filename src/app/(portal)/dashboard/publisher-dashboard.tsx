@@ -68,8 +68,7 @@ export async function PublisherDashboard({ account }: { account: PublisherAccoun
           <CardHeader><CardTitle className="text-base">Publisher onboarding</CardTitle><CardDescription>Complete these steps before sharing your first offer.</CardDescription></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <ChecklistItem done={!!account.promoWebsite} label="Confirm your promotion website" href="/profile" />
-            <ChecklistItem done={!!account.awinPublisherId} label="Confirm your AWIN publisher ID" href="/support" />
-            <ChecklistItem done={!!promo} label="Copy your audience code" href="/share-kit" />
+            <ChecklistItem done={!!promo} label="Get your audience code + AWIN link instructions" href="/share-kit" />
             <ChecklistItem done={recentOrders.length > 0} label="Receive your first attributed order" href="/performance" />
           </CardContent>
         </Card>
@@ -103,15 +102,40 @@ export async function PublisherDashboard({ account }: { account: PublisherAccoun
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ExternalLink className="h-4 w-4 text-primary" /> AWIN tracking link</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ExternalLink className="h-4 w-4 text-primary" /> Your AWIN tracking link
+            </CardTitle>
+            <CardDescription>Use the tracking link from your AWIN account for The Perfect Part.</CardDescription>
+          </CardHeader>
           <CardContent>
             {awinLink ? (
               <>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Optional shortcut from your publisher ID on file. Any AWIN tracking link for this programme also works.
+                </p>
                 <p className="truncate rounded-lg border bg-muted px-3 py-2 font-mono text-xs">{awinLink}</p>
-                <div className="mt-3 flex gap-2"><CopyCouponButton code={awinLink} label="Copy Link" /><Button variant="outline" size="sm" asChild><a href={awinLink} target="_blank" rel="noopener noreferrer">Open <ExternalLink className="h-3 w-3" /></a></Button></div>
+                <div className="mt-3 flex gap-2">
+                  <CopyCouponButton code={awinLink} label="Copy Link" />
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={awinLink} target="_blank" rel="noopener noreferrer">
+                      Open <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </Button>
+                </div>
               </>
             ) : (
-              <div><p className="text-sm text-muted-foreground">Ask partner support to add or confirm your AWIN publisher ID and generate your tracking link.</p><Button asChild size="sm" className="mt-3"><Link href="/support">Contact support</Link></Button></div>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Log in to AWIN, open The Perfect Part programme, and copy your tracking link.
+                  Use that as the click destination, then add your audience code from the Share Kit.
+                </p>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/share-kit">
+                    Open Share Kit <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

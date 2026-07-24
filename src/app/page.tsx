@@ -1,71 +1,29 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
-  motion,
-  useInView,
-  AnimatePresence,
-  useMotionValue,
-  useTransform,
-  useSpring,
-} from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  CheckCircle,
   ArrowRight,
-  Loader2,
-  AlertCircle,
-  ScrollText,
-  Package,
-  Truck,
-  Tag,
-  LayoutDashboard,
-  Zap,
-  ShieldCheck,
+  Check,
   ChevronDown,
-  Star,
-  Gift,
-  ClipboardCheck,
-  UserCheck,
-  Sparkles,
-  DollarSign,
+  Package,
+  Megaphone,
+  Truck,
+  Link2,
   BarChart3,
+  Shield,
+  Play,
+  Pause,
+  Tag,
   Users,
-  Timer,
-  Receipt,
-  TrendingUp,
-  ShoppingCart,
-  Mail,
-  Lock,
-  CircleDollarSign,
-  ChevronRight,
-  BadgePercent,
-  LogIn,
-  ClipboardList,
+  Zap,
 } from "lucide-react";
-import { PublisherTermsOfServiceContent, TermsOfServiceContent } from "@/components/terms-of-service";
+import { Button } from "@/components/ui/button";
+import { PartnerPathDialog } from "@/components/partner-path-dialog";
 
-/* ─── Animated section (scroll-triggered) ────────────────────────── */
+/* ─── helpers ─────────────────────────────────────────────────────── */
 
 function Anim({
   children,
@@ -77,13 +35,13 @@ function Anim({
   delay?: number;
 }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-50px" });
+  const inView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 36 }}
-      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 36 }}
-      transition={{ duration: 0.55, delay, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 28 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
       className={className}
     >
       {children}
@@ -91,117 +49,18 @@ function Anim({
   );
 }
 
-/* ─── Animated counter (counts up when in view) ──────────────────── */
-
-function Counter({
-  to,
-  suffix = "",
-  prefix = "",
-  duration = 1.5,
-}: {
-  to: number;
-  suffix?: string;
-  prefix?: string;
-  duration?: number;
-}) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-40px" });
-  const motionVal = useMotionValue(0);
-  const spring = useSpring(motionVal, { duration: duration * 1000 });
-  const rounded = useTransform(spring, (v) => Math.round(v));
-  const [display, setDisplay] = useState(0);
-
-  useEffect(() => {
-    if (inView) motionVal.set(to);
-  }, [inView, to, motionVal]);
-
-  useEffect(() => {
-    const unsub = rounded.on("change", (v) => setDisplay(v));
-    return unsub;
-  }, [rounded]);
-
-  return (
-    <span ref={ref}>
-      {prefix}
-      {display}
-      {suffix}
-    </span>
-  );
-}
-
-/* ─── Looping stock counter (4,000 → 4,593, then resets) ─────────── */
-
-function LoopingStockCounter() {
-  const FROM = 4000;
-  const TO = 4593;
-  const CLIMB_MS = 30000;
-  const HOLD_MS = 5000;
-  const [count, setCount] = useState(FROM);
-
-  useEffect(() => {
-    let raf: number;
-    let start: number | null = null;
-    let holding = false;
-    let timeout: ReturnType<typeof setTimeout>;
-
-    function tick(ts: number) {
-      if (holding) return;
-      if (start === null) start = ts;
-      const elapsed = ts - start;
-      const progress = Math.min(elapsed / CLIMB_MS, 1);
-      const eased = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-      setCount(Math.round(FROM + (TO - FROM) * eased));
-
-      if (progress >= 1) {
-        holding = true;
-        timeout = setTimeout(() => {
-          setCount(FROM);
-          start = null;
-          holding = false;
-          raf = requestAnimationFrame(tick);
-        }, HOLD_MS);
-        return;
-      }
-      raf = requestAnimationFrame(tick);
-    }
-
-    raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); clearTimeout(timeout); };
-  }, []);
-
-  return (
-    <span className="tabular-nums font-bold">
-      {count.toLocaleString()}+
-    </span>
-  );
-}
-
-/* ─── FAQ accordion ──────────────────────────────────────────────── */
-
-function FAQItem({
-  question,
-  answer,
-  index,
-}: {
-  question: string;
-  answer: string;
-  index: number;
-}) {
+function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <Anim delay={index * 0.06}>
+    <div className="border-b border-white/10">
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-start justify-between gap-4 py-5 text-left cursor-pointer group"
-        aria-expanded={open}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 py-5 text-left"
       >
-        <span className="text-base font-medium text-foreground group-hover:text-primary transition-colors duration-200">
-          {question}
-        </span>
+        <span className="text-sm sm:text-base font-medium text-white/90">{question}</span>
         <ChevronDown
-          className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-300 mt-0.5 ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 text-white/50 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
       <AnimatePresence initial={false}>
@@ -210,142 +69,181 @@ function FAQItem({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
+            transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <p className="pb-5 text-sm text-muted-foreground leading-relaxed pr-10">
-              {answer}
-            </p>
+            <p className="pb-5 text-sm text-white/55 leading-relaxed max-w-2xl">{answer}</p>
           </motion.div>
         )}
       </AnimatePresence>
-      <Separator />
-    </Anim>
-  );
-}
-
-/* ─── Feature card ───────────────────────────────────────────────── */
-
-function FeatureCard({
-  icon: Icon,
-  title,
-  description,
-  index,
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  index: number;
-}) {
-  return (
-    <Anim
-      delay={index * 0.08}
-      className="group relative rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 transition-all duration-300 hover:bg-white/10 hover:border-primary/30 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(184,40,46,0.15)]"
-    >
-      <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary/15 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-white group-hover:scale-110">
-        <Icon className="h-5 w-5" />
-      </div>
-      <h3 className="mb-2 text-base font-semibold text-white">{title}</h3>
-      <p className="text-sm text-white/60 leading-relaxed">{description}</p>
-    </Anim>
-  );
-}
-
-/* ─── Infographic stat card ──────────────────────────────────────── */
-
-function InfoCard({
-  icon: Icon,
-  value,
-  label,
-  accent = false,
-  index,
-}: {
-  icon: React.ElementType;
-  value: React.ReactNode;
-  label: string;
-  accent?: boolean;
-  index: number;
-}) {
-  return (
-    <Anim
-      delay={index * 0.12}
-      className={`relative flex flex-col items-center text-center p-6 sm:p-8 rounded-2xl border-2 transition-all duration-300 hover:-translate-y-1 ${
-        accent
-          ? "bg-primary text-white border-primary shadow-[0_8px_40px_rgba(184,40,46,0.3)]"
-          : "bg-card border-border shadow-md hover:shadow-xl hover:border-primary/30"
-      }`}
-    >
-      <div
-        className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full ${
-          accent ? "bg-white/20" : "bg-primary/10"
-        }`}
-      >
-        <Icon className={`h-6 w-6 ${accent ? "text-white" : "text-primary"}`} />
-      </div>
-      <div
-        className={`text-3xl sm:text-4xl font-bold mb-1 ${accent ? "text-white" : "text-foreground"}`}
-      >
-        {value}
-      </div>
-      <div
-        className={`text-sm font-medium ${accent ? "text-white/80" : "text-muted-foreground"}`}
-      >
-        {label}
-      </div>
-    </Anim>
-  );
-}
-
-/* ─── Tier bar (visual tier progression) ─────────────────────────── */
-
-const TIERS = [
-  { id: "T10", pct: 10, orders: 5, color: "bg-emerald-500" },
-  { id: "T15", pct: 15, orders: 25, color: "bg-emerald-500" },
-  { id: "T20", pct: 20, orders: 50, color: "bg-emerald-500" },
-  { id: "T25", pct: 25, orders: 100, color: "bg-primary" },
-  { id: "T30", pct: 30, orders: 200, color: "bg-primary" },
-];
-
-function TierProgression() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-40px" });
-
-  return (
-    <div ref={ref} className="w-full space-y-3">
-      {TIERS.map((tier, i) => (
-        <motion.div
-          key={tier.id}
-          initial={{ opacity: 0, x: -30 }}
-          animate={inView ? { opacity: 1, x: 0 } : {}}
-          transition={{ duration: 0.4, delay: i * 0.12 }}
-          className="flex items-center gap-3 sm:gap-4"
-        >
-          <div className="w-16 sm:w-20 text-right">
-            <span className="text-xs text-muted-foreground">
-              {tier.orders}+ orders
-            </span>
-          </div>
-          <div className="flex-1 h-9 bg-muted/50 rounded-lg overflow-hidden relative">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={inView ? { width: `${(tier.pct / 30) * 100}%` } : {}}
-              transition={{ duration: 0.8, delay: 0.3 + i * 0.12, ease: "easeOut" }}
-              className={`h-full ${tier.color} rounded-lg flex items-center justify-end pr-3`}
-            >
-              <span className="text-xs font-bold text-white whitespace-nowrap">
-                {tier.pct}% OFF
-              </span>
-            </motion.div>
-          </div>
-        </motion.div>
-      ))}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MAIN PAGE
-   ═══════════════════════════════════════════════════════════════════ */
+/* ─── How it works “video” ────────────────────────────────────────── */
+
+const SCENES = [
+  {
+    id: "apply",
+    title: "Apply once",
+    body: "Choose reseller or publisher. We review most applications within one business day.",
+    icon: Users,
+  },
+  {
+    id: "access",
+    title: "Get your tools",
+    body: "Resellers receive a portal + tier coupon. Publishers get an AWIN invite and a public discount code.",
+    icon: Zap,
+  },
+  {
+    id: "sell",
+    title: "Sell or share",
+    body: "Drop-ship with no inventory — or share tracking links and codes with your audience.",
+    icon: Package,
+  },
+  {
+    id: "grow",
+    title: "Grow automatically",
+    body: "More attributed volume unlocks better reseller tiers or stronger publisher audience discounts.",
+    icon: BarChart3,
+  },
+];
+
+function HowItWorksPlayer() {
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const duration = 4200;
+
+  useEffect(() => {
+    if (!playing) return;
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const p = Math.min(1, elapsed / duration);
+      setProgress(p);
+      if (p >= 1) {
+        setIndex((i) => (i + 1) % SCENES.length);
+        setProgress(0);
+      }
+    };
+    const id = window.setInterval(tick, 40);
+    return () => window.clearInterval(id);
+  }, [playing, index]);
+
+  const scene = SCENES[index];
+  const Icon = scene.icon;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#141414] shadow-2xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+          <span className="text-xs font-medium tracking-wide text-white/60 uppercase">
+            How it works · 0:{String(index + 1).padStart(2, "0")}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setPlaying((p) => !p)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+          aria-label={playing ? "Pause" : "Play"}
+        >
+          {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
+        </button>
+      </div>
+
+      <div className="relative aspect-[16/10] sm:aspect-[16/9] overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-40"
+          style={{
+            background:
+              "radial-gradient(ellipse at 30% 20%, rgba(184,40,46,0.45), transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(255,255,255,0.06), transparent 50%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+          }}
+        />
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={scene.id}
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            transition={{ duration: 0.4 }}
+            className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_12px_40px_rgba(184,40,46,0.45)]"
+            >
+              <Icon className="h-7 w-7" />
+            </motion.div>
+            <p className="mb-2 text-xs font-semibold tracking-[0.2em] uppercase text-primary">
+              Step {index + 1}
+            </p>
+            <h3 className="font-display text-3xl sm:text-4xl text-white tracking-tight mb-3">
+              {scene.title}
+            </h3>
+            <p className="max-w-md text-sm sm:text-base text-white/65 leading-relaxed">
+              {scene.body}
+            </p>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <div className="h-1 bg-white/5">
+        <div
+          className="h-full bg-primary transition-[width] duration-75 ease-linear"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+
+      <div className="grid grid-cols-4 gap-px bg-white/5">
+        {SCENES.map((s, i) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => {
+              setIndex(i);
+              setProgress(0);
+            }}
+            className={`px-2 py-3 text-[10px] sm:text-xs font-medium transition-colors ${
+              i === index ? "bg-white/10 text-white" : "bg-[#141414] text-white/40 hover:text-white/70"
+            }`}
+          >
+            {s.title}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tier bars ───────────────────────────────────────────────────── */
+
+const RESELLER_TIERS = [
+  { pct: 10, orders: "5+" },
+  { pct: 15, orders: "25+" },
+  { pct: 20, orders: "50+" },
+  { pct: 25, orders: "100+" },
+  { pct: 30, orders: "200+" },
+];
+
+const PUBLISHER_TIERS = [
+  { pct: 15, label: "Day one" },
+  { pct: 20, label: "50 attributed" },
+  { pct: 25, label: "125 attributed" },
+];
+
+/* ─── Page ────────────────────────────────────────────────────────── */
 
 type TrackingWindow = Window & {
   dataLayer?: Array<Record<string, unknown>>;
@@ -357,1032 +255,568 @@ function trackEvent(event: string, data: Record<string, unknown> = {}) {
   trackingWindow.dataLayer.push({ event, ...data });
 }
 
-export default function ApplyPage() {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [tosAccepted, setTosAccepted] = useState(false);
+export default function HomePage() {
+  const [pathOpen, setPathOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [reapplyMode, setReapplyMode] = useState(false);
+  const [faqTab, setFaqTab] = useState<"reseller" | "publisher">("reseller");
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20);
+    const handler = () => setScrolled(window.scrollY > 16);
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const shouldOpen = params.get("apply") === "1" || params.get("reapply") === "1";
-    if (!shouldOpen) return;
-
-    const isReapply = params.get("reapply") === "1";
-    setReapplyMode(isReapply);
-    setSheetOpen(true);
-    trackEvent(isReapply ? "wholesale_reapplication_opened" : "wholesale_application_opened");
+    if (params.get("reapply") === "1") {
+      window.location.href = "/apply/reseller";
+      return;
+    }
+    const shouldOpen =
+      params.get("apply") === "1" ||
+      window.location.hash === "#choose-path" ||
+      window.location.hash === "#apply";
+    if (shouldOpen) {
+      setPathOpen(true);
+      trackEvent("wholesale_path_chooser_opened", { source: "deep_link" });
+    }
   }, []);
 
-  const openApplication = () => {
-    trackEvent("wholesale_application_opened", { partner_type: "DROPSHIPPER" });
-    window.location.href = "/apply/reseller";
+  const openPathChooser = (source = "cta") => {
+    setPathOpen(true);
+    trackEvent("wholesale_path_chooser_opened", { source });
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  const resellerFaqs = [
+    {
+      q: "Who qualifies as a reseller?",
+      a: "Legitimate businesses that resell products — online shops, brick-and-mortar stores, distributors, and dropshippers. You may be asked for a resale certificate or business docs.",
+    },
+    {
+      q: "How do wholesale tiers work?",
+      a: "Your discount starts after approval and grows with qualifying order volume on a rolling window — from 10% up to 30%. Your personal coupon code updates automatically.",
+    },
+    {
+      q: "Do I need inventory?",
+      a: "No. Place reseller orders in the portal and we pick, pack, and ship to your customer. You focus on sales; we handle fulfillment.",
+    },
+    {
+      q: "What is the welcome offer?",
+      a: "New resellers get 20% off for their first 72 hours after approval — a head start while your long-term tier builds.",
+    },
+  ];
 
-    const form = new FormData(e.currentTarget);
-    const data = {
-      email: form.get("email") as string,
-      firstName: form.get("firstName") as string,
-      lastName: form.get("lastName") as string,
-      companyName: form.get("companyName") as string,
-      legalName: form.get("legalName") as string,
-      businessAddress: form.get("businessAddress") as string,
-      phone: form.get("phone") as string,
-      website: form.get("website") as string,
-      primaryState: form.get("primaryState") as string,
-      attestation: form.get("attestation") === "on",
-    };
-
-    try {
-      const res = await fetch("/api/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error || "Application failed");
-      }
-      trackEvent("wholesale_application_submitted", {
-        form_name: reapplyMode ? "Wholesale Reapplication" : "Wholesale Application",
-      });
-      setSubmitted(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ─── Application Sheet ──────────────────────────────────────── */
-  const applicationSheet = (
-    <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-        <AnimatePresence mode="wait">
-          {submitted ? (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center h-full text-center px-4 gap-6"
-            >
-              <div className="h-20 w-20 rounded-full bg-success/10 flex items-center justify-center">
-                <CheckCircle className="h-10 w-10 text-success" />
-              </div>
-              <div className="space-y-3">
-                <h2 className="text-2xl font-bold">{reapplyMode ? "Application Updated!" : "Application Submitted!"}</h2>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  {reapplyMode
-                    ? "Thank you for updating your application. We review most resubmissions within 24 hours and will email you once a decision is made."
-                    : "Thank you for applying! We review most applications within 24 hours. You'll receive an email with your portal login and unique coupon code once approved."}
-                </p>
-              </div>
-              <Button asChild size="lg" className="cursor-pointer">
-                <Link href="/login">
-                  Sign In to Check Status
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Link>
-              </Button>
-            </motion.div>
-          ) : (
-            <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <SheetHeader className="pb-2">
-                <SheetTitle className="text-xl">{reapplyMode ? "Reapply for Wholesale" : "Apply for Wholesale"}</SheetTitle>
-                <SheetDescription>
-                  {reapplyMode
-                    ? "Update your business details and resubmit for review."
-                    : "Takes about 2 minutes. Most applications are approved within 24 hours."}
-                </SheetDescription>
-              </SheetHeader>
-              <form onSubmit={handleSubmit} className="space-y-5 px-4 pb-8">
-                {error && (
-                  <div className="flex items-center gap-3 rounded-lg bg-danger-light border border-danger/30 px-4 py-3">
-                    <AlertCircle className="h-4 w-4 text-danger flex-shrink-0" />
-                    <p className="text-sm text-danger">{error}</p>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Contact Information
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name <span className="text-destructive">*</span></Label>
-                      <Input id="firstName" name="firstName" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name <span className="text-destructive">*</span></Label>
-                      <Input id="lastName" name="lastName" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
-                    <Input id="email" name="email" type="email" required placeholder="you@company.com" />
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Mail className="h-3 w-3" />
-                      Use this same email at checkout on theperfectpart.net for tax-free pricing.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone <span className="text-destructive">*</span></Label>
-                    <Input id="phone" name="phone" type="tel" required placeholder="(555) 123-4567" />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Business Information
-                  </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name <span className="text-destructive">*</span></Label>
-                    <Input id="companyName" name="companyName" required />
-                    <p className="text-xs text-muted-foreground">Used to generate your wholesale coupon codes.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="legalName">Legal Business Name</Label>
-                    <Input id="legalName" name="legalName" placeholder="If different from company name" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="businessAddress">Business Address <span className="text-destructive">*</span></Label>
-                    <Input id="businessAddress" name="businessAddress" required placeholder="123 Main St, City, State, ZIP" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <Input id="website" name="website" type="text" placeholder="www.yourcompany.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="primaryState">Primary State</Label>
-                    <select
-                      id="primaryState"
-                      name="primaryState"
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
-                    >
-                      <option value="">Select a state (optional)</option>
-                      {US_STATES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Terms & Agreements
-                  </p>
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" name="attestation" required className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer" />
-                    <span className="text-sm text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
-                      I attest that I am a legitimate business and intend to purchase products for resale. I understand that wholesale pricing is subject to approval and that I may be required to provide resale certificates or business documentation.
-                    </span>
-                  </label>
-                  <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <ScrollText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                      <div className="space-y-2 flex-1">
-                        <p className="text-sm font-medium">Wholesale Program Terms of Service</p>
-                        <p className="text-xs text-muted-foreground">Please read our Terms of Service before submitting.</p>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="text-xs cursor-pointer">
-                              <ScrollText className="h-3.5 w-3.5 mr-1.5" />
-                              Read Terms of Service
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center gap-2">
-                                <ScrollText className="h-5 w-5 text-primary" />
-                                Wholesale Program Terms of Service
-                              </DialogTitle>
-                            </DialogHeader>
-                            <TermsOfServiceContent />
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </div>
-                    <Separator />
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={tosAccepted}
-                        onChange={(e) => setTosAccepted(e.target.checked)}
-                        required
-                        className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
-                      />
-                      <span className="text-sm text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
-                        I have read and agree to the{" "}
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <button type="button" className="text-primary underline underline-offset-2 font-medium hover:opacity-80 cursor-pointer">
-                              Wholesale Program Terms of Service
-                            </button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center gap-2">
-                                <ScrollText className="h-5 w-5 text-primary" />
-                                Wholesale Program Terms of Service
-                              </DialogTitle>
-                            </DialogHeader>
-                            <TermsOfServiceContent />
-                          </DialogContent>
-                        </Dialog>
-                        , including the binding arbitration clause, class action waiver, return policy, and limitation of liability.
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                <Button type="submit" disabled={loading || !tosAccepted} className="w-full cursor-pointer" size="lg">
-                  {loading ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Submitting...</>
-                  ) : (
-                    <>Submit Application<ArrowRight className="ml-1 h-4 w-4" /></>
-                  )}
-                </Button>
-              </form>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </SheetContent>
-    </Sheet>
-  );
+  const publisherFaqs = [
+    {
+      q: "How is this different from reselling?",
+      a: "Publishers don’t buy inventory. You promote The Perfect Part with AWIN tracking links and share a public discount code with your audience. You earn AWIN commission; shoppers get the discount.",
+    },
+    {
+      q: "What discounts can my audience get?",
+      a: "Every approved publisher starts at 15% forever. Hit 50 attributed orders for 20%, and 125 for 25%. Codes rotate when you level up.",
+    },
+    {
+      q: "Who is a good fit?",
+      a: "Automotive blogs, YouTube/TikTok creators, newsletters, forums, and deal sites with an engaged audience that buys parts and accessories.",
+    },
+    {
+      q: "Where do I get paid?",
+      a: "Commission is paid through AWIN. Your Perfect Part portal shows attributed orders tied to your discount code so you can track progress toward the next tier.",
+    },
+  ];
 
   return (
-    <>
-      {applicationSheet}
-
-      {/* ── Sticky Header ──────────────────────────────────────── */}
+    <div className="min-h-screen bg-[#0c0c0c] text-white overflow-x-hidden">
+      {/* Header */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
           scrolled
-            ? "bg-white/95 backdrop-blur-md shadow-lg border-b border-border/40"
-            : "bg-white/90 backdrop-blur-sm"
+            ? "bg-[#0c0c0c]/90 backdrop-blur-md border-b border-white/10"
+            : "bg-transparent"
         }`}
       >
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
-          <Image src="/logo.png" alt="The Perfect Part" width={160} height={40} priority className="h-8 w-auto" />
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild className="cursor-pointer hidden sm:inline-flex">
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button size="sm" asChild className="cursor-pointer">
-              <Link href="#choose-path">
-              Apply Now <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Link>
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/logo.png"
+              alt="The Perfect Part"
+              width={36}
+              height={36}
+              className="h-9 w-9"
+              priority
+            />
+            <span className="font-display text-lg tracking-[0.04em] text-white">
+              THE PERFECT PART
+            </span>
+          </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/login"
+              className="text-sm font-medium text-white/70 hover:text-white transition-colors px-2"
+            >
+              Sign In
+            </Link>
+            <Button
+              onClick={() => openPathChooser("header")}
+              className="gap-1.5 rounded-md bg-primary hover:bg-primary/90"
+            >
+              Apply Now
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </header>
 
-      <main>
-        <section id="choose-path" className="scroll-mt-16 bg-white px-4 pb-14 pt-28">
-          <div className="mx-auto max-w-5xl">
-            <Anim className="mb-9 text-center">
-              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-primary">Choose your partner path</p>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">How do you want to grow with The Perfect Part?</h1>
-              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-                Buy at wholesale prices for your resale business, or promote products to your audience and earn through AWIN.
-              </p>
-            </Anim>
-            <div className="grid gap-5 md:grid-cols-2">
-              <Anim>
-                <div className="flex h-full flex-col rounded-2xl border-2 border-border bg-card p-7 shadow-sm transition hover:border-primary/40 hover:shadow-lg">
-                  <Package className="mb-5 h-9 w-9 text-primary" />
-                  <h2 className="text-2xl font-bold">Resell &amp; fulfill</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Purchase at tiered wholesale prices, receive tax-free pricing and free flat-rate shipping, and let us drop-ship to your customers.
-                  </p>
-                  <ul className="my-6 space-y-2 text-sm">
-                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Discounts up to 30%</li>
-                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> 20% welcome offer for 72 hours</li>
-                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Reseller ordering and fulfillment tools</li>
-                  </ul>
-                  <Button asChild size="lg" className="mt-auto"><Link href="/apply/reseller">Apply as a reseller <ArrowRight className="h-4 w-4" /></Link></Button>
+      {/* Hero — brand-first, full-bleed */}
+      <section className="relative min-h-[100svh] flex flex-col justify-end pb-16 pt-28 sm:pb-24 sm:pt-32">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(165deg, #1a1212 0%, #0c0c0c 42%, #121416 100%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+          }}
+        />
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute -right-20 top-24 h-[420px] w-[420px] rounded-full bg-primary/25 blur-[120px]"
+          animate={{ opacity: [0.35, 0.55, 0.35], scale: [1, 1.08, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute -left-32 bottom-0 h-[360px] w-[360px] rounded-full bg-white/5 blur-[100px]"
+          animate={{ opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6">
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-4 text-xs sm:text-sm font-semibold tracking-[0.28em] uppercase text-primary"
+          >
+            Partner portal
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: 0.05 }}
+            className="font-display text-[clamp(2.75rem,8vw,5.5rem)] leading-[0.92] tracking-tight text-white max-w-4xl"
+          >
+            THE PERFECT PART
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="mt-5 max-w-xl text-lg sm:text-xl text-white/70 leading-relaxed"
+          >
+            Wholesale for dropshippers. Audience discounts for publishers. One
+            brand. Two ways to grow.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.28 }}
+            className="mt-8 flex flex-wrap items-center gap-3"
+          >
+            <Button
+              size="lg"
+              onClick={() => openPathChooser("hero")}
+              className="gap-2 h-12 px-6 text-base rounded-md"
+            >
+              Apply Now
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              asChild
+              className="h-12 px-6 text-base rounded-md border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
+            >
+              <a href="#how-it-works">See how it works</a>
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Dual audience intro — editorial, not chooser cards as primary CTA */}
+      <section className="relative border-t border-white/10 bg-[#111111]">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
+          <Anim>
+            <p className="text-xs font-semibold tracking-[0.2em] uppercase text-primary mb-3">
+              Built for two partner types
+            </p>
+            <h2 className="font-display text-3xl sm:text-5xl tracking-tight text-white max-w-2xl mb-4">
+              Same catalog. Different business model.
+            </h2>
+            <p className="text-white/55 max-w-2xl text-base sm:text-lg leading-relaxed mb-14">
+              Whether you fulfill orders yourself or send traffic through AWIN,
+              you get a dedicated portal, clear economics, and tools that match
+              how you actually work.
+            </p>
+          </Anim>
+
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
+            <Anim delay={0.08} className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <Package className="h-5 w-5" />
                 </div>
-              </Anim>
-              <Anim delay={0.1}>
-                <div className="flex h-full flex-col rounded-2xl border-2 border-primary/30 bg-primary/[0.03] p-7 shadow-sm transition hover:border-primary hover:shadow-lg">
-                  <Users className="mb-5 h-9 w-9 text-primary" />
-                  <h2 className="text-2xl font-bold">Promote to your audience</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Share your AWIN tracking link and a public audience code. Your audience saves 15–25%, and you earn eligible AWIN commission.
-                  </p>
-                  <ul className="my-6 space-y-2 text-sm">
-                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> 15% audience discount from approval</li>
-                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Grow to 20% and 25% by attributed volume</li>
-                    <li className="flex gap-2"><CheckCircle className="h-4 w-4 text-success" /> Built for blogs, creators, newsletters, and deal sites</li>
-                  </ul>
-                  <Button asChild size="lg" className="mt-auto"><Link href="/apply/publisher">Apply as a publisher <ArrowRight className="h-4 w-4" /></Link></Button>
-                </div>
-              </Anim>
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           HERO — Dark
-           ══════════════════════════════════════════════════════ */}
-        <section className="relative pt-28 pb-20 sm:pt-36 sm:pb-28 px-4 overflow-hidden bg-[#141414] text-white">
-          {/* Ambient gradients */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(184,40,46,0.15),transparent_60%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(184,40,46,0.08),transparent_60%)]" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px]" />
-
-          <div className="relative max-w-4xl mx-auto text-center">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-1.5 mb-6"
-            >
-              <Gift className="h-4 w-4 text-white" />
-              <span className="text-sm font-medium text-white">
-                New partners get 20% off for their first 72 hours
-              </span>
-            </motion.div>
-
-            <motion.h1
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]"
-            >
-              Two Ways to Partner.
-              <br />
-              <span className="bg-gradient-to-r from-primary via-red-400 to-primary bg-clip-text text-transparent">
-                One Powerful Catalog.
-              </span>
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.35 }}
-              className="mt-6 text-lg sm:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed"
-            >
-              Resell with wholesale pricing and hands-free fulfillment, or promote
-              to your audience with AWIN tracking and exclusive public discount codes.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-              className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3"
-            >
-              <Button
-                size="lg"
-                onClick={openApplication}
-                className="text-base px-8 h-12 cursor-pointer shadow-[0_4px_20px_rgba(184,40,46,0.4)] hover:shadow-[0_6px_30px_rgba(184,40,46,0.5)] transition-shadow"
-              >
-                Explore the Reseller Program
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                asChild
-                className="cursor-pointer h-12 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm"
-              >
-                <a href="#how-it-works">See How It Works</a>
-              </Button>
-            </motion.div>
-
-            {/* Social proof + trust indicators */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.65 }}
-              className="mt-10 text-sm text-white/50 font-medium flex items-center justify-center gap-2"
-            >
-              <Users className="h-4 w-4 text-primary" />
-              Join 1,000+ Partners Already Growing With Us
-            </motion.p>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-              className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs sm:text-sm text-white/40"
-            >
-              <span className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-primary" /> No Minimum Orders
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-primary" /> Approved in 24 Hours
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-primary" /> No Contracts or Fees
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-primary" /> White-Label Shipping
-              </span>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           PRICE GUARANTEE STRIP
-           ══════════════════════════════════════════════════════ */}
-        <section className="relative z-10 bg-primary text-white py-3 px-4">
-          <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-center">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 shrink-0" />
-              <p className="text-sm sm:text-base font-semibold tracking-wide">
-                Best Prices Guaranteed on the Hottest-Selling Products Online
-              </p>
-            </div>
-            <span className="hidden sm:block w-px h-5 bg-white/30" />
-            <div className="flex items-center gap-1.5 text-sm sm:text-base font-semibold">
-              <Package className="h-4 w-4 shrink-0" />
-              <LoopingStockCounter /> Items in Stock
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           INFOGRAPHIC STATS BAR
-           ══════════════════════════════════════════════════════ */}
-        <section className="relative py-10 px-4">
-          <div className="max-w-4xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <InfoCard
-              icon={BadgePercent}
-              value={<Counter to={30} suffix="%" />}
-              label="Maximum Discount"
-              accent
-              index={0}
-            />
-            <InfoCard
-              icon={Receipt}
-              value="Tax Free"
-              label="Wholesale Purchases"
-              index={1}
-            />
-            <InfoCard
-              icon={Truck}
-              value="Free"
-              label="Shipping Included"
-              index={2}
-            />
-            <InfoCard
-              icon={LayoutDashboard}
-              value="24/7"
-              label="Partner Portal Access"
-              index={3}
-            />
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           HOW IT WORKS — detailed
-           ══════════════════════════════════════════════════════ */}
-        <section id="how-it-works" className="pt-28 pb-20 sm:pb-28 px-4 scroll-mt-20">
-          <div className="max-w-5xl mx-auto">
-            <Anim className="text-center mb-16">
-              <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-                How It Works
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-                Simple. Fast. Profitable.
-              </h2>
-              <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
-                From signing up to fulfilling your first customer order — here&apos;s
-                the entire process at a glance.
-              </p>
-            </Anim>
-
-            {/* Phase 1: Get Started */}
-            <Anim className="mb-4">
-              <p className="text-xs font-bold text-primary uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="h-5 w-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold">A</span>
-                Get Started
-              </p>
-            </Anim>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-14">
-              {STEPS_SIGNUP.map((step, i) => (
-                <Anim key={i} delay={i * 0.12}>
-                  <div className="relative rounded-xl border border-border/60 bg-card p-6 h-full transition-all duration-300 hover:shadow-lg hover:border-primary/20">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white text-xs font-bold">
-                        {i + 1}
-                      </span>
-                      <step.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <h3 className="text-base font-semibold mb-1.5">{step.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
-                  </div>
-                </Anim>
-              ))}
-            </div>
-
-            {/* Phase 2: Place an Order */}
-            <Anim className="mb-4">
-              <p className="text-xs font-bold text-primary uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="h-5 w-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold">B</span>
-                Place an Order
-              </p>
-            </Anim>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
-              {STEPS_ORDER.map((step, i) => (
-                <Anim key={i} delay={i * 0.1}>
-                  <div className="relative rounded-xl border border-border/60 bg-card p-5 h-full transition-all duration-300 hover:shadow-lg hover:border-primary/20">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-foreground text-xs font-bold">
-                        {i + 1}
-                      </span>
-                      <step.icon className="h-4 w-4 text-primary" />
-                    </div>
-                    <h3 className="text-sm font-semibold mb-1">{step.title}</h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{step.description}</p>
-                  </div>
-                </Anim>
-              ))}
-            </div>
-
-            {/* Important reminder callout */}
-            <Anim>
-              <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-5 sm:p-6 flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
-                  <Mail className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground mb-1">
-                    Important: Use Your Registered Email
-                  </p>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Always sign into <strong className="text-foreground">theperfectpart.net</strong> with the same
-                    email you register with here. This is required for your wholesale discount,
-                    free shipping, and tax-free pricing to apply at checkout.
-                  </p>
-                </div>
+                <h3 className="font-display text-2xl tracking-tight">
+                  Dropshippers &amp; resellers
+                </h3>
               </div>
+              <p className="text-white/60 leading-relaxed">
+                Buy at tiered wholesale prices, mark up for your customers, and
+                let us ship. No warehouse. No packing. Your storefront — our
+                fulfillment.
+              </p>
+              <ul className="space-y-3">
+                {[
+                  "Tiered discounts from 10% to 30%",
+                  "20% welcome pricing for 72 hours",
+                  "Portal ordering + free shipping thresholds",
+                  "Personal coupon tied to your account",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2.5 text-sm text-white/75">
+                    <Check className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </Anim>
 
-            <Anim delay={0.3} className="mt-10 text-center">
-              <Button size="lg" onClick={openApplication} className="cursor-pointer shadow-md">
-                Start Your Application <ArrowRight className="ml-2 h-4 w-4" />
+            <Anim delay={0.16} className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <Megaphone className="h-5 w-5" />
+                </div>
+                <h3 className="font-display text-2xl tracking-tight">
+                  Publishers &amp; creators
+                </h3>
+              </div>
+              <p className="text-white/60 leading-relaxed">
+                Promote with AWIN links, share a public discount code, and earn
+                commission when your audience buys. No inventory. No customer
+                service on fulfillment.
+              </p>
+              <ul className="space-y-3">
+                {[
+                  "15% audience discount from day one",
+                  "Unlock 20% and 25% with attributed volume",
+                  "AWIN commission paid through the network",
+                  "Share kit + performance view in your portal",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2.5 text-sm text-white/75">
+                    <Check className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </Anim>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works animation */}
+      <section id="how-it-works" className="relative bg-[#0c0c0c] border-t border-white/10">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
+          <div className="grid lg:grid-cols-[1fr_1.15fr] gap-12 lg:gap-16 items-center">
+            <Anim>
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-primary mb-3">
+                60-second overview
+              </p>
+              <h2 className="font-display text-3xl sm:text-5xl tracking-tight text-white mb-4">
+                From apply to first sale
+              </h2>
+              <p className="text-white/55 leading-relaxed mb-8">
+                A simple walkthrough of onboarding, tools, and how volume unlocks
+                better economics — whether you resell or publish.
+              </p>
+              <Button
+                onClick={() => openPathChooser("how_it_works")}
+                className="gap-2"
+              >
+                Start your application
+                <ArrowRight className="h-4 w-4" />
               </Button>
             </Anim>
+            <Anim delay={0.12}>
+              <HowItWorksPlayer />
+            </Anim>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ══════════════════════════════════════════════════════
-           WELCOME BONUS + TIER SYSTEM
-           ══════════════════════════════════════════════════════ */}
-        <section className="py-20 sm:py-28 px-4 bg-muted/30 border-y border-border/40">
-          <div className="max-w-5xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-              {/* Left: Welcome Bonus */}
-              <Anim>
-                <div className="space-y-6">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5">
-                    <Gift className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium text-primary">Welcome Bonus</span>
-                  </div>
-                  <h2 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight">
-                    Start With <span className="text-primary">20% Off</span>
-                    <br />For Your First 72 Hours
-                  </h2>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Every newly approved wholesale partner receives an immediate
-                    20% welcome discount — active for your first 72 hours. Place
-                    as many orders as you want during this window, then transition
-                    into our volume-based tier system where your discount grows
-                    with your business.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-2 rounded-lg bg-card border border-border/60 px-4 py-2.5">
-                      <Timer className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">72-hour welcome window</span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg bg-card border border-border/60 px-4 py-2.5">
-                      <Truck className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">Free shipping included</span>
-                    </div>
-                  </div>
-                  <Button size="lg" onClick={openApplication} className="cursor-pointer shadow-md">
-                    Claim Your Welcome Bonus <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </Anim>
-
-              {/* Right: Tier Progression */}
-              <Anim delay={0.2}>
-                <div className="rounded-xl border border-border/60 bg-card p-6 sm:p-8 space-y-5">
-                  <div className="flex items-center gap-3 mb-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">Volume-Based Tier System</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Your discount grows as your order volume increases within a
-                    rolling 7-day window. Tiers are recalculated automatically.
-                  </p>
-                  <TierProgression />
-                  <p className="text-xs text-muted-foreground pt-2 border-t border-border/40">
-                    Qualifying orders counted within a rolling 7-day window. Tiers
-                    upgrade and downgrade automatically based on volume.
-                  </p>
-                </div>
-              </Anim>
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           FEATURES — Dark section
-           ══════════════════════════════════════════════════════ */}
-        <section id="features" className="py-20 sm:py-28 px-4 bg-[#1a1a1a] text-white">
-          <div className="max-w-5xl mx-auto">
-            <Anim className="text-center mb-14">
-              <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-                Why Partner With Us
+      {/* Reseller deep dive */}
+      <section className="relative bg-[#f4f1ee] text-[#1a1a1a] border-t border-black/5">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+            <Anim>
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-primary mb-3">
+                Reseller program
               </p>
-              <h2 className="text-3xl sm:text-4xl font-bold">
-                Everything You Need to Grow Your Business
+              <h2 className="font-display text-3xl sm:text-5xl tracking-tight mb-4">
+                Wholesale that scales with you
               </h2>
-              <p className="mt-4 text-white/50 max-w-lg mx-auto">
-                From competitive pricing to hands-free fulfillment — we handle
-                the logistics so you can focus on selling.
+              <p className="text-[#6b6462] leading-relaxed mb-8">
+                Place orders in the portal, apply your tier coupon, and we ship
+                to your customer. Volume over a rolling window moves you up
+                automatically — no renegotiation.
               </p>
-            </Anim>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {FEATURES.map((f, i) => (
-                <FeatureCard key={i} icon={f.icon} title={f.title} description={f.description} index={i} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="publisher-program" className="border-y border-border/40 bg-card px-4 py-20 sm:py-28">
-          <div className="mx-auto max-w-5xl space-y-16">
-            <Anim className="text-center">
-              <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">Affiliate Publisher Program</p>
-              <h2 className="text-3xl font-bold sm:text-4xl">Turn your audience into earnings</h2>
-              <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-                Use your AWIN tracking link and audience code together: the link attributes eligible commission, while the code gives your audience an immediate discount.
-              </p>
-            </Anim>
-
-            <div>
-              <h3 className="mb-6 text-center text-xl font-semibold">How it works</h3>
-              <div className="grid gap-5 md:grid-cols-3">
+              <div className="grid sm:grid-cols-3 gap-4 mb-8">
                 {[
-                  ["1", "Join through AWIN", "Apply to our publisher program and connect to advertiser 121802 on AWIN."],
-                  ["2", "Share link + code", "Promote your AWIN tracking link alongside your current public audience code."],
-                  ["3", "Grow your audience tier", "Attributed orders in a rolling 14-day window unlock larger customer discounts."],
-                ].map(([number, title, description]) => (
-                  <div key={number} className="rounded-xl border bg-background p-6">
-                    <span className="mb-4 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{number}</span>
-                    <h4 className="font-semibold">{title}</h4>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+                  { icon: Tag, label: "Up to 30% off", sub: "Top reseller tier" },
+                  { icon: Truck, label: "We fulfill", sub: "Direct to customer" },
+                  { icon: Shield, label: "72h welcome", sub: "20% after approval" },
+                ].map(({ icon: Icon, label, sub }) => (
+                  <div key={label} className="space-y-2">
+                    <Icon className="h-5 w-5 text-primary" />
+                    <p className="font-semibold text-sm">{label}</p>
+                    <p className="text-xs text-[#6b6462]">{sub}</p>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
-              <div>
-                <h3 className="text-2xl font-bold">Publisher benefits</h3>
-                <ul className="mt-5 space-y-4 text-sm">
-                  {[
-                    "Earn eligible sales commission through AWIN",
-                    "Give every visitor at least 15% off from day one",
-                    "Public sharing is encouraged across approved channels",
-                    "Guest checkout works; no wholesale login is required",
-                    "Track attributed orders and tier progress in your portal",
-                  ].map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle className="h-5 w-5 shrink-0 text-success" />{benefit}</li>)}
-                </ul>
-                <Button asChild size="lg" className="mt-7"><Link href="/apply/publisher">Become a publisher <ArrowRight className="h-4 w-4" /></Link></Button>
-              </div>
-              <div className="rounded-2xl border bg-muted/20 p-6">
-                <h3 className="text-lg font-semibold">14-day audience discount tiers</h3>
-                <div className="mt-5 space-y-3">
-                  {[
-                    ["P15", "15% off", "0+ attributed orders", "Your permanent approved floor"],
-                    ["P20", "20% off", "50+ attributed orders", "Automatic upgrade"],
-                    ["P25", "25% off", "125+ attributed orders", "Maximum audience tier"],
-                  ].map(([id, discount, orders, note]) => (
-                    <div key={id} className="grid grid-cols-[52px_1fr] gap-3 rounded-lg border bg-background p-4 sm:grid-cols-[52px_100px_1fr]">
-                      <Badge variant="outline">{id}</Badge>
-                      <strong>{discount}</strong>
-                      <div className="col-start-2 text-xs text-muted-foreground sm:col-start-auto">{orders} · {note}</div>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-4 text-xs text-muted-foreground">
-                  If your tier changes, the old code is disabled and a new code is issued. Update active placements promptly. Publisher purchases use standard retail tax and shipping.
-                </p>
-              </div>
-            </div>
-
-            <div className="mx-auto max-w-2xl">
-              <h3 className="mb-4 text-center text-2xl font-bold">Publisher FAQ</h3>
-              {PUBLISHER_FAQ_ITEMS.map((item, i) => <FAQItem key={item.question} {...item} index={i} />)}
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           FAQ — Light
-           ══════════════════════════════════════════════════════ */}
-        <section id="faq" className="py-20 sm:py-28 px-4 bg-muted/20 scroll-mt-20">
-          <div className="max-w-2xl mx-auto">
-            <Anim className="text-center mb-12">
-              <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-                Common Questions
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-                Frequently Asked Questions
-              </h2>
-            </Anim>
-            <div>
-              {FAQ_ITEMS.map((item, i) => (
-                <FAQItem key={i} question={item.question} answer={item.answer} index={i} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════
-           FINAL CTA — Dark
-           ══════════════════════════════════════════════════════ */}
-        <section className="py-20 sm:py-28 px-4 bg-[#141414] text-white relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(184,40,46,0.12),transparent_70%)]" />
-          <Anim className="relative max-w-3xl mx-auto text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Ready to Grow With The Perfect Part?
-            </h2>
-            <p className="text-lg text-white/50 max-w-xl mx-auto mb-8">
-              Choose the program that fits your business: purchase for resale with
-              wholesale benefits, or promote to your audience and earn through AWIN.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Button
-                size="lg"
-                asChild
-                className="text-base px-8 h-12 cursor-pointer shadow-[0_4px_20px_rgba(184,40,46,0.4)] hover:shadow-[0_6px_30px_rgba(184,40,46,0.5)] transition-shadow"
-              >
-                <Link href="#choose-path">Choose Your Partner Path <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <Button onClick={() => openPathChooser("reseller_section")} className="gap-2">
+                Apply as a reseller
+                <ArrowRight className="h-4 w-4" />
               </Button>
-            </div>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-white/35">
-              <span className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3" /> Free to join</span>
-              <span className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3" /> No contracts</span>
-              <span className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3" /> Cancel anytime</span>
-            </div>
-            <p className="mt-5 text-sm text-white/40">
-              Already applied?{" "}
-              <Link href="/login" className="text-primary font-medium underline underline-offset-4 hover:opacity-80 transition-opacity">
-                Sign in to check your status
-              </Link>
+            </Anim>
+            <Anim delay={0.1} className="space-y-3 pt-2">
+              {RESELLER_TIERS.map((tier, i) => (
+                <div key={tier.pct} className="flex items-center gap-3">
+                  <span className="w-14 text-right text-xs text-[#6b6462]">
+                    {tier.orders}
+                  </span>
+                  <div className="flex-1 h-10 rounded-lg bg-[#e8e2de] overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      whileInView={{ width: `${(tier.pct / 30) * 100}%` }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.7, delay: 0.15 + i * 0.1 }}
+                      className={`h-full flex items-center justify-end pr-3 ${
+                        tier.pct >= 25 ? "bg-primary" : "bg-[#2d2d2d]"
+                      }`}
+                    >
+                      <span className="text-xs font-bold text-white">{tier.pct}% OFF</span>
+                    </motion.div>
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-[#6b6462] pt-2 pl-[4.25rem]">
+                Qualifying orders in your evaluation window
+              </p>
+            </Anim>
+          </div>
+        </div>
+      </section>
+
+      {/* Publisher deep dive */}
+      <section className="relative bg-white text-[#1a1a1a] border-t border-black/5">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 sm:py-28">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+            <Anim className="order-2 lg:order-1 space-y-4">
+              {PUBLISHER_TIERS.map((tier, i) => (
+                <motion.div
+                  key={tier.pct}
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.12 }}
+                  className="flex items-center gap-4 rounded-xl border border-[#e5e0dd] bg-[#faf8f6] px-5 py-4"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white font-display text-lg">
+                    {tier.pct}%
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Audience discount</p>
+                    <p className="text-xs text-[#6b6462]">{tier.label}</p>
+                  </div>
+                  {i === 0 && (
+                    <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-primary">
+                      Floor forever
+                    </span>
+                  )}
+                </motion.div>
+              ))}
+              <p className="text-xs text-[#6b6462] pt-1">
+                Attribution via your publisher coupon · AWIN handles commission
+              </p>
+            </Anim>
+            <Anim delay={0.08} className="order-1 lg:order-2">
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-primary mb-3">
+                Publisher program
+              </p>
+              <h2 className="font-display text-3xl sm:text-5xl tracking-tight mb-4">
+                Earn while your audience saves
+              </h2>
+              <p className="text-[#6b6462] leading-relaxed mb-6">
+                Join through AWIN, get a public discount code, and share product
+                links with your community. Your portal tracks attributed orders
+                so you always know how close you are to the next discount tier.
+              </p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  { icon: Link2, text: "AWIN tracking links for every product" },
+                  { icon: Tag, text: "Public codes shoppers can use at checkout" },
+                  { icon: Users, text: "Ideal for blogs, creators, newsletters, deal sites" },
+                ].map(({ icon: Icon, text }) => (
+                  <li key={text} className="flex gap-3 text-sm text-[#3a3533]">
+                    <Icon className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    {text}
+                  </li>
+                ))}
+              </ul>
+              <Button onClick={() => openPathChooser("publisher_section")} className="gap-2">
+                Apply as a publisher
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Anim>
+          </div>
+        </div>
+      </section>
+
+      {/* Theme / trust strip */}
+      <section className="bg-[#111111] border-t border-white/10">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16 sm:py-20">
+          <Anim className="text-center mb-12">
+            <h2 className="font-display text-3xl sm:text-4xl tracking-tight text-white mb-3">
+              Automotive parts. Partner-grade ops.
+            </h2>
+            <p className="text-white/50 max-w-xl mx-auto text-sm sm:text-base">
+              The Perfect Part catalog — brakes, suspension, lighting, and more —
+              backed by a portal built for real reseller and publisher workflows.
             </p>
           </Anim>
-        </section>
-      </main>
-
-      {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="border-t border-white/5 py-8 px-4 bg-[#111]">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="The Perfect Part" width={120} height={30} className="h-6 w-auto brightness-0 invert opacity-70" />
-            <span className="text-xs text-white/30">
-              &copy; {new Date().getFullYear()} The Perfect Part, LLC. All rights reserved.
-            </span>
+          <div className="grid sm:grid-cols-3 gap-8">
+            {[
+              {
+                title: "Clear separation",
+                body: "Reseller coupons stay on wholesale accounts. Publisher codes stay public. No accidental mixing.",
+              },
+              {
+                title: "Transparent progress",
+                body: "See your tier, attributed volume, and next unlock inside the partner dashboard.",
+              },
+              {
+                title: "Fast onboarding",
+                body: "Most applications reviewed within one business day. Tools land in your inbox when you’re approved.",
+              },
+            ].map((item, i) => (
+              <Anim key={item.title} delay={i * 0.08} className="text-center sm:text-left">
+                <div className="mb-3 mx-auto sm:mx-0 h-px w-10 bg-primary" />
+                <h3 className="text-base font-semibold text-white mb-2">{item.title}</h3>
+                <p className="text-sm text-white/50 leading-relaxed">{item.body}</p>
+              </Anim>
+            ))}
           </div>
-          <div className="flex items-center gap-4 text-xs text-white/30">
-            <Link href="/login" className="hover:text-white/70 transition-colors">Sign In</Link>
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="hover:text-white/70 transition-colors cursor-pointer">Terms of Service</button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <ScrollText className="h-5 w-5 text-primary" />
-                    Wholesale Program Terms of Service
-                  </DialogTitle>
-                </DialogHeader>
-                <TermsOfServiceContent />
-              </DialogContent>
-            </Dialog>
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="hover:text-white/70 transition-colors cursor-pointer">Publisher Terms</button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <ScrollText className="h-5 w-5 text-primary" />
-                    Affiliate Publisher Program Terms
-                  </DialogTitle>
-                </DialogHeader>
-                <PublisherTermsOfServiceContent />
-              </DialogContent>
-            </Dialog>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="bg-[#0c0c0c] border-t border-white/10">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-20 sm:py-28">
+          <Anim className="text-center mb-10">
+            <p className="text-xs font-semibold tracking-[0.2em] uppercase text-primary mb-3">
+              FAQ
+            </p>
+            <h2 className="font-display text-3xl sm:text-4xl tracking-tight text-white">
+              Questions, answered
+            </h2>
+          </Anim>
+          <Anim delay={0.08}>
+            <div className="flex justify-center gap-2 mb-8">
+              {(
+                [
+                  ["reseller", "Resellers"],
+                  ["publisher", "Publishers"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFaqTab(key)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    faqTab === key
+                      ? "bg-primary text-white"
+                      : "bg-white/5 text-white/60 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div>
+              {(faqTab === "reseller" ? resellerFaqs : publisherFaqs).map((item) => (
+                <FaqItem key={item.q} question={item.q} answer={item.a} />
+              ))}
+            </div>
+          </Anim>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="relative overflow-hidden border-t border-white/10">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at 50% 0%, rgba(184,40,46,0.35), transparent 55%), #111111",
+          }}
+        />
+        <div className="relative mx-auto max-w-3xl px-4 sm:px-6 py-20 sm:py-28 text-center">
+          <Anim>
+            <h2 className="font-display text-3xl sm:text-5xl tracking-tight text-white mb-4">
+              Ready to partner?
+            </h2>
+            <p className="text-white/55 mb-8 max-w-lg mx-auto leading-relaxed">
+              Pick reseller or publisher — takes about two minutes. We’ll email
+              you as soon as you’re approved.
+            </p>
+            <Button
+              size="lg"
+              onClick={() => openPathChooser("footer_cta")}
+              className="gap-2 h-12 px-8 text-base"
+            >
+              Apply Now
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Anim>
+        </div>
+      </section>
+
+      <footer className="border-t border-white/10 bg-[#0c0c0c] py-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/40">
+          <p>© {new Date().getFullYear()} The Perfect Part. All rights reserved.</p>
+          <div className="flex gap-4">
+            <Link href="/terms/publisher" className="hover:text-white/70 transition-colors">
+              Publisher terms
+            </Link>
+            <Link href="/login" className="hover:text-white/70 transition-colors">
+              Sign In
+            </Link>
+            <a
+              href="https://theperfectpart.net"
+              className="hover:text-white/70 transition-colors"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Store
+            </a>
           </div>
         </div>
       </footer>
-    </>
+
+      <PartnerPathDialog open={pathOpen} onOpenChange={setPathOpen} />
+    </div>
   );
 }
-
-/* ─── Data ─────────────────────────────────────────────────────── */
-
-const STEPS_SIGNUP = [
-  {
-    icon: ClipboardCheck,
-    title: "Apply in 2 Minutes",
-    description:
-      "Quick form — business name, contact info, address. No contracts, no fees.",
-  },
-  {
-    icon: UserCheck,
-    title: "Approved Within 24 Hrs",
-    description:
-      "We review fast. Once approved, you'll receive your portal login credentials via email.",
-  },
-  {
-    icon: LayoutDashboard,
-    title: "Log Into Your Dashboard",
-    description:
-      "Sign into your wholesale portal to view your unique coupon code, track orders, and manage your account.",
-  },
-];
-
-const STEPS_ORDER = [
-  {
-    icon: LogIn,
-    title: "Sign In & Shop",
-    description:
-      "Log into theperfectpart.net with the same email you registered with here, then browse and add products to your cart.",
-  },
-  {
-    icon: Tag,
-    title: "Enter Your Unique Coupon Code",
-    description:
-      "At checkout, enter the unique coupon code found on your wholesale portal dashboard. Your tier discount, free shipping, and tax-free pricing are applied instantly.",
-  },
-  {
-    icon: Package,
-    title: "We Ship Directly",
-    description:
-      "We fulfill and ship the order straight to your customer. Your business name stays on the package — fully white-labeled.",
-  },
-  {
-    icon: ClipboardList,
-    title: "Track in Your Portal",
-    description:
-      "The order number, recipient name, and status appear on your wholesale portal dashboard for easy tracking.",
-  },
-];
-
-const FEATURES = [
-  {
-    icon: BadgePercent,
-    title: "Up to 30% Off Retail",
-    description:
-      "Our five-tier discount system starts at 10% and scales up to 30% based on your order volume across all product categories. The more you sell, the more you save.",
-  },
-  {
-    icon: Receipt,
-    title: "Tax-Free Purchasing",
-    description:
-      "Approved wholesale accounts are placed in our tax-exempt customer group. Shop without paying sales tax on qualifying orders.",
-  },
-  {
-    icon: Truck,
-    title: "Free Shipping + Drop-Ship",
-    description:
-      "Every wholesale order ships free. We can also ship directly to your customers — no warehousing or inventory risk on your end.",
-  },
-  {
-    icon: Tag,
-    title: "Personal Coupon Codes",
-    description:
-      "Receive a unique coupon code tied to your account and tier. Apply it at checkout for seamless, instant savings every time.",
-  },
-  {
-    icon: LayoutDashboard,
-    title: "Dedicated Partner Portal",
-    description:
-      "Track orders, monitor your tier progress, upload documents, manage your team, and access support — all from your own portal.",
-  },
-  {
-    icon: BarChart3,
-    title: "Insights & Margin Calculator",
-    description:
-      "Built-in analytics, order insights, and a margin calculator help you price your products for maximum profitability.",
-  },
-  {
-    icon: Users,
-    title: "Team Management",
-    description:
-      "Add team members with role-based permissions — owners, admins, purchasers, and viewers. Control who can order and who can see reports.",
-  },
-  {
-    icon: Zap,
-    title: "Same-Day Processing",
-    description:
-      "Orders placed before cutoff ship the same business day. Get your customers their products fast with reliable nationwide fulfillment.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Quality Guaranteed",
-    description:
-      "Every product meets rigorous quality standards. Sell with confidence knowing your customers receive premium items every time.",
-  },
-];
-
-const FAQ_ITEMS = [
-  {
-    question: "What types of businesses qualify for wholesale pricing?",
-    answer:
-      "Any legitimate business engaged in the resale of products can apply — online retailers, brick-and-mortar shops, resellers, distributors, and more. You may be asked to provide a resale certificate or business documentation.",
-  },
-  {
-    question: "How does the tiered pricing work?",
-    answer:
-      "Our wholesale program has five discount tiers: 10%, 15%, 20%, 25%, and 30%. Your tier is based on your qualifying order volume within a rolling 7-day window. As you place more orders, your discount increases automatically. Every tier also includes free shipping.",
-  },
-  {
-    question: "What is the welcome bonus?",
-    answer:
-      "Every newly approved partner receives a 20% welcome discount that's active for their first 72 hours. This lets you start with strong savings from day one. After the welcome period, your tier is determined by your order volume.",
-  },
-  {
-    question: "Is there a minimum order requirement?",
-    answer:
-      "No. There are no minimum order requirements to get started. Place orders of any size using your unique coupon code and your tier will grow naturally with your volume.",
-  },
-  {
-    question: "How does tax-free purchasing work?",
-    answer:
-      "When approved, your account is placed in our Wholesale customer group, which qualifies you for tax-exempt pricing on applicable orders. You must be signed into theperfectpart.net with your registered wholesale email for this to apply at checkout.",
-  },
-  {
-    question: "Do I need to sign in to use my coupon code?",
-    answer:
-      "Yes. To receive both your wholesale discount and tax-free pricing, you must sign into your account on theperfectpart.net using the same email you registered with in the wholesale program. Then enter your coupon code at checkout.",
-  },
-  {
-    question: "How does drop shipping work?",
-    answer:
-      "When your customer places an order with you, forward it to us through the portal. We pick, pack, and ship the product directly to your customer — no inventory needed on your end. You focus on sales, we handle fulfillment.",
-  },
-  {
-    question: "How long does approval take?",
-    answer:
-      "Most applications are reviewed within 24 hours during business days. Once approved, you'll receive an email with your portal login credentials, your unique wholesale coupon code, and your 20% welcome discount activation.",
-  },
-];
-
-const PUBLISHER_FAQ_ITEMS = [
-  {
-    question: "Do I use the AWIN link or the audience code?",
-    answer: "Use both together. Your AWIN link handles eligible commission attribution; the audience code gives shoppers their current discount.",
-  },
-  {
-    question: "Can I publish my discount code publicly?",
-    answer: "Yes. Publisher audience codes are designed for approved public channels such as blogs, newsletters, social media, videos, and deal sites.",
-  },
-  {
-    question: "Will my audience receive tax-free pricing or free shipping?",
-    answer: "No. Publisher audience orders are retail purchases and use standard retail tax and shipping rules. They do not require a wholesale account or login.",
-  },
-  {
-    question: "Can I lose my audience code?",
-    answer: "Approved publishers keep a 15% floor. Your tier may move down from 25% to 20% or 15%, but normal tier recalculation never removes the base code.",
-  },
-];
-
-const US_STATES = [
-  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut",
-  "Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa",
-  "Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan",
-  "Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire",
-  "New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio",
-  "Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota",
-  "Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia",
-  "Wisconsin","Wyoming",
-];

@@ -50,7 +50,8 @@
   --color-info-light: #eff6ff;
 
   /* ── Typography ───────────────────────────────────── */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bebas), "Bebas Neue", ui-sans-serif, system-ui, sans-serif;
 
   /* ── Radius ───────────────────────────────────────── */
   --radius-sm: 0.375rem;

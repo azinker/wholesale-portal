@@ -1,7 +1,21 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Bebas_Neue, DM_Sans } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const bebasNeue = Bebas_Neue({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-bebas",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Reseller & Affiliate Partner Programs | The Perfect Part",
@@ -124,7 +138,7 @@ const jsonLd = {
       potentialAction: {
         "@type": "Action",
         name: "Choose a Partner Program",
-        target: "https://wholesale.theperfectpart.net/#choose-path",
+        target: "https://wholesale.theperfectpart.net/?apply=1",
       },
     },
   ],
@@ -138,7 +152,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${dmSans.variable} ${bebasNeue.variable}`}>
       <head>
         {gtmId ? (
           <Script id="google-tag-manager" strategy="afterInteractive">
@@ -152,7 +166,7 @@ export default function RootLayout({
           </Script>
         ) : null}
       </head>
-      <body className="min-h-screen bg-background antialiased">
+      <body className="min-h-screen bg-background antialiased font-sans">
         {gtmId ? (
           <noscript>
             <iframe

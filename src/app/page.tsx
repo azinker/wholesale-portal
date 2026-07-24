@@ -117,7 +117,7 @@ function PathsDiagram() {
           THE PERFECT PART
         </text>
         <text x="210" y="50" textAnchor="middle" fontSize="10" fill="#6b6462">
-          Automotive catalog
+          Full product catalog
         </text>
       </motion.g>
 
@@ -211,7 +211,7 @@ const RESELLER_STEPS: Step[] = [
   {
     id: "r-order",
     title: "Sell on your own store",
-    body: "List our parts wherever you sell. When a customer buys from you, place the order in the partner portal at your tier price.",
+    body: "List our products wherever you sell. When a customer buys from you, place the order in the partner portal at your tier price.",
   },
   {
     id: "r-ship",
@@ -717,7 +717,7 @@ const PUBLISHER_FAQ = [
   },
   {
     q: "Who is a good fit?",
-    a: "Automotive blogs, YouTube and TikTok creators, newsletters, enthusiast forums and deal sites with an audience that actually buys parts and accessories.",
+    a: "Blogs, YouTube and TikTok creators, newsletters, forums and deal sites with an engaged audience that shops online — across the many categories we sell.",
   },
   {
     q: "How and when do I get paid?",
@@ -944,8 +944,8 @@ export default function HomePage() {
               transition={{ duration: 0.55, delay: 0.16 }}
               className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg"
             >
-              Dropship our automotive catalog at wholesale pricing, or promote it
-              to your audience and earn commission through AWIN. No inventory
+              Dropship our full product catalog at wholesale pricing, or promote
+              it to your audience and earn commission through AWIN. No inventory
               required either way.
             </motion.p>
 
@@ -1236,7 +1236,7 @@ export default function HomePage() {
               <Eyebrow>Why partners stay</Eyebrow>
             </div>
             <h2 className="font-display text-[clamp(1.8rem,3.6vw,2.6rem)] font-bold leading-tight tracking-[-0.02em]">
-              Real parts, real margins, no guesswork
+              Real products, real margins, no guesswork
             </h2>
           </Reveal>
 

@@ -136,7 +136,7 @@ export default async function ApplicantDetailPage({
           <CardHeader className="pb-3"><CardTitle className="text-base">Publisher Approval Checklist</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             {[
-              ["Promotion site / method fits auto parts", !!account.promoWebsite && !!account.promoDescription],
+              ["Promotion site / method fits our catalog", !!account.promoWebsite && !!account.promoDescription],
               ["On The Perfect Part AWIN program, or invite before approval", !!account.awinPublisherId],
               ["AWIN publisher ID manually noted", !!account.awinPublisherId],
               ["Approval will issue a P15 code (no Wholesale customer group)", true],

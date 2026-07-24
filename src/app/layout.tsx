@@ -31,9 +31,9 @@ export const metadata: Metadata = {
     "wholesale distributor",
     "reseller program with portal",
     "wholesale discount program",
-    "auto parts affiliate program",
+    "affiliate publisher program",
     "AWIN affiliate publisher",
-    "automotive publisher discount codes",
+    "publisher discount codes",
   ],
   openGraph: {
     title: "Reseller & Affiliate Partner Programs | The Perfect Part",
@@ -105,7 +105,7 @@ const jsonLd = {
       url: "https://theperfectpart.net",
       logo: "https://wholesale.theperfectpart.net/logo.png",
       description:
-        "Automotive partner programs for wholesale resellers and affiliate publishers using AWIN.",
+        "Partner programs for wholesale resellers and affiliate publishers using AWIN.",
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "sales",

@@ -17,6 +17,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV BUILD_STANDALONE=1
+# NEXT_PUBLIC_* values are inlined into prerendered pages at build time.
+ARG NEXT_PUBLIC_APP_URL=https://wholesale.theperfectpart.net
+ARG NEXT_PUBLIC_GTM_ID=
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_GTM_ID=$NEXT_PUBLIC_GTM_ID
 RUN npx prisma generate
 RUN npm run build
 

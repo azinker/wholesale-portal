@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyMagicToken, createSession } from "@/lib/auth";
 import { isAdmin } from "@/lib/env";
 import { db } from "@/lib/db";
+import { appUrl } from "@/lib/app-url";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
 
   if (!token) {
-    return NextResponse.redirect(new URL("/login?error=missing_token", req.url));
+    return NextResponse.redirect(appUrl("/login?error=missing_token"));
   }
 
   const email = await verifyMagicToken(token);
   if (!email) {
-    return NextResponse.redirect(new URL("/login?error=invalid_token", req.url));
+    return NextResponse.redirect(appUrl("/login?error=invalid_token"));
   }
 
   let user = await db.portalUser.findUnique({ where: { email } });
@@ -32,8 +33,8 @@ export async function GET(req: NextRequest) {
   });
 
   if (isAdmin(email)) {
-    return NextResponse.redirect(new URL("/admin", req.url));
+    return NextResponse.redirect(appUrl("/admin"));
   }
 
-  return NextResponse.redirect(new URL("/dashboard", req.url));
+  return NextResponse.redirect(appUrl("/dashboard"));
 }

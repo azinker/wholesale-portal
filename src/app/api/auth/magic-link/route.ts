@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMagicToken } from "@/lib/auth";
 import { sendMagicLink } from "@/lib/email";
+import { appUrl } from "@/lib/app-url";
 
 // Simple in-memory rate limit (per email, 5 requests per 5 minutes)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -39,29 +40,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (!email || !email.includes("@")) {
-      return NextResponse.redirect(
-        new URL("/login?error=invalid_email", req.url)
-      );
+      return NextResponse.redirect(appUrl("/login?error=invalid_email"));
     }
 
     // Rate limit check
     if (!checkRateLimit(email)) {
-      return NextResponse.redirect(
-        new URL("/login?error=rate_limited", req.url)
-      );
+      return NextResponse.redirect(appUrl("/login?error=rate_limited"));
     }
 
     // Create and send magic link
     const token = await createMagicToken(email);
     await sendMagicLink(email, token);
 
-    return NextResponse.redirect(
-      new URL("/login?sent=true", req.url)
-    );
+    return NextResponse.redirect(appUrl("/login?sent=true"));
   } catch (error) {
     console.error("Magic link error:", error);
-    return NextResponse.redirect(
-      new URL("/login?error=send_failed", req.url)
-    );
+    return NextResponse.redirect(appUrl("/login?error=send_failed"));
   }
 }

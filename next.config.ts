@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Standalone output for Docker/VPS builds only (BUILD_STANDALONE=1 set in
+  // Dockerfile). Vercel builds are unaffected.
+  ...(process.env.BUILD_STANDALONE === "1" ? { output: "standalone" as const } : {}),
   // Allow BigCommerce product images
   images: {
     remotePatterns: [

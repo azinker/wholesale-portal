@@ -30,7 +30,7 @@ export async function POST(
     }
 
     // Trigger scan
-    await processDocumentScan(doc.id, doc.storageKey);
+    await processDocumentScan(doc.id);
 
     // Fetch updated status
     const updated = await db.document.findUnique({ where: { id } });

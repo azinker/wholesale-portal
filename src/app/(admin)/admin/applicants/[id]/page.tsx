@@ -6,12 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle, ExternalLink, UserPlus, Download, RefreshCw, ShieldOff } from "lucide-react";
+import { ArrowLeft, FileText, AlertTriangle, CheckCircle, XCircle, ExternalLink, UserPlus, Download } from "lucide-react";
 import { ImpersonateButton } from "@/components/impersonate-button";
 import { RemoveApplicantButton } from "@/components/remove-applicant-button";
 import { getAvatarUrl } from "@/lib/avatar";
 import ApplicantActions from "./applicant-actions";
-import { DocumentScanActions } from "./document-scan-actions";
 
 export default async function ApplicantDetailPage({
   params,
@@ -164,7 +163,6 @@ export default async function ApplicantDetailPage({
                     <th className="text-left px-4 py-2.5 font-medium">File</th>
                     <th className="text-left px-4 py-2.5 font-medium">Type</th>
                     <th className="text-left px-4 py-2.5 font-medium">State</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Scan</th>
                     <th className="text-left px-4 py-2.5 font-medium"></th>
                   </tr>
                 </thead>
@@ -174,33 +172,18 @@ export default async function ApplicantDetailPage({
                       <td className="px-4 py-2.5">{doc.filename}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.docType || "—"}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.state || "—"}</td>
-                      <td className="px-4 py-2.5"><ScanBadge status={doc.scanStatus} /></td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {doc.scanStatus === "CLEAN" && (
-                            <>
-                              <Button variant="ghost" size="sm" asChild>
-                                <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
-                                  View <ExternalLink className="ml-1 h-3 w-3" />
-                                </a>
-                              </Button>
-                              <Button variant="ghost" size="sm" asChild>
-                                <a href={`/api/admin/documents/${doc.id}/download`} download>
-                                  <Download className="h-3 w-3" />
-                                </a>
-                              </Button>
-                            </>
-                          )}
-                          {doc.scanStatus === "PENDING" && (
-                            <>
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={`/api/admin/documents/${doc.id}/bypass-and-view`} target="_blank" rel="noopener noreferrer">
-                                  Bypass &amp; view
-                                </a>
-                              </Button>
-                              <DocumentScanActions documentId={doc.id} />
-                            </>
-                          )}
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
+                              View <ExternalLink className="ml-1 h-3 w-3" />
+                            </a>
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={`/api/admin/documents/${doc.id}/download`} download>
+                              <Download className="h-3 w-3" />
+                            </a>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -288,11 +271,4 @@ function StatusBadge({ status }: { status: string }) {
     PENDING: "secondary", APPROVED: "default", DENIED: "destructive", RETAIL: "outline",
   };
   return <Badge variant={variants[status] || "outline"} className="text-xs">{status}</Badge>;
-}
-
-function ScanBadge({ status }: { status: string }) {
-  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    CLEAN: "default", INFECTED: "destructive", SCANNING: "secondary", PENDING: "outline",
-  };
-  return <Badge variant={variants[status] || "outline"} className="text-[10px]">{status}</Badge>;
 }

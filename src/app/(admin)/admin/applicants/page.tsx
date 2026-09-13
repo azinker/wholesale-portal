@@ -34,7 +34,7 @@ export default async function ApplicantsPage({
       user: {
         select: { id: true, avatarKey: true },
       },
-      documents: { select: { id: true, scanStatus: true } },
+      documents: { select: { id: true } },
     },
   });
 
@@ -95,7 +95,6 @@ export default async function ApplicantsPage({
               </thead>
               <tbody>
                 {applicants.map((a) => {
-                  const cleanDocs = a.documents.filter((d) => d.scanStatus === "CLEAN").length;
                   const totalDocs = a.documents.length;
                   const avatarUrl = avatarMap.get(a.userId) ?? null;
 
@@ -122,7 +121,7 @@ export default async function ApplicantsPage({
                         <PartnerBadge partnerType={a.partnerType} />
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {totalDocs === 0 ? "—" : `${cleanDocs}/${totalDocs} clean`}
+                        {totalDocs === 0 ? "—" : String(totalDocs)}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         {a.createdAt.toLocaleDateString()}

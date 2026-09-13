@@ -4,9 +4,8 @@ import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Upload, FileText, CheckCircle2, AlertTriangle, Clock, XCircle, Loader2 } from "lucide-react";
+import { Upload, FileText, Loader2 } from "lucide-react";
 
 interface Doc {
   id: string;
@@ -63,30 +62,11 @@ export default function DocumentUploader({ initialDocuments }: { initialDocument
         { ...newDoc, mime: file.type, size: file.size, docType, state: state || null, note: null, uploadedAt: new Date().toISOString() },
         ...prev,
       ]);
-      toast.success("Document uploaded", { description: "Scanning for viruses..." });
-      pollScanStatus(newDoc.id);
+      toast.success("Document uploaded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
-    }
-  }, []);
-
-  const pollScanStatus = useCallback(async (docId: string) => {
-    for (let i = 0; i < 20; i++) {
-      await new Promise((r) => setTimeout(r, 3000));
-      try {
-        const res = await fetch("/api/documents");
-        if (!res.ok) continue;
-        const body = await res.json();
-        const updated = body.documents?.find((d: Doc) => d.id === docId);
-        if (updated && updated.scanStatus !== "PENDING" && updated.scanStatus !== "SCANNING") {
-          setDocuments((prev) => prev.map((d) => (d.id === docId ? { ...d, scanStatus: updated.scanStatus } : d)));
-          if (updated.scanStatus === "CLEAN") toast.success("Document scan clean");
-          else toast.error("Document flagged as infected");
-          return;
-        }
-      } catch { /* continue polling */ }
     }
   }, []);
 
@@ -180,15 +160,12 @@ export default function DocumentUploader({ initialDocuments }: { initialDocument
                       {" · "}{formatBytes(doc.size)}
                     </p>
                   </div>
-                  <ScanBadge status={doc.scanStatus} />
-                  {doc.scanStatus === "CLEAN" && (
-                    <a
-                      href={`/api/documents/${doc.id}/download`}
-                      className="text-xs text-primary hover:underline whitespace-nowrap"
-                    >
-                      Download
-                    </a>
-                  )}
+                  <a
+                    href={`/api/documents/${doc.id}/download`}
+                    className="text-xs text-primary hover:underline whitespace-nowrap"
+                  >
+                    Download
+                  </a>
                 </div>
               ))}
             </div>
@@ -197,15 +174,6 @@ export default function DocumentUploader({ initialDocuments }: { initialDocument
       </Card>
     </div>
   );
-}
-
-function ScanBadge({ status }: { status: string }) {
-  switch (status) {
-    case "CLEAN": return <Badge className="bg-success text-white"><CheckCircle2 size={12} className="mr-1" />Clean</Badge>;
-    case "INFECTED": return <Badge variant="destructive"><XCircle size={12} className="mr-1" />Infected</Badge>;
-    case "SCANNING": return <Badge variant="secondary"><Clock size={12} className="mr-1" />Scanning</Badge>;
-    default: return <Badge variant="outline"><AlertTriangle size={12} className="mr-1" />Pending</Badge>;
-  }
 }
 
 function formatBytes(bytes: number): string {

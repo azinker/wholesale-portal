@@ -29,9 +29,6 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string(),
   EMAIL_FROM: z.string().default("no-reply@wholesale.theperfectpart.net"),
 
-  CLAMAV_HOST: z.string(),
-  CLAMAV_PORT: z.string().transform(Number),
-
   JWT_SECRET: z.string().min(16),
   ADMIN_ALLOWLIST: z.string().default("adam@theperfectpart.net"),
 

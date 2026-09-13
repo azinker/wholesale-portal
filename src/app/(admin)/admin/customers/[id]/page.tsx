@@ -17,7 +17,6 @@ import { ResetOnboardingButton } from "./reset-onboarding-button";
 import { ResetWelcomeButton } from "./reset-welcome-button";
 import { RecalcTierButton } from "./recalc-tier-button";
 import { VerifyCustomerGroupButton } from "./verify-customer-group-button";
-import { DocumentScanActions } from "../../applicants/[id]/document-scan-actions";
 import { loadPublisherTierConfig } from "@/lib/publisher-tier-engine";
 
 export default async function CustomerDetailPage({
@@ -348,7 +347,6 @@ export default async function CustomerDetailPage({
                     <th className="text-left px-4 py-2.5 font-medium">File</th>
                     <th className="text-left px-4 py-2.5 font-medium">Type</th>
                     <th className="text-left px-4 py-2.5 font-medium">State</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Scan</th>
                     <th className="text-left px-4 py-2.5 font-medium">Uploaded</th>
                     <th className="text-right px-4 py-2.5 font-medium">Actions</th>
                   </tr>
@@ -359,36 +357,21 @@ export default async function CustomerDetailPage({
                       <td className="px-4 py-2.5">{doc.filename}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.docType || "—"}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{doc.state || "—"}</td>
-                      <td className="px-4 py-2.5"><ScanBadge status={doc.scanStatus} /></td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">
                         {new Date(doc.uploadedAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-2 flex-wrap">
-                          {doc.scanStatus === "CLEAN" && (
-                            <>
-                              <Button variant="ghost" size="sm" asChild>
-                                <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
-                                  View <ExternalLink className="ml-1 h-3 w-3" />
-                                </a>
-                              </Button>
-                              <Button variant="ghost" size="sm" asChild>
-                                <a href={`/api/admin/documents/${doc.id}/download`} download>
-                                  <Download className="h-3 w-3" />
-                                </a>
-                              </Button>
-                            </>
-                          )}
-                          {doc.scanStatus === "PENDING" && (
-                            <>
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={`/api/admin/documents/${doc.id}/bypass-and-view`} target="_blank" rel="noopener noreferrer">
-                                  Bypass &amp; view
-                                </a>
-                              </Button>
-                              <DocumentScanActions documentId={doc.id} />
-                            </>
-                          )}
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={`/api/admin/documents/${doc.id}/view`} target="_blank" rel="noopener noreferrer">
+                              View <ExternalLink className="ml-1 h-3 w-3" />
+                            </a>
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={`/api/admin/documents/${doc.id}/download`} download>
+                              <Download className="h-3 w-3" />
+                            </a>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -467,9 +450,3 @@ function TierBadge({ tier }: { tier: string }) {
   );
 }
 
-function ScanBadge({ status }: { status: string }) {
-  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    CLEAN: "default", INFECTED: "destructive", SCANNING: "secondary", PENDING: "outline",
-  };
-  return <Badge variant={variants[status] || "outline"} className="text-[10px]">{status}</Badge>;
-}

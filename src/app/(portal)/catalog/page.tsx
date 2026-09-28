@@ -32,17 +32,23 @@ export default async function CatalogPage({
   const page = Math.max(1, Number(params.page || "1") || 1);
   const categoryId = category ? Number(category) : undefined;
   const canAdd = userHasPermission(user, "manage_channel_listings");
-  const [terms, card, stores, earned, welcome, categories] = await Promise.all([
+  const [terms, card, stores, earned, welcome, categories, categoryCounts] = await Promise.all([
     db.shopifyTermsAcceptance.findUnique({
       where: { accountId_version: { accountId: account.id, version: SHOPIFY_CHANNEL_TERMS_VERSION } },
     }),
     db.sellerPaymentMethod.findUnique({ where: { accountId: account.id } }),
     db.shopifyConnection.findMany({
-      where: { accountId: account.id, disconnectedAt: null, addressTestStatus: "PASSED" },
+      where: {
+        accountId: account.id,
+        disconnectedAt: null,
+        addressTestStatus: "PASSED",
+        NOT: { shopDomain: { startsWith: "preview-" } },
+      },
     }),
     getTierDiscountPercent(account.lastTier),
     loadWelcomeConfig(),
     bc().getCategories().catch(() => []),
+    bc().getVisibleCategoryCounts().catch(() => ({})),
   ]);
   const percent =
     isWelcomeActive(account.welcomeExpiresAt) && welcome.enabled && welcome.discount > earned
@@ -108,7 +114,7 @@ export default async function CatalogPage({
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-          Preview. Other wholesalers still see Hot Sellers. Add does not send products, and a sale is not charged, until the channel switch is on.
+          Preview. Other wholesalers still see Hot Sellers. Add sends the product to the Shopify store you connected. A paid order is saved and is not charged until the channel switch is on.
         </ChannelPanel>
       )}
 
@@ -148,7 +154,6 @@ export default async function CatalogPage({
         stores={stores.map((store) => ({ id: store.id, shopDomain: store.shopDomain }))}
         ready={ready}
         canAdd={canAdd}
-        preview={preview}
         keyword={q}
         categoryId={category}
         matchCount={matchCount}
@@ -156,7 +161,7 @@ export default async function CatalogPage({
         page={page}
         sort={sort}
         inStock={inStock}
-        categories={categories.map((row) => ({ id: row.id, name: row.name }))}
+        categories={categories.map((row) => ({ id: row.id, name: row.name, count: categoryCounts[row.id] || 0 }))}
         loadFailed={loadFailed}
       />
     </ChannelPage>

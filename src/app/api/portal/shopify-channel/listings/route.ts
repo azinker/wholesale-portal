@@ -13,7 +13,12 @@ async function readyStores(accountId: string) {
     }),
     db.sellerPaymentMethod.findUnique({ where: { accountId } }),
     db.shopifyConnection.findMany({
-      where: { accountId, disconnectedAt: null, addressTestStatus: "PASSED" },
+      where: {
+        accountId,
+        disconnectedAt: null,
+        addressTestStatus: "PASSED",
+        NOT: { shopDomain: { startsWith: "preview-" } },
+      },
     }),
   ]);
   return { terms, card, stores, ready: Boolean(terms && card && stores.length > 0) };
@@ -45,12 +50,6 @@ export async function POST(req: NextRequest) {
   }
   const access = await channelVisibility(auth.user.email);
   if (!access.visible) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!access.enabled) {
-    return NextResponse.json(
-      { error: "The channel is still off, so nothing is sent to Shopify. Create a sample order on My Shopify to preview a sale." },
-      { status: 409 }
-    );
-  }
   const account = auth.user.wholesaleAccount;
   const body = (await req.json()) as {
     bcProductIds?: number[];

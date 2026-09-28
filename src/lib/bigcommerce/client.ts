@@ -416,6 +416,27 @@ class BigCommerceClient {
     );
   }
 
+  async getVisibleCategoryCounts(): Promise<Record<number, number>> {
+    const counts: Record<number, number> = {};
+    let page = 1;
+    while (page <= 20) {
+      const res = await this.get<{
+        data?: Array<{ categories?: number[] }>;
+        meta?: { pagination?: { total_pages?: number } };
+      }>(`${this.baseV3}/catalog/products?is_visible=true&limit=250&page=${page}&include_fields=categories`);
+      const rows = res.data || [];
+      for (const row of rows) {
+        for (const id of row.categories || []) {
+          counts[id] = (counts[id] || 0) + 1;
+        }
+      }
+      const pages = res.meta?.pagination?.total_pages || 1;
+      if (rows.length === 0 || page >= pages) break;
+      page++;
+    }
+    return counts;
+  }
+
   async getCategories(): Promise<Array<{ id: number; parent_id: number; name: string }>> {
     const res = await this.get<{ data?: Array<{ id: number; parent_id: number; name: string }> }>(
       `${this.baseV3}/catalog/categories?limit=250`

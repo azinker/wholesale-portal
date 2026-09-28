@@ -20,10 +20,12 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
   try {
     const month = easternMonthKey(new Date());
     const [storeCount, listingCount, orders] = await Promise.all([
-      db.shopifyConnection.count({ where: { accountId, disconnectedAt: null } }),
+      db.shopifyConnection.count({
+        where: { accountId, disconnectedAt: null, NOT: { shopDomain: { startsWith: "preview-" } } },
+      }),
       db.channelListing.count({ where: { accountId, removedAt: null } }),
       db.channelOrder.findMany({
-        where: { accountId },
+        where: { accountId, shopifyOrderId: { not: "preview" } },
         orderBy: { createdAt: "desc" },
         take: 40,
       }),

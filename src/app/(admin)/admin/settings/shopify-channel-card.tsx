@@ -81,7 +81,7 @@ export function ShopifyChannelCard() {
         <CardTitle>Shopify channel</CardTitle>
         <CardDescription>
           Leave this off until you have tested it. Off keeps Hot Sellers for current wholesalers.
-          To preview, sign in as an approved dropshipper on the admin allowlist, or impersonate one, then open My Shopify and create a sample order.
+          To preview, sign in as an approved dropshipper on the admin allowlist, or impersonate one, then open My Shopify.
           Turning this on shows Catalog, Billing, and My Shopify to every approved dropshipper and charges saved paid orders.
         </CardDescription>
       </CardHeader>

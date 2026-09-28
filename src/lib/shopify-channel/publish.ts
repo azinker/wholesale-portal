@@ -5,7 +5,6 @@ import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/li
 import { wholesaleUnitCost } from "./money";
 import { emailAccount } from "./notify";
 import { scrubListingText } from "./scrub";
-import { isShopifyChannelEnabled } from "./settings";
 import {
   createProduct,
   deleteProduct,
@@ -98,13 +97,19 @@ export async function publishBigCommerceProduct(connectionId: string, bcProductI
 const PUBLISH_BATCH = 20;
 
 export async function runNextPublishJob(): Promise<boolean> {
-  if (!(await isShopifyChannelEnabled())) return false;
   const job = await db.channelPublishJob.findFirst({
     where: { status: { in: ["QUEUED", "RUNNING"] } },
     orderBy: { updatedAt: "asc" },
     include: { connection: true },
   });
   if (!job) return false;
+  if (job.connection.shopDomain.startsWith("preview-")) {
+    await db.channelPublishJob.update({
+      where: { id: job.id },
+      data: { status: "FAILED", emailSentAt: new Date() },
+    });
+    return true;
+  }
   const busy = await db.channelPublishJob.findFirst({
     where: { connectionId: job.connectionId, status: "RUNNING", id: { not: job.id } },
   });
@@ -190,7 +195,6 @@ export async function runNextPublishJob(): Promise<boolean> {
 }
 
 export async function syncListingInventory(limit = 40): Promise<number> {
-  if (!(await isShopifyChannelEnabled())) return 0;
   const listings = await db.channelListing.findMany({
     where: { removedAt: null, connection: { disconnectedAt: null, addressTestStatus: "PASSED" } },
     include: { connection: true },

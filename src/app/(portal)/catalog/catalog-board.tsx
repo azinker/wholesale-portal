@@ -22,7 +22,6 @@ export function CatalogBoard({
   stores,
   ready,
   canAdd,
-  preview,
   keyword,
   categoryId,
   matchCount,
@@ -37,7 +36,6 @@ export function CatalogBoard({
   stores: StoreChoice[];
   ready: boolean;
   canAdd: boolean;
-  preview: boolean;
   keyword: string;
   categoryId: string;
   matchCount: number;
@@ -45,7 +43,7 @@ export function CatalogBoard({
   page: number;
   sort: string;
   inStock: boolean;
-  categories: Array<{ id: number; name: string }>;
+  categories: Array<{ id: number; name: string; count: number }>;
   loadFailed: boolean;
 }) {
   const router = useRouter();
@@ -67,7 +65,7 @@ export function CatalogBoard({
   }
 
   async function publish(scope: "selection" | "category" | "catalog", ids: number[] = []) {
-    if (!canAdd || !ready || preview) return;
+    if (!canAdd || !ready) return;
     if (stores.length > 1 && storeIds.length === 0) {
       toast.error("Choose which stores to add to");
       return;
@@ -104,12 +102,10 @@ export function CatalogBoard({
     }
   }
 
-  const blocked = !ready || !canAdd || preview;
-  const reason = preview
-    ? "Preview only. Nothing is sent to Shopify until the channel is switched on."
-    : !canAdd
-      ? "Viewers cannot add products."
-      : "Finish setup on My Shopify before Add turns on.";
+  const blocked = !ready || !canAdd;
+  const reason = !canAdd
+    ? "Viewers cannot add products."
+    : "Finish setup on My Shopify before Add turns on.";
 
   function pageHref(nextPage: number) {
     const params = new URLSearchParams({
@@ -126,10 +122,10 @@ export function CatalogBoard({
     <div className="space-y-4 pb-28">
       <form className="channel-in flex flex-wrap items-center gap-2 rounded-2xl border border-[#e7e1de] bg-white p-3 shadow-sm" action="/catalog" style={{ animationDelay: "80ms" }}>
         <input name="q" defaultValue={keyword} placeholder="Search by product name" className={cn(channelField, "min-w-[220px] flex-1")} aria-label="Search products" />
-        <select name="category" defaultValue={categoryId} className={cn(channelField, "w-auto min-w-[180px]")} aria-label="Category">
-          <option value="">All categories</option>
+        <select name="category" defaultValue={categoryId} className={cn(channelField, "w-auto min-w-[240px]")} aria-label="Category">
+          <option value="">All categories ({catalogCount})</option>
           {categories.map((category) => (
-            <option key={category.id} value={category.id}>{category.name}</option>
+            <option key={category.id} value={category.id}>{category.name} ({category.count})</option>
           ))}
         </select>
         <select name="sort" defaultValue={sort} className={cn(channelField, "w-auto min-w-[150px]")} aria-label="Sort">

@@ -41,7 +41,8 @@ export default async function MyShopifyPage() {
     }),
   ]);
   const appUrl = env().NEXT_PUBLIC_APP_URL;
-  const liveStores = connections.filter((row) => !row.disconnectedAt);
+  const realConnections = connections.filter((row) => !row.shopDomain.startsWith("preview-"));
+  const liveStores = realConnections.filter((row) => !row.disconnectedAt);
   const passed = liveStores.some((row) => row.addressTestStatus === "PASSED");
 
   return (
@@ -49,18 +50,12 @@ export default async function MyShopifyPage() {
       <ChannelHeading
         kicker="Shopify channel"
         title="My Shopify"
-        lede="Connect up to five USD stores. Add stays off until the terms, a credit card, and a passed address test are done."
-      >
-        {preview && (
-          <form action="/api/portal/shopify-channel/preview" method="post">
-            <button className={channelGhostBtn} type="submit">Create a sample order</button>
-          </form>
-        )}
-      </ChannelHeading>
+        lede="Connect up to 5 Shopify stores. Add stays off until the terms, a credit card, and a passed address test are done."
+      />
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-          Preview. The channel is off for other wholesalers. A sample order does not charge a credit card and does not create a warehouse order.
+          Preview. The channel is off for other wholesalers. A paid order is saved and is not charged until the channel switch is on.
         </ChannelPanel>
       )}
 
@@ -117,7 +112,7 @@ export default async function MyShopifyPage() {
       </div>
 
       <div id="connect" className="space-y-4">
-        {connections.map((connection, index) => {
+        {realConnections.map((connection, index) => {
           const webhookUrl = `${appUrl}/api/shopify/channel/webhook/${connection.id}/${connection.webhookToken}`;
           const sample = connection.shopDomain.startsWith("preview-");
           const testTone = connection.addressTestStatus === "PASSED" ? "good" : connection.addressTestStatus === "FAILED" ? "bad" : "wait";
@@ -246,8 +241,8 @@ export default async function MyShopifyPage() {
 
         {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
-            <h2 className="font-display text-xl font-semibold">Connect a store</h2>
-            <p className="mt-1 text-sm text-[#5c5654]">Use the myshopify.com address. Example: north-auto.myshopify.com. USD stores only.</p>
+            <h2 className="font-display text-xl font-semibold">Connect Shopify</h2>
+            <p className="mt-1 text-sm text-[#5c5654]">You can add up to 5 Shopify stores. Use the myshopify.com address. Example: north-auto.myshopify.com. USD stores only.</p>
             <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="shop">Store domain</label>
               <input id="shop" name="shop" placeholder="your-store.myshopify.com" className={channelField} />

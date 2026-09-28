@@ -117,7 +117,7 @@ export default async function BillingPage({
             {!canBill && <p className="text-[#5c5654]">Only an owner or admin can save the credit card.</p>}
             <p className="leading-6 text-[#5c5654]">This is the credit card we charge for Shopify orders. It is not store credit.</p>
             {preview && (
-              <p className="leading-6 text-[#5c5654]">Saving a credit card uses the live Stripe account. A sample order does not charge it.</p>
+              <p className="leading-6 text-[#5c5654]">Saving a credit card uses the live Stripe account. A paid order is not charged until the channel switch is on.</p>
             )}
             <Link href="/my-shopify" className="inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline">
               Back to My Shopify

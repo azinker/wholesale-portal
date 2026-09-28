@@ -2,7 +2,11 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 import { easternMonthKey } from "@/lib/shopify-channel/calendar";
-import { Card, CardContent } from "@/components/ui/card";
+import { statusLabel } from "../channel-ui";
+
+function money(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
 
 export async function ChannelSummary({ accountId, email }: { accountId: string; email: string }) {
   const access = await channelVisibility(email);
@@ -30,41 +34,56 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
     ordersThisMonth = monthOrders.length;
     sold = monthOrders.reduce((sum, order) => sum + Number(order.soldFor), 0);
     charged = monthOrders.reduce((sum, order) => sum + Number(order.amountCharged) - Number(order.amountRefunded), 0);
-    latest = orders.slice(0, 5).map((order) => ({
+    latest = orders.slice(0, 4).map((order) => ({
       id: order.id,
       name: order.shopifyOrderName,
-      status: order.status.replaceAll("_", " ").toLowerCase(),
+      status: statusLabel(order.status),
       trackingNumber: order.trackingNumber,
     }));
   } catch {
     return null;
   }
 
+  const stats = [
+    { label: "Stores", value: String(stores) },
+    { label: "Listings", value: String(listings) },
+    { label: "Orders this month", value: String(ordersThisMonth) },
+    { label: "Margin", value: money(sold - charged) },
+  ];
+
   return (
-    <Card>
-      <CardContent className="pt-6 space-y-2 text-sm">
-        <h2 className="font-medium">Shopify</h2>
-        {access.preview && <p>Preview. Other wholesalers do not see this yet.</p>}
-        <p>{stores} stores connected. {listings} listings live. {ordersThisMonth} orders this month.</p>
-        <p>Buyers paid ${sold.toFixed(2)}. We charged ${charged.toFixed(2)}. Margin ${(sold - charged).toFixed(2)} before Shopify fees.</p>
-        {latest.length === 0 ? (
-          <p>
-            <Link className="underline" href="/my-shopify">Open My Shopify</Link>
-          </p>
-        ) : (
-          <ul className="space-y-1">
-            {latest.map((order) => (
-              <li key={order.id}>
-                <Link className="underline" href={`/my-shopify/orders/${order.id}`}>
-                  {order.name}
-                </Link>{" "}
-                {order.status}
-                {order.trackingNumber ? ` · ${order.trackingNumber}` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <section className="overflow-hidden rounded-2xl border border-[#e7e1de] bg-white shadow-[0_10px_30px_rgba(45,45,45,0.05)]">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#f0ebe8] px-5 py-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Shopify channel</p>
+          <h2 className="font-display text-xl font-semibold">This month</h2>
+          {access.preview && <p className="text-xs text-[#5c5654]">Preview. Other wholesalers do not see this yet.</p>}
+        </div>
+        <Link href="/my-shopify" className="cursor-pointer text-sm font-semibold text-primary hover:underline">
+          Open My Shopify
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="border-t border-[#f0ebe8] px-5 py-4 md:border-t-0 md:border-l md:first:border-l-0">
+            <p className="text-xs text-[#5c5654]">{stat.label}</p>
+            <p className="font-display text-2xl font-semibold tabular-nums">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+      <p className="px-5 pb-2 text-xs text-[#5c5654]">
+        Buyers paid {money(sold)}. We charged {money(charged)}. Margin is before Shopify fees.
+      </p>
+      {latest.length > 0 && (
+        <div className="border-t border-[#f0ebe8]">
+          {latest.map((order) => (
+            <Link key={order.id} href={`/my-shopify/orders/${order.id}`} className="flex cursor-pointer items-center justify-between gap-3 px-5 py-3 text-sm transition-colors duration-200 hover:bg-[#faf7f6]">
+              <span className="font-semibold">{order.name}</span>
+              <span className="text-[#5c5654]">{order.status}{order.trackingNumber ? ` · ${order.trackingNumber}` : ""}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

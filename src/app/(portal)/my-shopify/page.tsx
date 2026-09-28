@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
@@ -5,18 +6,37 @@ import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { CHANNEL_TERMS_TEXT, CHANNEL_TERMS_TITLE, CHANNEL_TERMS_UPDATED } from "@/lib/shopify-channel/terms";
 import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
 import { env } from "@/lib/env";
-import { Card, CardContent } from "@/components/ui/card";
 import { TermsAccept } from "./terms-accept";
+import { CopyUrl } from "./copy-url";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
+import {
+  ChannelHeading,
+  ChannelPage,
+  ChannelPanel,
+  SetupTrack,
+  StatusPill,
+  statusLabel,
+  channelField,
+  channelGhostBtn,
+  channelPrimaryBtn,
+} from "../channel-ui";
+
+const WEBHOOK_STEPS = [
+  { n: "1", title: "Copy the address", body: "Use the copy button. This address belongs to this store only." },
+  { n: "2", title: "Open webhooks", body: "In Shopify admin: Settings, then Notifications, then Webhooks." },
+  { n: "3", title: "Add two webhooks", body: "Order payment, and Order updated. Both JSON. Both use that address." },
+  { n: "4", title: "Send a test", body: "Click Send test notification. This page turns green when a name and street arrive." },
+];
 
 export default async function MyShopifyPage() {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
   const canConnect = userHasPermission(user, "manage_channel_billing");
-  const [terms, connections] = await Promise.all([
+  const [terms, card, connections] = await Promise.all([
     db.shopifyTermsAcceptance.findUnique({
       where: { accountId_version: { accountId: account.id, version: SHOPIFY_CHANNEL_TERMS_VERSION } },
     }),
+    db.sellerPaymentMethod.findUnique({ where: { accountId: account.id } }),
     db.shopifyConnection.findMany({
       where: { accountId: account.id },
       orderBy: { createdAt: "asc" },
@@ -28,111 +48,215 @@ export default async function MyShopifyPage() {
     }),
   ]);
   const appUrl = env().NEXT_PUBLIC_APP_URL;
+  const liveStores = connections.filter((row) => !row.disconnectedAt);
+  const passed = liveStores.some((row) => row.addressTestStatus === "PASSED");
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Shopify</h1>
-        <p className="text-muted-foreground mt-1">
-          Connect up to five USD stores. Add stays off until the terms, a card, and a passed address test are done.
-        </p>
-      </div>
+    <ChannelPage>
+      <ChannelHeading
+        kicker="Shopify channel"
+        title="My Shopify"
+        lede="Connect up to five USD stores. Add stays off until the terms, a card, and a passed address test are done."
+      >
+        {preview && (
+          <form action="/api/portal/shopify-channel/preview" method="post">
+            <button className={channelGhostBtn} type="submit">Create a sample order</button>
+          </form>
+        )}
+      </ChannelHeading>
+
       {preview && (
-        <Card>
-          <CardContent className="pt-6 space-y-3 text-sm">
-            <p>Preview. The channel is off for other wholesalers, so a sale is saved and not charged.</p>
-            <form action="/api/portal/shopify-channel/preview" method="post">
-              <button className="rounded-md border px-3 py-2" type="submit">Create a sample order</button>
-            </form>
-          </CardContent>
-        </Card>
+        <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+          Preview. The channel is off for other wholesalers. A sample order does not charge a card and does not create a warehouse order.
+        </ChannelPanel>
       )}
 
-      <Card>
-        <CardContent className="pt-6 space-y-3">
-          <h2 className="font-medium">{CHANNEL_TERMS_TITLE}</h2>
-          <p className="text-xs text-muted-foreground">Last updated {CHANNEL_TERMS_UPDATED}. Version {SHOPIFY_CHANNEL_TERMS_VERSION}.</p>
-          {terms ? (
-            <p className="text-sm">Accepted {terms.acceptedAt.toLocaleString()}.</p>
-          ) : (
-            <TermsAccept text={CHANNEL_TERMS_TEXT} canAccept={canConnect} />
-          )}
-        </CardContent>
-      </Card>
+      <SetupTrack
+        steps={[
+          {
+            title: "Accept the terms",
+            detail: terms ? "Accepted" : "Scroll the agreement and agree",
+            done: Boolean(terms),
+            href: "#terms",
+          },
+          {
+            title: "Save a card",
+            detail: card ? `${card.brand} ending ${card.last4}` : "The card we charge when an order is paid",
+            done: Boolean(card),
+            href: "/billing",
+          },
+          {
+            title: "Connect and test",
+            detail: passed ? "Address test passed" : "Connect the store, then send a test webhook",
+            done: passed,
+            href: "#connect",
+          },
+        ]}
+      />
 
-      {connections.map((connection) => {
-        const webhookUrl = `${appUrl}/api/shopify/channel/webhook/${connection.id}/${connection.webhookToken}`;
-        return (
-          <Card key={connection.id}>
-            <CardContent className="pt-6 space-y-2 text-sm">
-              <p className="font-medium">{connection.shopDomain.startsWith("preview-") ? "Sample store" : connection.shopDomain}</p>
-              {connection.disconnectedAt && <p>Disconnected. New sales and stock updates are stopped. Products already on Shopify stay there.</p>}
-              <p>Address test: {connection.addressTestStatus.toLowerCase()}</p>
-              <p>Listings: {connection._count.listings}</p>
-              <p>Last stock sync: {connection.listings[0] ? connection.listings[0].updatedAt.toLocaleString() : "Not yet"}</p>
-              <p>{connection.paused ? "New orders are paused. We will not charge or ship them." : "New orders are live."}</p>
-              {connection.orders.map((order) => (
-                <p key={order.id}>
-                  <a className="underline" href={`/my-shopify/orders/${order.id}`}>{order.shopifyOrderName}</a>
-                  {" "}{order.status.replaceAll("_", " ").toLowerCase()}
-                  {order.trackingNumber ? ` · ${order.trackingNumber}` : ""}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+        <ChannelPanel className="p-5 md:p-6" delay={80}>
+          <div id="terms">
+            <h2 className="font-display text-xl font-semibold">{CHANNEL_TERMS_TITLE}</h2>
+            <p className="mt-1 text-xs text-[#5c5654]">Last updated {CHANNEL_TERMS_UPDATED}. Version {SHOPIFY_CHANNEL_TERMS_VERSION}.</p>
+            <div className="mt-4">
+              {terms ? (
+                <p className="text-sm text-[#1a1a1a]">Accepted {terms.acceptedAt.toLocaleString()}.</p>
+              ) : (
+                <TermsAccept text={CHANNEL_TERMS_TEXT} canAccept={canConnect} />
+              )}
+            </div>
+          </div>
+        </ChannelPanel>
+
+        <ChannelPanel className="p-5 md:p-6" delay={140}>
+          <h2 className="font-display text-xl font-semibold">What you do next</h2>
+          <ol className="mt-4 space-y-4 text-sm leading-6 text-[#3f3a38]">
+            <li><span className="font-semibold text-[#1a1a1a]">1. Agree.</span> An owner or admin scrolls the terms and agrees.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">2. Save a card.</span> On Billing. We store the brand and last four digits only.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and send the test so we can read the ship-to address.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">4. Open Catalog</span> and add products. One email arrives when the add finishes.</li>
+          </ol>
+          <Link href="/billing" className={`${channelPrimaryBtn} mt-5`}>
+            {card ? "Review the card" : "Save a card"}
+          </Link>
+        </ChannelPanel>
+      </div>
+
+      <div id="connect" className="space-y-4">
+        {connections.map((connection, index) => {
+          const webhookUrl = `${appUrl}/api/shopify/channel/webhook/${connection.id}/${connection.webhookToken}`;
+          const sample = connection.shopDomain.startsWith("preview-");
+          const testTone = connection.addressTestStatus === "PASSED" ? "good" : connection.addressTestStatus === "FAILED" ? "bad" : "wait";
+          const testLabel = connection.addressTestStatus === "PASSED" ? "Address test passed" : connection.addressTestStatus === "FAILED" ? "Address test failed" : "Waiting for the test";
+          return (
+            <ChannelPanel key={connection.id} className="p-5 md:p-6" delay={index * 40}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">{sample ? "Sample" : "Store"}</p>
+                  <h2 className="font-display text-2xl font-semibold">{sample ? "Sample store" : connection.shopDomain}</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill tone={testTone}>{testLabel}</StatusPill>
+                  {connection.disconnectedAt ? (
+                    <StatusPill tone="neutral">Disconnected</StatusPill>
+                  ) : connection.paused ? (
+                    <StatusPill tone="wait">Paused</StatusPill>
+                  ) : preview ? (
+                    <StatusPill tone="neutral">Preview</StatusPill>
+                  ) : (
+                    <StatusPill tone="good">Taking orders</StatusPill>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
+                  <p className="text-xs text-[#5c5654]">Listings</p>
+                  <p className="font-display text-2xl font-semibold">{connection._count.listings}</p>
+                </div>
+                <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
+                  <p className="text-xs text-[#5c5654]">Last stock sync</p>
+                  <p className="mt-1 text-sm font-semibold">{connection.listings[0] ? connection.listings[0].updatedAt.toLocaleString() : "Not yet"}</p>
+                </div>
+                <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
+                  <p className="text-xs text-[#5c5654]">Recent orders</p>
+                  <p className="font-display text-2xl font-semibold">{connection.orders.length}</p>
+                </div>
+              </div>
+
+              {connection.disconnectedAt ? (
+                <p className="mt-4 text-sm leading-6 text-[#5c5654]">
+                  Disconnected. New sales and stock updates are stopped. Products already on Shopify stay there. Reconnect this same store to resume.
                 </p>
-              ))}
-              {!connection.disconnectedAt && <p>Webhook URL</p>}
-              {!connection.disconnectedAt && <code className="block break-all rounded bg-muted p-2 text-xs">{webhookUrl}</code>}
-              {!connection.disconnectedAt && <ol className="list-decimal pl-5 space-y-1">
-                <li>In Shopify admin, open Settings, then Notifications, then Webhooks.</li>
-                <li>Create a webhook for Order payment. Format JSON. Paste the URL above.</li>
-                <li>Create a second webhook on the same URL for Order updated.</li>
-                <li>Click Send test notification, then come back here. Green means we received a name and street.</li>
-              </ol>}
-              {canConnect && !connection.disconnectedAt && (
-                <form action="/api/portal/shopify-channel/pause" method="post">
-                  <input type="hidden" name="connectionId" value={connection.id} />
-                  <input type="hidden" name="paused" value={connection.paused ? "false" : "true"} />
-                  <button className="rounded-md border px-3 py-2" type="submit" title="Example: pause before a vacation so new sales are not charged or shipped. Listings stay up.">
-                    {connection.paused ? "Resume new orders" : "Pause new orders"}
-                  </button>
-                </form>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  <p className="text-sm font-semibold text-[#1a1a1a]">Address test</p>
+                  <p className="text-sm leading-6 text-[#5c5654]">
+                    {connection.paused
+                      ? "Paused. Listings stay and stock still updates. New paid orders are not charged and not shipped. Refund your customer. They are not saved to run later."
+                      : preview
+                        ? "While the channel is off, a real paid order is saved and not charged."
+                        : "New paid orders are checked for stock, then the card is charged, then we ship."}
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {WEBHOOK_STEPS.map((step) => (
+                      <div key={step.n} className="rounded-xl border border-[#efeae7] p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Step {step.n}</p>
+                        <p className="mt-1 text-sm font-semibold">{step.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-[#5c5654]">{step.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <CopyUrl value={webhookUrl} />
+                </div>
               )}
-              {canConnect && !connection.disconnectedAt && (
-                <form action="/api/portal/shopify-channel/disconnect" method="post">
-                  <input type="hidden" name="connectionId" value={connection.id} />
-                  <button className="rounded-md border px-3 py-2" type="submit" title="Example: disconnect one store. New sales stop and stock stops updating. Products already on that Shopify store stay there.">
-                    Disconnect
-                  </button>
-                </form>
-              )}
-              {connection.addressTestStatus !== "PASSED" && canConnect && (
-                <form action="/api/portal/shopify-channel/token" method="post" className="space-y-2">
-                  <p>If the test stays red, create a custom app in that Shopify admin, turn on read orders, install it, and paste the Admin API token.</p>
-                  <input type="hidden" name="connectionId" value={connection.id} />
-                  <input name="token" type="password" placeholder="Admin API token" className="w-full rounded-md border px-3 py-2" />
-                  <input name="orderId" placeholder="An order id to test" className="w-full rounded-md border px-3 py-2" />
-                  <button className="rounded-md border px-3 py-2" type="submit">Test token</button>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
 
-      {canConnect && shopifyAppConfigured() && connections.filter((row) => !row.disconnectedAt).length < 5 && (
-        <Card>
-          <CardContent className="pt-6">
-            <form action="/api/shopify/channel/connect" method="get" className="space-y-2">
-              <label className="text-sm block">Store domain</label>
-              <input name="shop" placeholder="your-store.myshopify.com" className="w-full rounded-md border px-3 py-2 text-sm" />
-              <button className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground" type="submit">
-                Connect Shopify
-              </button>
+              {connection.orders.length > 0 && (
+                <div className="mt-4 overflow-hidden rounded-xl border border-[#efeae7]">
+                  {connection.orders.map((order) => (
+                    <a key={order.id} href={`/my-shopify/orders/${order.id}`} className="flex cursor-pointer items-center justify-between gap-3 border-t border-[#f3eeeb] px-4 py-3 text-sm first:border-t-0 transition-colors duration-200 hover:bg-[#faf7f6]">
+                      <span className="font-semibold">{order.shopifyOrderName}</span>
+                      <span className="text-[#5c5654]">
+                        {statusLabel(order.status)}
+                        {order.trackingNumber ? ` · ${order.trackingNumber}` : ""}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {canConnect && !connection.disconnectedAt && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <form action="/api/portal/shopify-channel/pause" method="post">
+                    <input type="hidden" name="connectionId" value={connection.id} />
+                    <input type="hidden" name="paused" value={connection.paused ? "false" : "true"} />
+                    <button className={channelGhostBtn} type="submit" title="Pause before a vacation so new sales are not charged or shipped. Listings stay up.">
+                      {connection.paused ? "Resume new orders" : "Pause new orders"}
+                    </button>
+                  </form>
+                  <form action="/api/portal/shopify-channel/disconnect" method="post">
+                    <input type="hidden" name="connectionId" value={connection.id} />
+                    <button className={channelGhostBtn} type="submit" title="Disconnect one store. New sales stop and stock stops updating. Products already on that Shopify store stay there.">
+                      Disconnect
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {connection.addressTestStatus !== "PASSED" && canConnect && !connection.disconnectedAt && (
+                <details className="mt-4 rounded-xl border border-[#efeae7] p-4 text-sm">
+                  <summary className="cursor-pointer font-semibold">The test stayed red? Use a custom app token instead.</summary>
+                  <p className="mt-2 leading-6 text-[#5c5654]">
+                    In that Shopify admin, create a custom app, turn on read orders, install it, and paste the Admin API token with one order id.
+                  </p>
+                  <form action="/api/portal/shopify-channel/token" method="post" className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                    <input type="hidden" name="connectionId" value={connection.id} />
+                    <input name="token" type="password" placeholder="Admin API token" className={channelField} aria-label="Admin API token" />
+                    <input name="orderId" placeholder="An order id to test" className={channelField} aria-label="Order id" />
+                    <button className={channelPrimaryBtn} type="submit">Test token</button>
+                  </form>
+                </details>
+              )}
+            </ChannelPanel>
+          );
+        })}
+
+        {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
+          <ChannelPanel className="p-5 md:p-6">
+            <h2 className="font-display text-xl font-semibold">Connect a store</h2>
+            <p className="mt-1 text-sm text-[#5c5654]">Use the myshopify.com address. Example: north-auto.myshopify.com. USD stores only.</p>
+            <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <label className="sr-only" htmlFor="shop">Store domain</label>
+              <input id="shop" name="shop" placeholder="your-store.myshopify.com" className={channelField} />
+              <button className={channelPrimaryBtn} type="submit">Connect Shopify</button>
             </form>
-          </CardContent>
-        </Card>
-      )}
-      {canConnect && !shopifyAppConfigured() && (
-        <p className="text-sm text-muted-foreground">Shopify connect is not configured yet.</p>
-      )}
-    </div>
+          </ChannelPanel>
+        )}
+        {canConnect && !shopifyAppConfigured() && (
+          <p className="text-sm text-[#5c5654]">Shopify connect is not configured yet.</p>
+        )}
+      </div>
+    </ChannelPage>
   );
 }

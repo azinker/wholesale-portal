@@ -6,9 +6,16 @@ import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { wholesaleUnitCost } from "@/lib/shopify-channel/money";
-import { Card, CardContent } from "@/components/ui/card";
 import { CatalogBoard } from "./catalog-board";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
+import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
+
+const FLOW = [
+  { title: "Add a product", body: "It lands on your Shopify store at the retail price. Change the price later in Shopify." },
+  { title: "Your customer pays you", body: "The sale stays on your store. We never charge your customer." },
+  { title: "We charge your card", body: "The wholesale cost that day. The statement says THE PERFECT PART." },
+  { title: "We ship it", body: "Same day or the next business day. Tracking goes onto your Shopify order." },
+];
 
 export default async function CatalogPage({
   searchParams,
@@ -56,6 +63,7 @@ export default async function CatalogPage({
   let products: Awaited<ReturnType<ReturnType<typeof bc>["getProducts"]>>["data"] = [];
   let matchCount = 0;
   let catalogCount = 0;
+  let loadFailed = false;
   try {
     const [result, all] = await Promise.all([
       bc().getProducts(query),
@@ -65,41 +73,65 @@ export default async function CatalogPage({
     matchCount = result.meta?.pagination?.total || products.length;
     catalogCount = all.meta?.pagination?.total || 0;
   } catch {
+    loadFailed = true;
     products = [];
   }
 
+  const setup = [
+    { done: Boolean(terms), label: "Terms", href: "/my-shopify#terms" },
+    { done: Boolean(card), label: card ? `Card ···· ${card.last4}` : "Card", href: "/billing" },
+    { done: stores.length > 0, label: stores.length ? `${stores.length} store ready` : "Store", href: "/my-shopify#connect" },
+  ];
+
   return (
-    <div className="max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Catalog</h1>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>Connect your store, save a card, and accept the terms.</li>
-          <li>Add products. They appear on your Shopify store at the retail price. You can change the price later in Shopify.</li>
-          <li>Your customer pays you. We charge your card the wholesale cost that day. The statement says THE PERFECT PART.</li>
-          <li>Shipping inside the US is free, including PO Boxes. Outside the US we add $18.99 once per order. We do not charge tax or duty.</li>
-          <li>Your margin is what your customer paid minus what we charged, before Shopify fees.</li>
-          <li>We ship the same day or the next business day. Tracking goes onto your Shopify order.</li>
-          <li>If we are out of stock or the card does not work, we do not ship, and we email you.</li>
-          <li>After we charge the card, the address is locked. To cancel or change it, contact Support with the order number before it ships.</li>
-        </ul>
+    <ChannelPage>
+      <ChannelHeading
+        kicker="Shopify channel"
+        title="Catalog"
+        lede="Pick products, add them to your store, and we fulfill the paid orders. Your cost is today’s wholesale price. Margin is the sale price minus that cost, before Shopify fees."
+      />
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {FLOW.map((step, index) => (
+          <ChannelPanel key={step.title} delay={index * 60} className="p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">0{index + 1}</p>
+            <p className="mt-2 font-semibold text-[#1a1a1a]">{step.title}</p>
+            <p className="mt-1 text-sm leading-6 text-[#5c5654]">{step.body}</p>
+          </ChannelPanel>
+        ))}
       </div>
+
+      <p className="text-sm leading-6 text-[#5c5654]">
+        Shipping inside the US is free, including PO Boxes. Anywhere else is $18.99 once per order. We do not charge tax or duty.
+        If we are out of stock, or the card does not work, we do not ship and we email you. After the card is charged, the address is locked. Cancel or change it in Support before it ships.
+      </p>
+
       {preview && (
-        <Card>
-          <CardContent className="pt-6 text-sm">
-            Preview only. Other wholesalers still see Hot Sellers. Add does not send products to Shopify, and a sale is not charged, until the channel switch is on.
-          </CardContent>
-        </Card>
+        <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+          Preview. Other wholesalers still see Hot Sellers. Add does not send products, and a sale is not charged, until the channel switch is on.
+        </ChannelPanel>
       )}
+
       {!ready && (
-        <Card>
-          <CardContent className="pt-6 space-y-2 text-sm">
-            <p>Finish setup before Add turns on.</p>
-            <p>{terms ? "Terms accepted." : <Link href="/my-shopify">Accept the Shopify Channel Terms.</Link>}</p>
-            <p>{card ? `Card on file ending ${card.last4}.` : <Link href="/billing">Save a card in Billing.</Link>}</p>
-            <p>{stores.length ? `${stores.length} store ready.` : <Link href="/my-shopify">Connect a store and pass the address test.</Link>}</p>
-          </CardContent>
-        </Card>
+        <ChannelPanel className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <p className="font-semibold text-[#1a1a1a]">Finish setup before Add turns on</p>
+            <p className="text-sm text-[#5c5654]">Terms, a card, and a store that passed the address test.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {setup.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold ${item.done ? "bg-emerald-50 text-emerald-800" : "bg-[#2d2d2d] text-white"}`}
+              >
+                {item.done ? item.label : `Do ${item.label}`}
+              </Link>
+            ))}
+          </div>
+        </ChannelPanel>
       )}
+
       <CatalogBoard
         products={products.map((product) => {
           const retail = Number(product.calculated_price || product.price || 0);
@@ -124,8 +156,9 @@ export default async function CatalogPage({
         page={page}
         sort={sort}
         inStock={inStock}
-        categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+        categories={categories.map((row) => ({ id: row.id, name: row.name }))}
+        loadFailed={loadFailed}
       />
-    </div>
+    </ChannelPage>
   );
 }

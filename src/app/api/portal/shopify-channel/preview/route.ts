@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { newWebhookToken } from "@/lib/shopify-channel/shopify-admin";
@@ -59,5 +60,5 @@ export async function POST(req: NextRequest) {
     },
     update: {},
   });
-  return NextResponse.redirect(new URL("/my-shopify", req.url), 303);
+  return NextResponse.redirect(appUrl("/my-shopify"), 303);
 }

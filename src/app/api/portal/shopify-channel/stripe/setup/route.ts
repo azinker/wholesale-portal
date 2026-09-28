@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { env } from "@/lib/env";
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
   }
   if (!(await channelVisibility(auth.user.email)).visible || !stripeConfigured()) {
-    return NextResponse.redirect(new URL("/billing", req.url));
+    return NextResponse.redirect(appUrl("/billing"));
   }
   const account = auth.user.wholesaleAccount;
   const existing = await db.sellerPaymentMethod.findUnique({ where: { accountId: account.id } });

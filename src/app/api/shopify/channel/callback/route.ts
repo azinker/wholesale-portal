@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/bigcommerce/encryption";
 import { SHOPIFY_OAUTH_SCOPES } from "@/lib/shopify-channel/constants";
@@ -13,7 +14,7 @@ import {
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
-  const home = new URL("/my-shopify", req.url);
+  const home = appUrl("/my-shopify");
   if (!verifyOauthHmac(params)) return NextResponse.redirect(home);
   const shop = params.get("shop") || "";
   const code = params.get("code") || "";

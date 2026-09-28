@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/bigcommerce/encryption";
 import { requirePortalAccount } from "@/lib/portal-auth";
@@ -7,7 +8,7 @@ import { readOrderAddress } from "@/lib/shopify-channel/shopify-admin";
 
 export async function POST(req: NextRequest) {
   const auth = await requirePortalAccount("manage_channel_billing");
-  const home = new URL("/my-shopify", req.url);
+  const home = appUrl("/my-shopify");
   if (!auth.user?.wholesaleAccount || !(await channelVisibility(auth.user.email)).visible) {
     return NextResponse.redirect(home);
   }

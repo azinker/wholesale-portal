@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { emailAccount } from "@/lib/shopify-channel/notify";
@@ -37,5 +38,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.redirect(new URL("/my-shopify", req.url), 303);
+  return NextResponse.redirect(appUrl("/my-shopify"), 303);
 }

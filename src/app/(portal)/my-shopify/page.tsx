@@ -2,7 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
-import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
+import { SHOPIFY_API_VERSION, SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { CHANNEL_TERMS_TEXT, CHANNEL_TERMS_TITLE, CHANNEL_TERMS_UPDATED } from "@/lib/shopify-channel/terms";
 import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
 import { env } from "@/lib/env";
@@ -21,11 +21,9 @@ import {
   channelPrimaryBtn,
 } from "../channel-ui";
 
-const WEBHOOK_STEPS = [
-  { n: "1", title: "Copy the address", body: "Use the copy button. This address belongs to this store only." },
-  { n: "2", title: "Open webhooks", body: "In Shopify admin: Settings, then Notifications, then Webhooks." },
-  { n: "3", title: "Add two webhooks", body: "Order payment, and Order updated. Both JSON. Both use that address." },
-  { n: "4", title: "Send a test", body: "Click Send test notification. This page turns green when a name and street arrive." },
+const WEBHOOK_FORMS = [
+  { n: "1", event: "Order payment" },
+  { n: "2", event: "Order updated" },
 ];
 
 export default async function MyShopifyPage() {
@@ -114,7 +112,7 @@ export default async function MyShopifyPage() {
           <ol className="mt-4 space-y-4 text-sm leading-6 text-[#3f3a38]">
             <li><span className="font-semibold text-[#1a1a1a]">1. Agree.</span> An owner or admin scrolls the terms and agrees.</li>
             <li><span className="font-semibold text-[#1a1a1a]">2. Save a credit card.</span> On Billing. This is the credit card we charge. It is not store credit. We store the brand and last four digits only.</li>
-            <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and send the test so we can read the ship-to address.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and add the two webhooks. Event, format, and API version are written on the store card.</li>
             <li><span className="font-semibold text-[#1a1a1a]">4. Open Catalog</span> and add products. One email arrives when the add finishes.</li>
           </ol>
           <Link href="/billing" className={`${channelPrimaryBtn} mt-5`}>
@@ -179,15 +177,37 @@ export default async function MyShopifyPage() {
                         ? "While the channel is off, a real paid order is saved and not charged."
                         : "New paid orders are checked for stock, then your credit card is charged, then we ship."}
                   </p>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    {WEBHOOK_STEPS.map((step) => (
-                      <div key={step.n} className="rounded-xl border border-[#efeae7] p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Step {step.n}</p>
-                        <p className="mt-1 text-sm font-semibold">{step.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-[#5c5654]">{step.body}</p>
+                  <p className="text-sm leading-6 text-[#5c5654]">
+                    In Shopify admin open Settings, then Notifications, then Webhooks. Click Create webhook twice. Match each box below. Use the same address both times.
+                  </p>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {WEBHOOK_FORMS.map((form) => (
+                      <div key={form.event} className="rounded-xl border border-[#efeae7] p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Webhook {form.n}</p>
+                        <dl className="mt-3 space-y-2 text-sm">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <dt className="text-[#5c5654]">Event</dt>
+                            <dd className="font-semibold text-[#1a1a1a]">{form.event}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <dt className="text-[#5c5654]">Format</dt>
+                            <dd className="font-semibold text-[#1a1a1a]">JSON</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <dt className="text-[#5c5654]">URL</dt>
+                            <dd className="text-right font-semibold text-[#1a1a1a]">Address below</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <dt className="text-[#5c5654]">Webhook API version</dt>
+                            <dd className="font-semibold text-[#1a1a1a]">{SHOPIFY_API_VERSION}</dd>
+                          </div>
+                        </dl>
                       </div>
                     ))}
                   </div>
+                  <p className="text-sm leading-6 text-[#5c5654]">
+                    Save both. Then open the Order payment webhook and click Send test. This page turns green when a name and street arrive.
+                  </p>
                   <CopyUrl value={webhookUrl} />
                 </div>
               )}

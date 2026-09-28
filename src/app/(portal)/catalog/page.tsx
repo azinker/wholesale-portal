@@ -48,7 +48,7 @@ export default async function CatalogPage({
     getTierDiscountPercent(account.lastTier),
     loadWelcomeConfig(),
     bc().getCategories().catch(() => []),
-    bc().getVisibleCategoryCounts().catch(() => ({})),
+    bc().getVisibleCategoryCounts().catch((): Record<number, number> => ({})),
   ]);
   const percent =
     isWelcomeActive(account.welcomeExpiresAt) && welcome.enabled && welcome.discount > earned

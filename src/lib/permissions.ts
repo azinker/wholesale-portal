@@ -17,6 +17,9 @@ const PERMISSIONS: Record<TeamRole, Set<string>> = {
     "view_announcements",
     "contact_support",
     "view_margin_calculator",
+    "view_channel",
+    "manage_channel_listings",
+    "manage_channel_billing",
   ]),
   ADMIN: new Set([
     "view_dashboard",
@@ -33,6 +36,9 @@ const PERMISSIONS: Record<TeamRole, Set<string>> = {
     "view_announcements",
     "contact_support",
     "view_margin_calculator",
+    "view_channel",
+    "manage_channel_listings",
+    "manage_channel_billing",
   ]),
   PURCHASER: new Set([
     "view_dashboard",
@@ -43,6 +49,8 @@ const PERMISSIONS: Record<TeamRole, Set<string>> = {
     "view_announcements",
     "contact_support",
     "view_margin_calculator",
+    "view_channel",
+    "manage_channel_listings",
   ]),
   VIEWER: new Set([
     "view_dashboard",
@@ -52,6 +60,7 @@ const PERMISSIONS: Record<TeamRole, Set<string>> = {
     "view_insights",
     "view_announcements",
     "view_margin_calculator",
+    "view_channel",
   ]),
 };
 

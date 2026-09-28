@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,7 @@ const CATEGORIES = [
   { value: "account_access", label: "Account Access" },
   { value: "billing", label: "Billing / Invoice" },
   { value: "shipping", label: "Shipping Question" },
+  { value: "shopify_order_change", label: "Shopify order change" },
   { value: "general", label: "General Inquiry" },
   { value: "other", label: "Other" },
 ];
@@ -69,6 +70,18 @@ export default function SupportPage() {
   const [urgency, setUrgency] = useState("low");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nextCategory = params.get("category");
+    const order = params.get("order");
+    if (nextCategory) setCategory(nextCategory);
+    if (order) {
+      setSubject(`Shopify order ${order}`);
+      setMessage(`Order ${order}. `);
+      setUrgency("high");
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -182,7 +195,10 @@ export default function SupportPage() {
               <select
                 id="category"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  if (e.target.value === "shopify_order_change") setUrgency("high");
+                }}
                 className={selectClass}
               >
                 {CATEGORIES.map((c) => (

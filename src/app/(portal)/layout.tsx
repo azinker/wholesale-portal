@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SidebarNav, type NavItem } from "@/components/sidebar-nav";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { getPortalNav, type PortalNavIcon } from "@/lib/portal-nav";
+import { channelVisibility } from "@/lib/shopify-channel/visibility";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -18,6 +19,9 @@ import {
   Users,
   ScrollText,
   Share2,
+  BookOpen,
+  CreditCard,
+  Store,
 } from "lucide-react";
 
 const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
@@ -35,6 +39,9 @@ const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
   support: <Headphones size={18} />,
   terms: <ScrollText size={18} />,
   apply: <FileText size={18} />,
+  catalog: <BookOpen size={18} />,
+  billing: <CreditCard size={18} />,
+  shopify: <Store size={18} />,
 };
 
 export default async function PortalLayout({
@@ -51,7 +58,8 @@ export default async function PortalLayout({
 
   const status = user.wholesaleAccount?.status || "RETAIL";
   const partnerType = user.wholesaleAccount?.partnerType ?? "DROPSHIPPER";
-  const navItems: NavItem[] = getPortalNav(partnerType, status).map((item) => ({
+  const channelNav = (await channelVisibility(user.email)).visible;
+  const navItems: NavItem[] = getPortalNav(partnerType, status, channelNav).map((item) => ({
     href: item.href,
     label: item.label,
     icon: NAV_ICONS[item.icon],

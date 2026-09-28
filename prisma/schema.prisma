@@ -91,6 +91,12 @@ model WholesaleAccount {
   infoChangeRequests         BusinessInfoChange[]
   teamMembers                TeamMember[]
   publisherOrderAttributions PublisherOrderAttribution[]
+  shopifyConnections         ShopifyConnection[]
+  sellerPaymentMethod        SellerPaymentMethod?
+  channelListings            ChannelListing[]
+  channelOrders              ChannelOrder[]
+  channelPublishJobs         ChannelPublishJob[]
+  shopifyTermsAcceptances    ShopifyTermsAcceptance[]
 
   @@index([status])
   @@index([email])
@@ -306,4 +312,184 @@ model GlobalSettings {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("global_settings")
+}
+
+// ── Shopify wholesale channel ──────────────────────────
+enum ShopifyAddressSource {
+  WEBHOOK
+  CUSTOM_APP_TOKEN
+}
+
+enum ShopifyAddressTestStatus {
+  PENDING
+  PASSED
+  FAILED
+}
+
+enum ChannelPublishScope {
+  ONE
+  SELECTION
+  CATEGORY
+  CATALOG
+}
+
+enum ChannelPublishStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ChannelOrderStatus {
+  HELD
+  QUEUED
+  NEEDS_ATTENTION
+  CHARGED
+  SUBMITTED
+  PICKING
+  SHIPPED
+  FAILED
+  REFUNDED
+}
+
+model ShopifyConnection {
+  id                String                   @id @default(cuid())
+  accountId         String                   @map("account_id")
+  shopDomain        String                   @unique @map("shop_domain")
+  accessTokenEnc    String?                  @map("access_token_enc")
+  orderTokenEnc     String?                  @map("order_token_enc")
+  addressSource     ShopifyAddressSource     @default(WEBHOOK) @map("address_source")
+  addressTestStatus ShopifyAddressTestStatus @default(PENDING) @map("address_test_status")
+  webhookToken      String                   @unique @map("webhook_token")
+  currency          String                   @default("USD")
+  paused            Boolean                  @default(false)
+  scopes            String                   @default("")
+  primaryLocationId String?                  @map("primary_location_id")
+  disconnectedAt    DateTime?                @map("disconnected_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  account  WholesaleAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  listings ChannelListing[]
+  orders   ChannelOrder[]
+  jobs     ChannelPublishJob[]
+
+  @@index([accountId])
+  @@map("shopify_connections")
+}
+
+model SellerPaymentMethod {
+  id                    String   @id @default(cuid())
+  accountId             String   @unique @map("account_id")
+  stripeCustomerId      String   @map("stripe_customer_id")
+  stripePaymentMethodId String   @map("stripe_payment_method_id")
+  brand                 String
+  last4                 String
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("seller_payment_methods")
+}
+
+model ChannelListing {
+  id               String    @id @default(cuid())
+  accountId        String    @map("account_id")
+  connectionId     String    @map("connection_id")
+  bcProductId      Int       @map("bc_product_id")
+  bcVariantId      Int       @default(0) @map("bc_variant_id")
+  shopifyProductId       String    @map("shopify_product_id")
+  shopifyVariantId       String    @map("shopify_variant_id")
+  shopifyInventoryItemId String?   @map("shopify_inventory_item_id")
+  sellerPrice      Decimal   @map("seller_price") @db.Decimal(10, 2)
+  sellerSku        String?   @map("seller_sku")
+  internalSku      String?   @map("internal_sku")
+  titleSnapshot    String    @map("title_snapshot")
+  removedAt        DateTime? @map("removed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  account    WholesaleAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  connection ShopifyConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, bcProductId, bcVariantId])
+  @@index([accountId])
+  @@map("channel_listings")
+}
+
+model ChannelPublishJob {
+  id                String               @id @default(cuid())
+  accountId         String               @map("account_id")
+  connectionId      String               @map("connection_id")
+  requestedByUserId String               @map("requested_by_user_id")
+  requestedByEmail  String               @map("requested_by_email")
+  scope             ChannelPublishScope
+  status            ChannelPublishStatus @default(QUEUED)
+  addedCount        Int                  @default(0) @map("added_count")
+  skippedCount      Int                  @default(0) @map("skipped_count")
+  failedCount       Int                  @default(0) @map("failed_count")
+  cursor            String?
+  detail            Json?
+  emailSentAt       DateTime?            @map("email_sent_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  account    WholesaleAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  connection ShopifyConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([connectionId, status])
+  @@map("channel_publish_jobs")
+}
+
+model ChannelOrder {
+  id               String             @id @default(cuid())
+  accountId        String             @map("account_id")
+  connectionId     String             @map("connection_id")
+  shopifyOrderId   String             @map("shopify_order_id")
+  shopifyOrderName String             @map("shopify_order_name")
+  stripeChargeId   String?            @map("stripe_charge_id")
+  bcOrderId        Int?               @map("bc_order_id")
+  status           ChannelOrderStatus @default(HELD)
+  tier             String?
+  soldFor          Decimal            @default(0) @map("sold_for") @db.Decimal(10, 2)
+  goodsCharged     Decimal            @default(0) @map("goods_charged") @db.Decimal(10, 2)
+  shippingCharged  Decimal            @default(0) @map("shipping_charged") @db.Decimal(10, 2)
+  amountCharged    Decimal            @default(0) @map("amount_charged") @db.Decimal(10, 2)
+  amountRefunded   Decimal            @default(0) @map("amount_refunded") @db.Decimal(10, 2)
+  shipTo           Json?              @map("ship_to")
+  lines            Json?
+  checkoutNote     String?            @map("checkout_note")
+  carrier          String?
+  trackingNumber   String?            @map("tracking_number")
+  trackingUrl      String?            @map("tracking_url")
+  error            String?
+  attentionNote    String?            @map("attention_note")
+  chargeAttempts   Int                @default(0) @map("charge_attempts")
+  remindedAt       DateTime?          @map("reminded_at")
+  chargedAt        DateTime?          @map("charged_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  account    WholesaleAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  connection ShopifyConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, shopifyOrderId])
+  @@index([accountId, createdAt])
+  @@index([status])
+  @@map("channel_orders")
+}
+
+model ShopifyTermsAcceptance {
+  id         String   @id @default(cuid())
+  accountId  String   @map("account_id")
+  userId     String   @map("user_id")
+  version    String
+  acceptedAt DateTime @default(now()) @map("accepted_at")
+
+  account WholesaleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, version])
+  @@map("shopify_terms_acceptances")
 }

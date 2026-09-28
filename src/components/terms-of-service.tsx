@@ -10,7 +10,7 @@ export function TermsOfServiceContent() {
         legally binding contract between you (&quot;Applicant,&quot; &quot;Wholesaler,&quot;
         &quot;you,&quot; or &quot;your&quot;) and The Perfect Part, LLC (&quot;Company,&quot;
         &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;), a limited liability company
-        organized under the laws of the State of Arizona, operating the website
+        with its place of business at Pompano Beach, Florida 33069, operating the website
         theperfectpart.net and the wholesale portal at wholesale.theperfectpart.net.
       </p>
       <p>
@@ -299,13 +299,14 @@ export function TermsOfServiceContent() {
         jurisdiction.
       </p>
       <p>
-        <strong>10.3 Location.</strong> Arbitration shall take place in Maricopa
-        County, Arizona, unless the parties mutually agree to a different location or
-        to virtual proceedings.
+        <strong>10.3 Location.</strong> Arbitration shall take place in Broward
+        County, Florida, unless the parties mutually agree to a different location or
+        to virtual proceedings. The Company maintains its place of business at
+        Pompano Beach, Florida 33069.
       </p>
       <p>
         <strong>10.4 Governing Law for Arbitration.</strong> The arbitrator shall
-        apply Arizona substantive law (without regard to conflict of laws principles)
+        apply Florida substantive law (without regard to conflict of laws principles)
         and the Federal Arbitration Act.
       </p>
       <p>
@@ -338,10 +339,10 @@ export function TermsOfServiceContent() {
       <h2>11. GOVERNING LAW AND JURISDICTION</h2>
       <p>
         This Agreement shall be governed by and construed in accordance with the laws
-        of the State of Arizona, without regard to its conflict of laws provisions.
+        of the State of Florida, without regard to its conflict of laws provisions.
         To the extent that arbitration does not apply, any legal action or proceeding
         arising out of this Agreement shall be brought exclusively in the state or
-        federal courts located in Maricopa County, Arizona, and you hereby consent to
+        federal courts located in Broward County, Florida, and you hereby consent to
         the personal jurisdiction of such courts.
       </p>
 
@@ -505,8 +506,8 @@ export function PublisherTermsOfServiceContent() {
         indirect or consequential damages arising from participation.
       </p>
       <p>
-        Arizona law governs this Agreement. Disputes will be resolved individually
-        through binding arbitration in Maricopa County, Arizona, except where a
+        Florida law governs this Agreement. Disputes will be resolved individually
+        through binding arbitration in Broward County, Florida, except where a
         qualifying small-claims action is available. Class and jury proceedings are waived.
       </p>
       <p className="text-xs text-muted-foreground">

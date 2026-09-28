@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sendNewApplicantNotification } from "@/lib/email";
+import { pushChannelTracking } from "@/lib/shopify-channel/tracking";
 import { bc } from "./client";
 
 /** BC form fields may return strings, numbers, or booleans. */
@@ -36,6 +37,13 @@ export async function processWebhookEvent(
       case "store/order/updated":
         await handleOrderEvent(data);
         break;
+
+      case "store/shipment/created":
+      case "store/shipment/updated": {
+        const orderId = Number(data.orderId || data.order_id || 0);
+        if (orderId) await pushChannelTracking(orderId);
+        break;
+      }
 
       default:
         console.log(`Unhandled webhook scope: ${scope}`);

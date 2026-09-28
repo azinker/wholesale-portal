@@ -33,6 +33,11 @@ const envSchema = z.object({
   ADMIN_ALLOWLIST: z.string().default("adam@theperfectpart.net"),
 
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3001"),
+
+  STRIPE_SECRET_KEY: z.string().optional(),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  SHOPIFY_CHANNEL_CLIENT_ID: z.string().optional(),
+  SHOPIFY_CHANNEL_CLIENT_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

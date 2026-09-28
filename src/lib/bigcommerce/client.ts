@@ -94,6 +94,14 @@ export interface BCProduct {
   availability: string;
   custom_url: { url: string; is_customized: boolean };
   images?: BCProductImage[];
+  description?: string;
+  variants?: Array<{
+    id: number;
+    sku: string;
+    price: number | null;
+    calculated_price: number;
+    inventory_level: number;
+  }>;
 }
 
 // ── Client ─────────────────────────────────────────────
@@ -289,6 +297,14 @@ class BigCommerceClient {
     return res || [];
   }
 
+  async createOrder(order: Record<string, unknown>): Promise<BCOrder> {
+    return this.post<BCOrder>(`${this.baseV2}/orders`, order);
+  }
+
+  async cancelOrder(orderId: number): Promise<void> {
+    await this.put(`${this.baseV2}/orders/${orderId}`, { status_id: 5 });
+  }
+
   async getOrderById(orderId: number): Promise<BCOrder | null> {
     try {
       return await this.get<BCOrder>(`${this.baseV2}/orders/${orderId}`);
@@ -378,24 +394,39 @@ class BigCommerceClient {
     sort?: string;
     direction?: string;
     limit?: number;
+    page?: number;
     include?: string;
     is_visible?: boolean;
-  }): Promise<{ data: BCProduct[] }> {
+    keyword?: string;
+    categoryId?: number;
+    inStock?: boolean;
+  }): Promise<{ data: BCProduct[]; meta?: { pagination?: { total?: number; total_pages?: number } } }> {
     const qs = new URLSearchParams();
     if (params.sort) qs.set("sort", params.sort);
     if (params.direction) qs.set("direction", params.direction);
     if (params.limit) qs.set("limit", String(params.limit));
+    if (params.page) qs.set("page", String(params.page));
     if (params.include) qs.set("include", params.include);
     if (params.is_visible !== undefined) qs.set("is_visible", String(params.is_visible));
-    return this.get<{ data: BCProduct[] }>(
+    if (params.keyword) qs.set("keyword", params.keyword);
+    if (params.categoryId) qs.set("categories:in", String(params.categoryId));
+    if (params.inStock) qs.set("inventory_level:min", "1");
+    return this.get<{ data: BCProduct[]; meta?: { pagination?: { total?: number; total_pages?: number } } }>(
       `${this.baseV3}/catalog/products?${qs.toString()}`
     );
+  }
+
+  async getCategories(): Promise<Array<{ id: number; parent_id: number; name: string }>> {
+    const res = await this.get<{ data?: Array<{ id: number; parent_id: number; name: string }> }>(
+      `${this.baseV3}/catalog/categories?limit=250`
+    );
+    return res.data || [];
   }
 
   async getProductById(id: number): Promise<BCProduct | null> {
     try {
       const res = await this.get<{ data: BCProduct }>(
-        `${this.baseV3}/catalog/products/${id}?include=images`
+        `${this.baseV3}/catalog/products/${id}?include=images,variants`
       );
       return res.data ?? null;
     } catch {

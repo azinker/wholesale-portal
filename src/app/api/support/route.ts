@@ -28,6 +28,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   account_access: "Account Access",
   billing: "Billing / Invoice",
   shipping: "Shipping Question",
+  shopify_order_change: "Shopify order change",
   general: "General Inquiry",
   other: "Other",
 };

@@ -23,4 +23,14 @@ describe("getPortalNav", () => {
   it("defaults unknown and legacy accounts to reseller navigation", () => {
     expect(getPortalNav(undefined, "APPROVED").some((item) => item.href === "/orders")).toBe(true);
   });
+
+  it("shows the shopify channel only for approved dropshippers when enabled", () => {
+    const hrefs = getPortalNav("DROPSHIPPER", "APPROVED", true).map((item) => item.href);
+    expect(hrefs).toContain("/catalog");
+    expect(hrefs).toContain("/billing");
+    expect(hrefs).toContain("/my-shopify");
+    expect(hrefs).not.toContain("/hot-sellers");
+    expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED", true).some((item) => item.href === "/catalog")).toBe(false);
+    expect(getPortalNav("DROPSHIPPER", "PENDING", true).some((item) => item.href === "/catalog")).toBe(false);
+  });
 });

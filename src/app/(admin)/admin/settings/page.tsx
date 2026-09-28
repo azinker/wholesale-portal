@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Settings, Plug, Webhook, Layers, Loader2, CheckCircle, XCircle, Plus, Trash2, Save, RefreshCw, Gift } from "lucide-react";
+import { ShopifyChannelCard } from "./shopify-channel-card";
 
 export default function SettingsPage() {
   return (
@@ -24,6 +25,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      <ShopifyChannelCard />
       <BigCommerceConnectionCard />
       <WebhookRegistrationCard />
       <TierSettingsCard />

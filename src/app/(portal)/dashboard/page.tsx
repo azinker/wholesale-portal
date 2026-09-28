@@ -16,6 +16,7 @@ import { TierActivatesCountdown } from "./tier-activates-countdown";
 import { DashboardRecalcTrigger } from "./dashboard-recalc-trigger";
 import { RollingWindowHelpDialog } from "./rolling-window-help-dialog";
 import { PublisherDashboard } from "./publisher-dashboard";
+import { ChannelSummary } from "./channel-summary";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -215,6 +216,10 @@ export default async function DashboardPage() {
             })}
           </CardContent>
         </Card>
+      )}
+
+      {status === "APPROVED" && account && (
+        <ChannelSummary accountId={account.id} email={user.email} />
       )}
 
       {status === "APPROVED" && (

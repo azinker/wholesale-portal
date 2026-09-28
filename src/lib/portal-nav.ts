@@ -12,7 +12,10 @@ export type PortalNavIcon =
   | "team"
   | "support"
   | "terms"
-  | "apply";
+  | "apply"
+  | "catalog"
+  | "billing"
+  | "shopify";
 
 export interface PortalNavDefinition {
   href: string;
@@ -48,9 +51,21 @@ const PUBLISHER_NAV: PortalNavDefinition[] = [
 export function getPortalNav(
   partnerType: string | null | undefined,
   status: string,
+  channelEnabled = false,
 ): PortalNavDefinition[] {
   const publisher = partnerType === "AFFILIATE_PUBLISHER";
   const items = (publisher ? PUBLISHER_NAV : RESELLER_NAV).map((item) => ({ ...item }));
+
+  if (channelEnabled && !publisher && status === "APPROVED") {
+    const hotIndex = items.findIndex((item) => item.href === "/hot-sellers");
+    const channelItems: PortalNavDefinition[] = [
+      { href: "/catalog", label: "Catalog", icon: "catalog" },
+      { href: "/billing", label: "Billing", icon: "billing" },
+      { href: "/my-shopify", label: "My Shopify", icon: "shopify" },
+    ];
+    if (hotIndex >= 0) items.splice(hotIndex, 1, ...channelItems);
+    else items.splice(1, 0, ...channelItems);
+  }
 
   if (status === "RETAIL" || status === "DENIED") {
     items.push({

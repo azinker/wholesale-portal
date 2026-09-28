@@ -21,11 +21,6 @@ import {
   channelPrimaryBtn,
 } from "../channel-ui";
 
-const WEBHOOK_FORMS = [
-  { n: "1", event: "Order payment" },
-  { n: "2", event: "Order update" },
-];
-
 export default async function MyShopifyPage() {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
@@ -112,7 +107,7 @@ export default async function MyShopifyPage() {
           <ol className="mt-4 space-y-4 text-sm leading-6 text-[#3f3a38]">
             <li><span className="font-semibold text-[#1a1a1a]">1. Agree.</span> An owner or admin scrolls the terms and agrees.</li>
             <li><span className="font-semibold text-[#1a1a1a]">2. Save a credit card.</span> On Billing. This is the credit card we charge. It is not store credit. We store the brand and last four digits only.</li>
-            <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and add the two webhooks. Event, format, and API version are written on the store card.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and follow the six steps on the store card. They say where to click and what to type.</li>
             <li><span className="font-semibold text-[#1a1a1a]">4. Open Catalog</span> and add products. One email arrives when the add finishes.</li>
           </ol>
           <Link href="/billing" className={`${channelPrimaryBtn} mt-5`}>
@@ -170,45 +165,32 @@ export default async function MyShopifyPage() {
               ) : (
                 <div className="mt-5 space-y-3">
                   <p className="text-sm font-semibold text-[#1a1a1a]">Address test</p>
-                  <p className="text-sm leading-6 text-[#5c5654]">
-                    {connection.paused
-                      ? "Paused. Listings stay and stock still updates. New paid orders are not charged and not shipped. Refund your customer. They are not saved to run later."
-                      : preview
-                        ? "While the channel is off, a real paid order is saved and not charged."
-                        : "New paid orders are checked for stock, then your credit card is charged, then we ship."}
-                  </p>
-                  <p className="text-sm leading-6 text-[#5c5654]">
-                    In Shopify admin open Settings, then Notifications, then Webhooks. Click Create webhook twice. Match each box below. Use the same address both times.
-                  </p>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {WEBHOOK_FORMS.map((form) => (
-                      <div key={form.event} className="rounded-xl border border-[#efeae7] p-4">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Webhook {form.n}</p>
-                        <dl className="mt-3 space-y-2 text-sm">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <dt className="text-[#5c5654]">Event</dt>
-                            <dd className="font-semibold text-[#1a1a1a]">{form.event}</dd>
-                          </div>
-                          <div className="flex items-baseline justify-between gap-3">
-                            <dt className="text-[#5c5654]">Format</dt>
-                            <dd className="font-semibold text-[#1a1a1a]">JSON</dd>
-                          </div>
-                          <div className="flex items-baseline justify-between gap-3">
-                            <dt className="text-[#5c5654]">URL</dt>
-                            <dd className="text-right font-semibold text-[#1a1a1a]">Address below</dd>
-                          </div>
-                          <div className="flex items-baseline justify-between gap-3">
-                            <dt className="text-[#5c5654]">Webhook API version</dt>
-                            <dd className="font-semibold text-[#1a1a1a]">{SHOPIFY_API_VERSION}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm leading-6 text-[#5c5654]">
-                    Save both. Then open the Order payment webhook and click Send test. This page turns green when a name and street arrive.
-                  </p>
-                  <CopyUrl value={webhookUrl} />
+                  {connection.addressTestStatus === "PASSED" ? (
+                    <p className="text-sm leading-6 text-[#5c5654]">
+                      This store passed. The two webhooks are in place. You do not need to add them again.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm leading-6 text-[#5c5654]">
+                        Shopify has to prove it can send this store’s ship-to address. Do these steps once.
+                      </p>
+                      <ol className="space-y-3 text-sm leading-6 text-[#3f3a38]">
+                        <li><span className="font-semibold text-[#1a1a1a]">1. Find Webhooks.</span> In the Shopify admin, click Settings at the bottom left. Click Notifications. Scroll to the bottom and click Webhooks.</li>
+                        <li><span className="font-semibold text-[#1a1a1a]">2. Copy the address.</span> Use the Copy button below. Paste that address into both webhooks.</li>
+                        <li>
+                          <span className="font-semibold text-[#1a1a1a]">3. Create webhook one.</span> Click Create webhook and set each field to this:
+                          <span className="mt-1 block">Event: Order payment. Format: JSON. URL: the copied address. Webhook API version: {SHOPIFY_API_VERSION}. Click Save.</span>
+                        </li>
+                        <li>
+                          <span className="font-semibold text-[#1a1a1a]">4. Create webhook two.</span> Click Create webhook again and set each field to this:
+                          <span className="mt-1 block">Event: Order update. Format: JSON. URL: the same address. Webhook API version: {SHOPIFY_API_VERSION}. Click Save.</span>
+                        </li>
+                        <li><span className="font-semibold text-[#1a1a1a]">5. Test each one.</span> On the Order payment row, click the three dots on the right, then Send test. Do the same on the Order update row.</li>
+                        <li><span className="font-semibold text-[#1a1a1a]">6. Refresh this page.</span> The label changes to Address test passed when the test arrives.</li>
+                      </ol>
+                      <CopyUrl value={webhookUrl} />
+                    </>
+                  )}
                 </div>
               )}
 

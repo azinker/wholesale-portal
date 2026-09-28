@@ -91,9 +91,9 @@ export default async function OrdersPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <ShoppingCart className="h-6 w-6 text-primary" />
           Orders
         </h1>

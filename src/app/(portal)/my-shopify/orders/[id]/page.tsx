@@ -66,7 +66,7 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-          Sample order. No card was charged and nothing was sent to a warehouse.
+          Sample order. No credit card was charged and nothing was sent to a warehouse.
         </ChannelPanel>
       )}
 

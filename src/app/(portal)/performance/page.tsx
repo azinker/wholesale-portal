@@ -24,8 +24,8 @@ export default async function PerformancePage() {
   ]);
 
   return (
-    <div className="max-w-5xl space-y-6">
-      <div><h1 className="flex items-center gap-2 text-2xl font-bold"><BarChart3 className="h-6 w-6 text-primary" /> Performance</h1><p className="mt-1 text-muted-foreground">Coupon-attributed order activity. AWIN remains the source of truth for commission reporting.</p></div>
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
+      <div><h1 className="flex items-center gap-2 font-display text-3xl font-semibold tracking-tight"><BarChart3 className="h-6 w-6 text-primary" /> Performance</h1><p className="mt-1 text-muted-foreground">Coupon-attributed order activity. AWIN remains the source of truth for commission reporting.</p></div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat icon={CalendarDays} label={`Attributed orders (${windowDays}d)`} value={String(windowAggregate._count)} />
         <Stat icon={ShoppingCart} label="Lifetime attributed orders" value={String(lifetimeCount)} />

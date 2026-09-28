@@ -38,14 +38,15 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Profile</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Profile</h1>
         <p className="text-muted-foreground mt-1">
           Manage your profile picture and view your account details.
         </p>
       </div>
 
+      <div className="grid items-start gap-6 xl:grid-cols-2">
       {/* Avatar Section */}
       <Card>
         <CardHeader>
@@ -124,6 +125,7 @@ export default async function ProfilePage() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Editable Business Info */}
       {account && (

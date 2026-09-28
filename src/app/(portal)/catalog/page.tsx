@@ -13,7 +13,7 @@ import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
 const FLOW = [
   { title: "Add a product", body: "It lands on your Shopify store at the retail price. Change the price later in Shopify." },
   { title: "Your customer pays you", body: "The sale stays on your store. We never charge your customer." },
-  { title: "We charge your card", body: "The wholesale cost that day. The statement says THE PERFECT PART." },
+  { title: "We charge your credit card", body: "The wholesale cost that day. The statement says THE PERFECT PART." },
   { title: "We ship it", body: "Same day or the next business day. Tracking goes onto your Shopify order." },
 ];
 
@@ -79,7 +79,7 @@ export default async function CatalogPage({
 
   const setup = [
     { done: Boolean(terms), label: "Terms", href: "/my-shopify#terms" },
-    { done: Boolean(card), label: card ? `Card ···· ${card.last4}` : "Card", href: "/billing" },
+    { done: Boolean(card), label: card ? `Credit card ···· ${card.last4}` : "Credit card", href: "/billing" },
     { done: stores.length > 0, label: stores.length ? `${stores.length} store ready` : "Store", href: "/my-shopify#connect" },
   ];
 
@@ -103,7 +103,7 @@ export default async function CatalogPage({
 
       <p className="text-sm leading-6 text-[#5c5654]">
         Shipping inside the US is free, including PO Boxes. Anywhere else is $18.99 once per order. We do not charge tax or duty.
-        If we are out of stock, or the card does not work, we do not ship and we email you. After the card is charged, the address is locked. Cancel or change it in Support before it ships.
+        If we are out of stock, or the credit card does not work, we do not ship and we email you. After the credit card is charged, the address is locked. Cancel or change it in Support before it ships.
       </p>
 
       {preview && (
@@ -116,7 +116,7 @@ export default async function CatalogPage({
         <ChannelPanel className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div>
             <p className="font-semibold text-[#1a1a1a]">Finish setup before Add turns on</p>
-            <p className="text-sm text-[#5c5654]">Terms, a card, and a store that passed the address test.</p>
+            <p className="text-sm text-[#5c5654]">The terms, a credit card, and a store that passed the address test.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {setup.map((item) => (

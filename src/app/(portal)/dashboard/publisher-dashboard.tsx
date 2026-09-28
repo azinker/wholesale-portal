@@ -21,8 +21,8 @@ interface PublisherAccount {
 export async function PublisherDashboard({ account }: { account: PublisherAccount }) {
   if (account.status !== "APPROVED") {
     return (
-      <div className="max-w-4xl space-y-6">
-        <div><h1 className="text-2xl font-bold">Publisher Dashboard</h1><p className="mt-1 text-muted-foreground">Welcome, {account.companyName}</p></div>
+      <div className="mx-auto w-full max-w-[1440px] space-y-6">
+        <div><h1 className="font-display text-3xl font-semibold tracking-tight">Publisher Dashboard</h1><p className="mt-1 text-muted-foreground">Welcome, {account.companyName}</p></div>
         <Card className="border-warning/30 bg-warning-light/20">
           <CardContent className="flex gap-3 py-6">
             <AlertCircle className="h-5 w-5 text-warning" />
@@ -56,10 +56,10 @@ export async function PublisherDashboard({ account }: { account: PublisherAccoun
     : null;
 
   return (
-    <div className="max-w-5xl space-y-7">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
         <Badge className="mb-3">Affiliate Publisher</Badge>
-        <h1 className="text-2xl font-bold">Publisher Dashboard</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Publisher Dashboard</h1>
         <p className="mt-1 text-muted-foreground">Welcome back, {account.companyName}</p>
       </div>
 

@@ -27,9 +27,9 @@ export default async function AnnouncementsPage() {
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <Megaphone className="h-6 w-6 text-primary" />
           Announcements
         </h1>

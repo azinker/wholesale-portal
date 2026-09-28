@@ -246,7 +246,7 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       );
       if (decision.reason === "card_missing" || decision.reason === "card_declined") {
         await emailWholesaleDesk(
-          `Card problem on ${orderName}`,
+          `Credit card problem on ${orderName}`,
           `${connection.account.companyName} order ${orderName} was not charged. Reason: ${decision.reason}.`
         );
       }
@@ -298,10 +298,10 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       await emailAccount(
         accountEmail,
         `Shopify order ${orderName} was not charged`,
-        `We could not charge the card on file for ${orderName}. Nothing shipped. Save a working card in Billing and we will retry the oldest unpaid order.`
+        `We could not charge the credit card on file for ${orderName}. Nothing shipped. Save a working credit card in Billing and we will retry the oldest unpaid order.`
       );
       await emailWholesaleDesk(
-        `Card declined for ${orderName}`,
+        `Credit card declined for ${orderName}`,
         `${connection.account.companyName} ${orderName} amount ${quote.total.toFixed(2)} was not charged. ${lastError}`
       );
       return;
@@ -339,7 +339,7 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
         `Products: ${quotedLines.map((line) => `${line.title} x${line.quantity} at $${line.unitCost.toFixed(2)}`).join("; ")}`,
         `Shipping: $${quote.shipping.toFixed(2)}`,
         `Total charged: $${quote.total.toFixed(2)}`,
-        `Card ending ${card.last4}. Statement name THE PERFECT PART.`,
+        `Credit card ending ${card.last4}. Statement name THE PERFECT PART.`,
         `Ship to: ${destination.name}, ${destination.street}, ${destination.city} ${destination.province} ${destination.zip} ${destination.country}`,
         `Warehouse order ${warehouse.id}. We ship the same day or the next business day.`,
       ].join("\n")
@@ -391,7 +391,7 @@ function holdMessage(orderName: string, reason: string): string {
   if (reason === "needs_retest") {
     return `${orderName} arrived before we could confirm shipping addresses for that store. We did not charge you. Open My Shopify and run the address test.`;
   }
-  return `${orderName} needs a working card before we can ship. Nothing was charged.`;
+  return `${orderName} needs a working credit card before we can ship. Nothing was charged.`;
 }
 
 function warehouseOrder(input: {
@@ -585,8 +585,8 @@ export async function remindStaleCardAttention(now = new Date()): Promise<number
     if (!atLeastOneBusinessDayLater(row.updatedAt, now)) continue;
     await emailAccount(
       row.account.email,
-      "A Shopify sale still needs a card",
-      `${row.shopifyOrderName} is still unpaid on our side. Save a working card in Billing and we will retry it. We do not close this for you.`
+      "A Shopify sale still needs a credit card",
+      `${row.shopifyOrderName} is still unpaid on our side. Save a working credit card in Billing and we will retry it. We do not close this for you.`
     );
     await db.channelOrder.update({ where: { id: row.id }, data: { remindedAt: now } });
     sent += 1;

@@ -140,9 +140,9 @@ export default async function TrackingPage() {
   });
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <Truck className="h-6 w-6 text-primary" />
           Order Tracking
         </h1>

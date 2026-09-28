@@ -74,7 +74,7 @@ export default async function BillingPage({
 
   const stats = [
     { label: "Buyer paid", value: money(sold), hint: "What customers paid on Shopify" },
-    { label: "Charged", value: money(charged), hint: "Already taken from the card" },
+    { label: "Charged", value: money(charged), hint: "Already taken from the credit card" },
     { label: "Margin", value: money(sold - charged), hint: "Before Shopify fees, which we do not know" },
   ];
 
@@ -83,7 +83,7 @@ export default async function BillingPage({
       <ChannelHeading
         kicker="Shopify channel"
         title="Billing"
-        lede="We charge the card on this account when a Shopify order is paid. The statement name is THE PERFECT PART. This page is a record of charges already taken, not a second bill."
+        lede="We charge the credit card saved here when a Shopify order is paid. The statement name is THE PERFECT PART. This page is a record of charges already taken, not a second bill."
       />
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -99,9 +99,9 @@ export default async function BillingPage({
       <div className="grid items-start gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         <ChannelPanel className="overflow-hidden" delay={80}>
           <div className="bg-gradient-to-br from-[#2d2d2d] to-[#6d2428] p-6 text-white">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Card on this account</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Credit card on this account</p>
             <p className="mt-8 font-display text-2xl tracking-wide">
-              {card ? `${card.brand} ···· ${card.last4}` : "No card yet"}
+              {card ? `${card.brand} ···· ${card.last4}` : "No credit card saved"}
             </p>
             <p className="mt-6 text-xs text-white/70">THE PERFECT PART</p>
           </div>
@@ -109,14 +109,15 @@ export default async function BillingPage({
             {canBill && stripeConfigured() && (
               <form action="/api/portal/shopify-channel/stripe/setup" method="post">
                 <button className={channelPrimaryBtn} type="submit">
-                  {card ? "Replace card" : "Save a card"}
+                  {card ? "Replace credit card" : "Save a credit card"}
                 </button>
               </form>
             )}
-            {canBill && !stripeConfigured() && <p className="text-[#5c5654]">Card setup is not configured yet.</p>}
-            {!canBill && <p className="text-[#5c5654]">Only an owner or admin can save the card.</p>}
+            {canBill && !stripeConfigured() && <p className="text-[#5c5654]">Credit card setup is not configured yet.</p>}
+            {!canBill && <p className="text-[#5c5654]">Only an owner or admin can save the credit card.</p>}
+            <p className="leading-6 text-[#5c5654]">This is the credit card we charge for Shopify orders. It is not store credit.</p>
             {preview && (
-              <p className="leading-6 text-[#5c5654]">Saving a card uses the live Stripe account. A sample order does not charge it.</p>
+              <p className="leading-6 text-[#5c5654]">Saving a credit card uses the live Stripe account. A sample order does not charge it.</p>
             )}
             <Link href="/my-shopify" className="inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline">
               Back to My Shopify

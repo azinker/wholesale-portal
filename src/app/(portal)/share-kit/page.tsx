@@ -28,9 +28,9 @@ export default async function ShareKitPage() {
     : "";
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
+        <h1 className="flex items-center gap-2 font-display text-3xl font-semibold tracking-tight">
           <Share2 className="h-6 w-6 text-primary" /> Share Kit
         </h1>
         <p className="mt-1 text-muted-foreground">

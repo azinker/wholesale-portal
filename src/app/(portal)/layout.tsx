@@ -87,7 +87,7 @@ export default async function PortalLayout({
         avatarUrl={user.avatarUrl ?? null}
         notificationEndpoint="/api/portal/notifications"
       />
-      <main className="flex-1 p-6 md:p-8 overflow-auto md:pt-8 pt-20">
+      <main className="portal-shell flex-1 overflow-auto bg-[#f6f3f1] p-6 pt-20 md:p-8">
         {children}
       </main>
     </div>

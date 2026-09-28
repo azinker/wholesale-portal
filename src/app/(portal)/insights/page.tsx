@@ -29,9 +29,9 @@ export default async function InsightsPage() {
   const account = user.wholesaleAccount;
   if (!account || account.status !== "APPROVED") {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="mx-auto w-full max-w-[1440px] space-y-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
             <BarChart3 className="h-6 w-6 text-primary" />
             Insights
           </h1>
@@ -149,9 +149,9 @@ export default async function InsightsPage() {
   const estMonthlySavings = revenue30d * (currentDiscount / 100);
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <BarChart3 className="h-6 w-6 text-primary" />
           Insights
         </h1>

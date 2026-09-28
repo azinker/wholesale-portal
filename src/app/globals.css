@@ -114,3 +114,35 @@ body {
     animation: none;
   }
 }
+
+.portal-shell [data-slot="card"] {
+  border-radius: 1rem;
+  border-color: #e7e1de;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(45, 45, 45, 0.05);
+}
+
+.portal-shell table thead tr {
+  background-color: #2d2d2d;
+  color: #fff;
+}
+
+.portal-shell table thead th {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.portal-shell table thead th:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.portal-shell table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.portal-shell table tbody tr:hover {
+  background-color: #faf7f6;
+}

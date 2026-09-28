@@ -32,9 +32,9 @@ const ATTENTION_LABEL: Record<string, string> = {
   needs_retest: "The store needs the address test again.",
   missing_phone: "An international order is missing a phone number.",
   out_of_stock: "We were out of stock, so nothing was charged.",
-  card_missing: "No card is saved on this account.",
-  card_declined: "The card was declined.",
-  warehouse_create_failed: "The card was refunded because the warehouse order could not be created.",
+  card_missing: "No credit card is saved on this account.",
+  card_declined: "The credit card was declined.",
+  warehouse_create_failed: "The credit card charge was refunded because the warehouse order could not be created.",
 };
 
 export function statusLabel(status: string): string {

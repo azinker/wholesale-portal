@@ -113,9 +113,9 @@ export default function SupportPage() {
 
   if (sent) {
     return (
-      <div className="max-w-2xl space-y-6">
+      <div className="mx-auto w-full max-w-[1440px] space-y-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
             <Headphones className="h-6 w-6 text-primary" />
             Support
           </h1>
@@ -144,9 +144,9 @@ export default function SupportPage() {
   const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <Headphones className="h-6 w-6 text-primary" />
           Support
         </h1>
@@ -155,6 +155,7 @@ export default function SupportPage() {
         </p>
       </div>
 
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_340px]">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Contact Support</CardTitle>
@@ -264,6 +265,7 @@ export default function SupportPage() {
           </ul>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

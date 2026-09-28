@@ -83,12 +83,13 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <DashboardRecalcTrigger enabled={status === "APPROVED"} />
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Welcome back{account?.companyName ? `, ${account.companyName}` : ""}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Wholesale portal</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="mt-2 text-sm leading-6 text-[#5c5654]">
+          Welcome back{account?.companyName ? `, ${account.companyName}` : ""}. Your tier, coupon, and recent activity are here.
         </p>
       </div>
 
@@ -539,7 +540,7 @@ function ApprovedDashboard({
       </Card>
 
       {/* Tier cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {tiers.map((tier) => {
           const isActive = account.lastTier === tier.id;
           const activatesWhenWelcomeEnds =

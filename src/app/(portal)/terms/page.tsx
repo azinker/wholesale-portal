@@ -10,9 +10,9 @@ export default async function TermsPage() {
   const publisher = user.wholesaleAccount?.partnerType === "AFFILIATE_PUBLISHER";
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <ScrollText className="h-6 w-6 text-primary" />
           Terms of Service
         </h1>

@@ -56,7 +56,7 @@ export default async function MyShopifyPage() {
       <ChannelHeading
         kicker="Shopify channel"
         title="My Shopify"
-        lede="Connect up to five USD stores. Add stays off until the terms, a card, and a passed address test are done."
+        lede="Connect up to five USD stores. Add stays off until the terms, a credit card, and a passed address test are done."
       >
         {preview && (
           <form action="/api/portal/shopify-channel/preview" method="post">
@@ -67,7 +67,7 @@ export default async function MyShopifyPage() {
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-          Preview. The channel is off for other wholesalers. A sample order does not charge a card and does not create a warehouse order.
+          Preview. The channel is off for other wholesalers. A sample order does not charge a credit card and does not create a warehouse order.
         </ChannelPanel>
       )}
 
@@ -80,8 +80,8 @@ export default async function MyShopifyPage() {
             href: "#terms",
           },
           {
-            title: "Save a card",
-            detail: card ? `${card.brand} ending ${card.last4}` : "The card we charge when an order is paid",
+            title: "Save a credit card",
+            detail: card ? `${card.brand} ending ${card.last4}` : "The credit card we charge for each paid Shopify order",
             done: Boolean(card),
             href: "/billing",
           },
@@ -113,12 +113,12 @@ export default async function MyShopifyPage() {
           <h2 className="font-display text-xl font-semibold">What you do next</h2>
           <ol className="mt-4 space-y-4 text-sm leading-6 text-[#3f3a38]">
             <li><span className="font-semibold text-[#1a1a1a]">1. Agree.</span> An owner or admin scrolls the terms and agrees.</li>
-            <li><span className="font-semibold text-[#1a1a1a]">2. Save a card.</span> On Billing. We store the brand and last four digits only.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">2. Save a credit card.</span> On Billing. This is the credit card we charge. It is not store credit. We store the brand and last four digits only.</li>
             <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and send the test so we can read the ship-to address.</li>
             <li><span className="font-semibold text-[#1a1a1a]">4. Open Catalog</span> and add products. One email arrives when the add finishes.</li>
           </ol>
           <Link href="/billing" className={`${channelPrimaryBtn} mt-5`}>
-            {card ? "Review the card" : "Save a card"}
+            {card ? "Review the credit card" : "Save a credit card"}
           </Link>
         </ChannelPanel>
       </div>
@@ -177,7 +177,7 @@ export default async function MyShopifyPage() {
                       ? "Paused. Listings stay and stock still updates. New paid orders are not charged and not shipped. Refund your customer. They are not saved to run later."
                       : preview
                         ? "While the channel is off, a real paid order is saved and not charged."
-                        : "New paid orders are checked for stock, then the card is charged, then we ship."}
+                        : "New paid orders are checked for stock, then your credit card is charged, then we ship."}
                   </p>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {WEBHOOK_STEPS.map((step) => (

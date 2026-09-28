@@ -60,7 +60,8 @@ export function SidebarNav({
 
   const fallbackText = companyName ? getInitials(companyName) : userEmail.slice(0, 2).toUpperCase();
 
-  const sidebarContent = (
+  function renderSidebar() {
+    return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       {/* Logo + Title */}
       <div className="p-5 border-b border-sidebar-border">
@@ -149,13 +150,14 @@ export function SidebarNav({
         </form>
       </div>
     </div>
-  );
+    );
+  }
 
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 flex-col flex-shrink-0 min-h-screen">
-        {sidebarContent}
+        {renderSidebar()}
       </aside>
 
       {/* Mobile header + sheet */}
@@ -168,7 +170,7 @@ export function SidebarNav({
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0 bg-sidebar border-sidebar-border">
             <SheetTitle className="sr-only">{subtitle} Navigation</SheetTitle>
-            {sidebarContent}
+            {renderSidebar()}
           </SheetContent>
         </Sheet>
         <Image src="/logo.png" alt="The Perfect Part" width={110} height={28} className="object-contain" />

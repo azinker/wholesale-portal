@@ -50,7 +50,8 @@ export default async function InsightsPage() {
   if (customerId) {
     try {
       let page = 1;
-      while (true) {
+      const seen = new Set<number>();
+      while (page <= 8) {
         const pageOrders = await bc().getOrders({
           customer_id: customerId,
           min_date_created: orderHistoryMinDate(),
@@ -58,7 +59,10 @@ export default async function InsightsPage() {
           page,
         });
         if (!pageOrders || pageOrders.length === 0) break;
-        allOrders = allOrders.concat(pageOrders);
+        const fresh = pageOrders.filter((order) => !seen.has(order.id));
+        if (fresh.length === 0) break;
+        fresh.forEach((order) => seen.add(order.id));
+        allOrders = allOrders.concat(fresh);
         if (pageOrders.length < 250) break;
         page++;
       }

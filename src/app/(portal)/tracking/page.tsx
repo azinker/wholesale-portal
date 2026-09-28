@@ -79,7 +79,8 @@ export default async function TrackingPage() {
 
       let allOrders: BCOrder[] = [];
       let page = 1;
-      while (true) {
+      const seen = new Set<number>();
+      while (page <= 4) {
         const pageOrders = await bc().getOrders({
           customer_id: customerId,
           min_date_created: minDate,
@@ -87,18 +88,23 @@ export default async function TrackingPage() {
           page,
         });
         if (!pageOrders || pageOrders.length === 0) break;
-        allOrders = allOrders.concat(pageOrders);
+        const fresh = pageOrders.filter((order) => !seen.has(order.id));
+        if (fresh.length === 0) break;
+        fresh.forEach((order) => seen.add(order.id));
+        allOrders = allOrders.concat(fresh);
         if (pageOrders.length < 250) break;
         page++;
       }
 
-      // Only fetch shipments for shipped/completed orders
+      // One request per order. Cap the newest shipped orders so the page opens
+      // instead of waiting through every shipment for a busy account.
       const SHIPPED_STATUS_IDS = [2, 3, 9, 10, 12, 13];
-      const shippedOrders = allOrders.filter((o) => SHIPPED_STATUS_IDS.includes(o.status_id));
+      const shippedOrders = allOrders
+        .filter((o) => SHIPPED_STATUS_IDS.includes(o.status_id))
+        .sort((a, b) => new Date(b.date_created).getTime() - new Date(a.date_created).getTime())
+        .slice(0, 40);
 
-      // Fetch shipments in small batches with conservative pacing
-      const BATCH_SIZE = 5;
-      const BATCH_DELAY_MS = 600;
+      const BATCH_SIZE = 8;
       for (let i = 0; i < shippedOrders.length; i += BATCH_SIZE) {
         const batch = shippedOrders.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(
@@ -117,9 +123,6 @@ export default async function TrackingPage() {
           })
         );
         allShipments = allShipments.concat(batchResults.flat());
-        if (i + BATCH_SIZE < shippedOrders.length) {
-          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to fetch tracking data";

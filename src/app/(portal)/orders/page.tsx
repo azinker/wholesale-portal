@@ -23,7 +23,8 @@ export default async function OrdersPage() {
     try {
       // BC V2 sort/direction params are unreliable — fetch all orders then sort server-side
       let page = 1;
-      while (true) {
+      const seen = new Set<number>();
+      while (page <= 8) {
         const pageOrders = await bc().getOrders({
           customer_id: customerId,
           min_date_created: orderHistoryMinDate(),
@@ -31,7 +32,10 @@ export default async function OrdersPage() {
           page,
         });
         if (!pageOrders || pageOrders.length === 0) break;
-        allOrders = allOrders.concat(pageOrders);
+        const fresh = pageOrders.filter((order) => !seen.has(order.id));
+        if (fresh.length === 0) break;
+        fresh.forEach((order) => seen.add(order.id));
+        allOrders = allOrders.concat(fresh);
         if (pageOrders.length < BC_PAGE_LIMIT) break;
         page++;
       }

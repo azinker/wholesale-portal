@@ -23,7 +23,7 @@ import {
 
 const WEBHOOK_FORMS = [
   { n: "1", event: "Order payment" },
-  { n: "2", event: "Order updated" },
+  { n: "2", event: "Order update" },
 ];
 
 export default async function MyShopifyPage() {

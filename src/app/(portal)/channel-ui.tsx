@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tip } from "./tip";
 
 export const channelPrimaryBtn =
   "inline-flex cursor-pointer items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-[#9c2126] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8282E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45";
@@ -103,47 +104,60 @@ export function ChannelPanel({
 
 export function SetupTrack({
   steps,
+  compact = false,
 }: {
-  steps: Array<{ title: string; detail: string; done: boolean; href: string }>;
+  steps: Array<{ title: string; detail: string; done: boolean; href: string; tip: string }>;
+  compact?: boolean;
 }) {
   const doneCount = steps.filter((step) => step.done).length;
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-xs font-medium text-[#5c5654]">
-        <span>Setup</span>
-        <span>
-          {doneCount} of {steps.length} done
-        </span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[#e7e1de]">
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-500"
-          style={{ width: `${(doneCount / steps.length) * 100}%` }}
-        />
-      </div>
+      {!compact && (
+        <>
+          <div className="flex items-center justify-between text-xs font-medium text-[#5c5654]">
+            <span className="inline-flex items-center gap-1.5">
+              Setup
+              <Tip text="These three steps turn on Add. When they are done, this row stays small." />
+            </span>
+            <span>
+              {doneCount} of {steps.length} done
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-[#e7e1de]">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${(doneCount / steps.length) * 100}%` }}
+            />
+          </div>
+        </>
+      )}
       <ol className="grid gap-3 lg:grid-cols-3">
         {steps.map((step, index) => (
           <li key={step.title} className="channel-in" style={{ animationDelay: `${index * 70}ms` }}>
-            <a
-              href={step.href}
+            <div
               className={cn(
-                "flex h-full cursor-pointer items-center gap-3 rounded-2xl border bg-white p-4 shadow-sm transition-colors duration-200 hover:border-[#2d2d2d]",
+                "flex h-full items-center gap-3 rounded-2xl border bg-white shadow-sm",
+                compact ? "px-3 py-2.5" : "p-4",
                 step.done ? "border-emerald-200" : "border-[#e7e1de]"
               )}
             >
-              <span
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                  step.done ? "bg-emerald-600 text-white" : "bg-[#2d2d2d] text-white"
-                )}
-              >
-                {step.done ? <Check size={16} /> : index + 1}
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-[#1a1a1a]">{step.title}</span>
-                <span className="block text-xs leading-5 text-[#5c5654]">{step.detail}</span>
-              </span>
-            </a>
+              <a href={step.href} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                <span
+                  className={cn(
+                    "flex shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                    compact ? "h-7 w-7" : "h-9 w-9",
+                    step.done ? "bg-emerald-600 text-white" : "bg-[#2d2d2d] text-white"
+                  )}
+                >
+                  {step.done ? <Check size={compact ? 14 : 16} /> : index + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-[#1a1a1a]">{step.title}</span>
+                  {!compact && <span className="block text-xs leading-5 text-[#5c5654]">{step.detail}</span>}
+                </span>
+              </a>
+              <Tip text={step.tip} />
+            </div>
           </li>
         ))}
       </ol>

@@ -30,6 +30,7 @@ export interface BCOrder {
   currency_code: string;
   items_total: number;
   billing_address: { country: string; country_iso2: string };
+  external_source?: string;
   products?: { url: string };
   shipping_addresses?: { url: string };
   coupons?: { url: string };

@@ -296,7 +296,7 @@ export async function recalcTier(
 
   // Qualifying orders: paid orders that are shipped or awaiting fulfillment (see QUALIFYING_TIER_STATUS_IDS).
   const qualifyingCount = allOrders.filter((o) =>
-    QUALIFYING_TIER_STATUS_IDS.includes(o.status_id)
+    QUALIFYING_TIER_STATUS_IDS.includes(o.status_id) && o.external_source !== "Shopify Channel"
   ).length;
 
   let newTier = await tierFromCount(qualifyingCount);

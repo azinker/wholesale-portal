@@ -8,6 +8,7 @@ import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
 import { env } from "@/lib/env";
 import { TermsAccept } from "./terms-accept";
 import { CopyUrl } from "./copy-url";
+import { Tip } from "../tip";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
 import {
   ChannelHeading,
@@ -44,6 +45,7 @@ export default async function MyShopifyPage() {
   const realConnections = connections.filter((row) => !row.shopDomain.startsWith("preview-"));
   const liveStores = realConnections.filter((row) => !row.disconnectedAt);
   const passed = liveStores.some((row) => row.addressTestStatus === "PASSED");
+  const setupDone = Boolean(terms && card && passed);
 
   return (
     <ChannelPage>
@@ -60,28 +62,45 @@ export default async function MyShopifyPage() {
       )}
 
       <SetupTrack
+        compact={setupDone}
         steps={[
           {
             title: "Accept the terms",
             detail: terms ? "Accepted" : "Scroll the agreement and agree",
             done: Boolean(terms),
-            href: "#terms",
+            href: setupDone ? "#accepted-terms" : "#terms",
+            tip: terms
+              ? "You already accepted the Shopify Channel Terms. Click to read them."
+              : "An owner or admin reads the terms and agrees before Add can turn on.",
           },
           {
             title: "Save a credit card",
             detail: card ? `${card.brand} ending ${card.last4}` : "The credit card we charge for each paid Shopify order",
             done: Boolean(card),
             href: "/billing",
+            tip: "Opens Billing. This is the card we charge when your customer pays. It is not store credit.",
           },
           {
             title: "Connect and test",
             detail: passed ? "Address test passed" : "Connect the store, then send a test webhook",
             done: passed,
             href: "#connect",
+            tip: "Jumps to your connected Shopify store on this page.",
           },
         ]}
       />
 
+      {setupDone ? (
+        <details id="accepted-terms" className="rounded-2xl border border-[#e7e1de] bg-white shadow-sm">
+          <summary className="cursor-pointer px-5 py-3 text-sm font-semibold text-[#1a1a1a]">
+            View the terms you accepted
+            <span className="ml-2 font-normal text-[#5c5654]">Accepted {terms?.acceptedAt.toLocaleString()}</span>
+          </summary>
+          <div className="max-h-80 overflow-y-auto border-t border-[#f0ebe8] px-5 py-4 text-sm leading-6 whitespace-pre-wrap text-[#3f3a38]">
+            {CHANNEL_TERMS_TEXT}
+          </div>
+        </details>
+      ) : (
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <ChannelPanel className="p-5 md:p-6" delay={80}>
           <div id="terms">
@@ -110,6 +129,7 @@ export default async function MyShopifyPage() {
           </Link>
         </ChannelPanel>
       </div>
+      )}
 
       <div id="connect" className="space-y-4">
         {realConnections.map((connection, index) => {
@@ -140,15 +160,15 @@ export default async function MyShopifyPage() {
 
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
-                  <p className="text-xs text-[#5c5654]">Listings</p>
+                  <p className="inline-flex items-center gap-1.5 text-xs text-[#5c5654]">Listings <Tip text="Products from the catalog that are on this Shopify store right now." /></p>
                   <p className="font-display text-2xl font-semibold">{connection._count.listings}</p>
                 </div>
                 <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
-                  <p className="text-xs text-[#5c5654]">Last stock sync</p>
+                  <p className="inline-flex items-center gap-1.5 text-xs text-[#5c5654]">Last stock sync <Tip text="The last time we updated a quantity on this store from our warehouse stock. Your prices are not changed." /></p>
                   <p className="mt-1 text-sm font-semibold">{connection.listings[0] ? connection.listings[0].updatedAt.toLocaleString() : "Not yet"}</p>
                 </div>
                 <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
-                  <p className="text-xs text-[#5c5654]">Recent orders</p>
+                  <p className="inline-flex items-center gap-1.5 text-xs text-[#5c5654]">Recent orders <Tip text="The latest orders from this store that include a product you added. Open Orders in the menu for the full list." /></p>
                   <p className="font-display text-2xl font-semibold">{connection.orders.length}</p>
                 </div>
               </div>
@@ -159,7 +179,7 @@ export default async function MyShopifyPage() {
                 </p>
               ) : (
                 <div className="mt-5 space-y-3">
-                  <p className="text-sm font-semibold text-[#1a1a1a]">Address test</p>
+                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1a1a1a]">Address test <Tip text="Shopify sends a test so we can see a ship-to address. Add stays off until this passes." /></p>
                   {connection.addressTestStatus === "PASSED" ? (
                     <p className="text-sm leading-6 text-[#5c5654]">
                       This store passed. The two webhooks are in place. You do not need to add them again.
@@ -241,7 +261,7 @@ export default async function MyShopifyPage() {
 
         {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
-            <h2 className="font-display text-xl font-semibold">Connect Shopify</h2>
+            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Connect a United States dollar Shopify store. You can connect up to 5. This does not change products already on that store." /></h2>
             <p className="mt-1 text-sm text-[#5c5654]">You can add up to 5 Shopify stores. Use the myshopify.com address. Example: north-auto.myshopify.com. USD stores only.</p>
             <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="shop">Store domain</label>

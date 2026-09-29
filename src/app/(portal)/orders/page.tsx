@@ -102,7 +102,7 @@ export default async function OrdersPage() {
           Orders
         </h1>
         <p className="text-muted-foreground mt-1">
-          View your recent orders from The Perfect Part.
+          Orders you place on theperfectpart.net with your discount code. A Shopify sale is marked Shopify. Your customer paid you, and we charged your card to ship it.
         </p>
       </div>
 
@@ -186,7 +186,8 @@ export default async function OrdersPage() {
             status: o.status,
             items_total: o.items_total,
             total_inc_tax: o.total_inc_tax,
-            tierStatus: getTierStatusForOrder(o.date_created, o.status_id, tierWindowDays),
+            tierStatus: o.external_source === "Shopify Channel" ? "excluded" : getTierStatusForOrder(o.date_created, o.status_id, tierWindowDays),
+            channel: o.external_source === "Shopify Channel",
           }))}
           windowDays={tierWindowDays}
         />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { ReorderButton } from "./reorder-button";
+import { Tip } from "../tip";
 
 export type TierStatusForOrder = "counts" | "expired" | "excluded";
 
@@ -18,6 +19,7 @@ interface OrderRow {
   items_total: number;
   total_inc_tax: string;
   tierStatus: TierStatusForOrder;
+  channel: boolean;
 }
 
 type SortField = "id" | "date_created" | "status" | "items_total" | "total_inc_tax";
@@ -128,7 +130,17 @@ export function OrdersTable({
                   key={order.id}
                   className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono font-medium">#{order.id}</td>
+                  <td className="px-4 py-3 font-mono font-medium">
+                    <span className="inline-flex items-center gap-2">
+                      #{order.id}
+                      {order.channel && (
+                        <span className="inline-flex items-center gap-1">
+                          <Badge className="bg-[#2d2d2d] text-[10px] text-white hover:bg-[#2d2d2d]">Shopify</Badge>
+                          <Tip text="Your customer paid you on Shopify. We charged your card and shipped it. This is not an order you placed on theperfectpart.net with your discount code, and it does not count toward your tier." />
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {new Date(order.date_created).toLocaleDateString()}
                   </td>
@@ -136,7 +148,11 @@ export function OrdersTable({
                     <OrderBadge status={order.status} />
                   </td>
                   <td className="px-4 py-3">
-                    <TierStatusBadge status={order.tierStatus} />
+                    {order.channel ? (
+                      <Badge variant="secondary" className="text-[10px] text-muted-foreground">Not for tier</Badge>
+                    ) : (
+                      <TierStatusBadge status={order.tierStatus} />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {order.items_total} item{order.items_total !== 1 ? "s" : ""}
@@ -145,7 +161,7 @@ export function OrdersTable({
                     ${parseFloat(order.total_inc_tax).toFixed(2)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <ReorderButton orderId={order.id} />
+                    {order.channel ? <span className="text-xs text-muted-foreground">Ships from this sale</span> : <ReorderButton orderId={order.id} />}
                   </td>
                 </tr>
               ))}

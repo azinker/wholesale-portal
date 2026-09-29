@@ -200,14 +200,32 @@ function emptyReceipt(shopDomain: string, status: ListingReceipt["status"], mess
   };
 }
 
+export function plainAddError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/unique constraint/i.test(message)) {
+    return "This product is already on your Shopify store. Remove it in the catalog if you want to add it again.";
+  }
+  if (/shopify/i.test(message) && /fail|not accept|denied/i.test(message)) {
+    return "Shopify did not accept this product. Wait a minute and try again.";
+  }
+  if (/timeout|timed out|fetch failed|ECONN|aborted/i.test(message)) {
+    return "Shopify took too long to answer. Wait a minute and try again.";
+  }
+  return "This product could not be added. Wait a minute and try again.";
+}
+
+export type AddProgress = { done: number; total: number; label: string; startedAt: number };
+
 async function uploadImagesInOrder(
   shop: string,
   token: string,
   productId: string,
-  images: BCProductImage[]
+  images: BCProductImage[],
+  onImage?: (index: number, count: number) => Promise<void>
 ): Promise<Array<{ bcImageId: number; shopifyImageId: string; key: string }>> {
   const uploaded: Array<{ bcImageId: number; shopifyImageId: string; key: string }> = [];
   for (let index = 0; index < images.length; index++) {
+    await onImage?.(index, images.length);
     const image = images[index];
     const file = await downloadAsBase64(image.url_standard || image.url_zoom || "");
     if (!file) continue;
@@ -293,7 +311,8 @@ export async function alignListingImages(connectionId: string, bcProductId: numb
 export async function publishBigCommerceProduct(
   connectionId: string,
   bcProductId: number,
-  choices: PushChoices = {}
+  choices: PushChoices = {},
+  onProgress?: (done: number, total: number, label: string) => Promise<void>
 ): Promise<ListingReceipt> {
   const connection = await db.shopifyConnection.findUnique({
     where: { id: connectionId },
@@ -391,8 +410,15 @@ export async function publishBigCommerceProduct(
     if (uploaded[0]) {
       await setImagePosition(connection.shopDomain, token, created.productId, uploaded[0].shopifyImageId, 1);
     }
-    await db.channelListing.create({
-      data: {
+    await db.channelListing.upsert({
+      where: {
+        connectionId_bcProductId_bcVariantId: {
+          connectionId,
+          bcProductId: product.id,
+          bcVariantId: variant?.id || 0,
+        },
+      },
+      create: {
         accountId: connection.accountId,
         connectionId,
         bcProductId: product.id,
@@ -403,6 +429,15 @@ export async function publishBigCommerceProduct(
         sellerPrice: listPrice(retail, cost, choices, variant?.id),
         sellerSku: sellerSkuFor(choices, variant?.id, index, rows.length) || null,
         internalSku: variant?.sku || product.sku,
+        titleSnapshot: title,
+      },
+      update: {
+        removedAt: null,
+        shopifyProductId: created.productId,
+        shopifyVariantId: row.variantId,
+        shopifyInventoryItemId: row.inventoryItemId,
+        sellerPrice: listPrice(retail, cost, choices, variant?.id),
+        sellerSku: sellerSkuFor(choices, variant?.id, index, rows.length) || null,
         titleSnapshot: title,
       },
     });

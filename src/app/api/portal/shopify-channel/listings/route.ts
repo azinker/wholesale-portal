@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
-import { listingDetails, publishBigCommerceProduct, removeListing, cleanPush } from "@/lib/shopify-channel/publish";
+import { listingDetails, publishBigCommerceProduct, removeListing, cleanPush, plainAddError } from "@/lib/shopify-channel/publish";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 async function readyStores(accountId: string) {
@@ -142,11 +142,7 @@ export async function POST(req: NextRequest) {
         where: { id: job.id },
         data: { status: "FAILED", failedCount: 1, emailSentAt: new Date() },
       });
-      const message = error instanceof Error ? error.message : "Add failed";
-      const friendly = message.startsWith("Shopify ")
-        ? "Shopify did not accept this product. Wait a minute and try again."
-        : message;
-      return NextResponse.json({ error: friendly }, { status: 500 });
+      return NextResponse.json({ error: plainAddError(error) }, { status: 500 });
     }
   }
 

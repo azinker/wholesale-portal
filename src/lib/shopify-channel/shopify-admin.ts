@@ -143,7 +143,16 @@ export async function createProduct(
     bodyHtml: string;
     vendor: string;
     options?: string[];
-    variants: Array<{ price: string; cost: string; option1?: string; option2?: string; option3?: string }>;
+    productType?: string;
+    variants: Array<{
+      price: string;
+      cost: string;
+      sku?: string;
+      compareAt?: string;
+      option1?: string;
+      option2?: string;
+      option3?: string;
+    }>;
   }
 ): Promise<ShopifyCreatedProduct> {
   const body = {
@@ -151,6 +160,7 @@ export async function createProduct(
       title: product.title,
       body_html: product.bodyHtml,
       vendor: product.vendor,
+      product_type: product.productType || undefined,
       status: "active",
       options: product.options?.length ? product.options.map((name) => ({ name })) : undefined,
       variants: product.variants.map((variant) => {
@@ -159,6 +169,8 @@ export async function createProduct(
           inventory_management: "shopify",
           inventory_policy: "deny",
         };
+        if (variant.sku) row.sku = variant.sku;
+        if (variant.compareAt) row.compare_at_price = variant.compareAt;
         if (variant.option1) row.option1 = variant.option1;
         if (variant.option2) row.option2 = variant.option2;
         if (variant.option3) row.option3 = variant.option3;

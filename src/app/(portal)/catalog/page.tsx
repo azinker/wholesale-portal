@@ -12,7 +12,7 @@ import { ChannelSchemaNotice } from "../channel-schema-notice";
 import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
 
 const FLOW = [
-  { title: "Add a product", body: "It lands on your Shopify store at the retail price. Change the price later in Shopify." },
+  { title: "Add a product", body: "It starts at the retail price. You can raise or lower that price, and add your own SKU, before it goes to Shopify." },
   { title: "Your customer pays you", body: "The sale stays on your store. We never charge your customer." },
   { title: "We charge your credit card", body: "The wholesale cost that day. The statement says THE PERFECT PART." },
   { title: "We ship it", body: "Same day or the next business day. Tracking goes onto your Shopify order." },
@@ -21,14 +21,19 @@ const FLOW = [
 export default async function CatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; sort?: string; stock?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; sort?: string; dir?: string; stock?: string; page?: string }>;
 }) {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
   const params = await searchParams;
   const q = params.q || "";
   const category = params.category || "";
-  const sort = params.sort || "total_sold";
+  const sortKey = ["name", "stock", "price", "cost", "margin", "total_sold", "date_modified"].includes(params.sort || "")
+    ? params.sort || "total_sold"
+    : "total_sold";
+  const bcSort =
+    sortKey === "stock" ? "inventory_level" : sortKey === "cost" || sortKey === "margin" ? "price" : sortKey;
+  const dir = params.dir === "asc" || params.dir === "desc" ? params.dir : sortKey === "name" ? "asc" : "desc";
   const inStock = params.stock === "1";
   const page = Math.max(1, Number(params.page || "1") || 1);
   const categoryId = category ? Number(category) : undefined;
@@ -60,8 +65,8 @@ export default async function CatalogPage({
     is_visible: true as const,
     keyword: q || undefined,
     categoryId: categoryId && Number.isInteger(categoryId) ? categoryId : undefined,
-    sort,
-    direction: sort === "name" ? "asc" : "desc",
+    sort: bcSort,
+    direction: dir,
     inStock,
     include: "images",
     limit: 24,
@@ -179,7 +184,8 @@ export default async function CatalogPage({
         matchCount={matchCount}
         catalogCount={catalogCount}
         page={page}
-        sort={sort}
+        sort={sortKey}
+        dir={dir}
         inStock={inStock}
         categories={categories.map((row) => ({ id: row.id, name: row.name, count: categoryCounts[row.id] || 0 }))}
         loadFailed={loadFailed}

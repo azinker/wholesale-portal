@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
-import { listingDetails, publishBigCommerceProduct, removeListing } from "@/lib/shopify-channel/publish";
+import { listingDetails, publishBigCommerceProduct, removeListing, cleanPush } from "@/lib/shopify-channel/publish";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 async function readyStores(accountId: string) {
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     scope?: "selection" | "category" | "catalog";
     keyword?: string;
     categoryId?: number;
+    push?: unknown;
   };
   const scope = body.scope || "selection";
   const ids = (body.bcProductIds || []).filter((id) => Number.isInteger(id));
@@ -82,6 +83,12 @@ export async function POST(req: NextRequest) {
       : [];
   if (chosen.length === 0) {
     return NextResponse.json({ error: "Choose which store to add to" }, { status: 400 });
+  }
+
+  const push = cleanPush(body.push);
+  if (ids.length !== 1) {
+    delete push.sellerSku;
+    delete push.compareAt;
   }
 
   const jobs = [];
@@ -104,8 +111,8 @@ export async function POST(req: NextRequest) {
         scope: scope === "catalog" ? "CATALOG" : scope === "category" ? "CATEGORY" : ids.length === 1 ? "ONE" : "SELECTION",
         detail:
           scope === "selection"
-            ? { bcProductIds: ids }
-            : { keyword: body.keyword || "", categoryId: body.categoryId || null, page: 1 },
+            ? { bcProductIds: ids, push }
+            : { keyword: body.keyword || "", categoryId: body.categoryId || null, page: 1, push },
       },
     });
     jobs.push(job);
@@ -115,7 +122,7 @@ export async function POST(req: NextRequest) {
     const job = jobs[0];
     const connection = chosen[0];
     try {
-      const receipt = await publishBigCommerceProduct(connection.id, ids[0]);
+      const receipt = await publishBigCommerceProduct(connection.id, ids[0], push);
       await db.channelPublishJob.update({
         where: { id: job.id },
         data: {

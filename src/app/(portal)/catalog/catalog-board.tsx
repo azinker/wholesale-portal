@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { channelField, channelGhostBtn, channelPrimaryBtn, money } from "../channel-ui";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,7 @@ export function CatalogBoard({
   catalogCount,
   page,
   sort,
+  dir,
   inStock,
   categories,
   loadFailed,
@@ -81,6 +83,7 @@ export function CatalogBoard({
   catalogCount: number;
   page: number;
   sort: string;
+  dir: "asc" | "desc";
   inStock: boolean;
   categories: Array<{ id: number; name: string; count: number }>;
   loadFailed: boolean;
@@ -102,6 +105,25 @@ export function CatalogBoard({
   const [viewLoading, setViewLoading] = useState(false);
   const [viewTitle, setViewTitle] = useState("");
   const [task, setTask] = useState<"add" | "remove">("add");
+  const [priceMode, setPriceMode] = useState<"retail" | "20" | "35" | "50" | "custom">("retail");
+  const [customPrice, setCustomPrice] = useState("");
+  const [sellerSku, setSellerSku] = useState("");
+  const [compareAt, setCompareAt] = useState("");
+  const [productType, setProductType] = useState("");
+
+  function pushChoices(count: number) {
+    const custom = Number(customPrice);
+    const compare = Number(compareAt);
+    const single = count === 1;
+    return {
+      priceMode: priceMode === "custom" ? "custom" : priceMode === "retail" ? "retail" : "markup",
+      markupPercent: priceMode === "20" || priceMode === "35" || priceMode === "50" ? Number(priceMode) : undefined,
+      customPrice: priceMode === "custom" && custom > 0 ? custom : undefined,
+      sellerSku: single ? sellerSku.trim() : undefined,
+      compareAt: single && compare > 0 ? compare : undefined,
+      productType: productType.trim() || undefined,
+    };
+  }
 
   const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
   const running = pending;
@@ -134,11 +156,11 @@ export function CatalogBoard({
     setViewLoading(false);
   }
 
-  async function addOne(productId: number, connectionId: string): Promise<Receipt> {
+  async function addOne(productId: number, connectionId: string, count: number): Promise<Receipt> {
     const res = await fetch("/api/portal/shopify-channel/listings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scope: "selection", bcProductIds: [productId], connectionIds: [connectionId] }),
+      body: JSON.stringify({ scope: "selection", bcProductIds: [productId], connectionIds: [connectionId], push: pushChoices(count) }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Could not add");
@@ -169,7 +191,7 @@ export function CatalogBoard({
       let error = "";
       for (const store of targets) {
         try {
-          receipts.push(await addOne(product.id, store.id));
+          receipts.push(await addOne(product.id, store.id, queue.length));
         } catch (caught) {
           error = caught instanceof Error ? caught.message : "Could not add";
         }
@@ -213,6 +235,7 @@ export function CatalogBoard({
           connectionIds: targets.map((store) => store.id),
           keyword: scope === "catalog" ? undefined : keyword,
           categoryId: scope === "catalog" || !categoryId ? undefined : Number(categoryId),
+          push: pushChoices(count),
         }),
       });
       const data = await res.json();
@@ -329,8 +352,22 @@ export function CatalogBoard({
       q: keyword,
       category: categoryId,
       sort,
+      dir,
       stock: inStock ? "1" : "",
       page: String(nextPage),
+    });
+    return `/catalog?${params.toString()}`;
+  }
+
+  function sortHref(key: string) {
+    const nextDir = sort === key ? (dir === "asc" ? "desc" : "asc") : key === "name" || key === "price" || key === "cost" ? "asc" : "desc";
+    const params = new URLSearchParams({
+      q: keyword,
+      category: categoryId,
+      sort: key,
+      dir: nextDir,
+      stock: inStock ? "1" : "",
+      page: "1",
     });
     return `/catalog?${params.toString()}`;
   }
@@ -347,12 +384,8 @@ export function CatalogBoard({
             <option key={category.id} value={category.id}>{category.name} ({category.count})</option>
           ))}
         </select>
-        <select name="sort" defaultValue={sort} className={cn(channelField, "w-auto min-w-[150px]")} aria-label="Sort">
-          <option value="total_sold">Best selling</option>
-          <option value="name">Name</option>
-          <option value="price">Price</option>
-          <option value="date_modified">Newest</option>
-        </select>
+        <input type="hidden" name="sort" value={sort} />
+        <input type="hidden" name="dir" value={dir} />
         <label className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm text-[#3f3a38]">
           <input type="checkbox" name="stock" value="1" defaultChecked={inStock} className="h-4 w-4 accent-[#B8282E]" />
           In stock
@@ -386,6 +419,65 @@ export function CatalogBoard({
         </div>
       )}
 
+      <div className="rounded-2xl border border-[#e7e1de] bg-white p-4 shadow-sm">
+        <p className="text-sm font-semibold text-[#1a1a1a]">Price on your Shopify store</p>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-[#5c5654]">
+          Starts at the theperfectpart.net price. Raise it for more margin, or type your own price, including a lower one. We charge your cost when your customer pays, not when it ships. Changing this price does not change that charge.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(
+            [
+              ["retail", "Retail price"],
+              ["20", "20% above cost"],
+              ["35", "35% above cost"],
+              ["50", "50% above cost"],
+              ["custom", "Custom price"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setPriceMode(value)}
+              className={cn(
+                "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-200",
+                priceMode === value ? "border-[#2d2d2d] bg-[#2d2d2d] text-white" : "border-[#e4ddd9] bg-white text-[#3f3a38] hover:border-[#2d2d2d]"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {priceMode === "custom" && (
+          <label className="mt-3 block max-w-xs text-sm text-[#3f3a38]">
+            List price
+            <input
+              inputMode="decimal"
+              value={customPrice}
+              onChange={(event) => setCustomPrice(event.target.value)}
+              placeholder="0.00"
+              className={cn(channelField, "mt-1")}
+            />
+          </label>
+        )}
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm text-[#3f3a38]">
+            Your Shopify SKU
+            <input value={sellerSku} onChange={(event) => setSellerSku(event.target.value)} placeholder="Optional, one product at a time" className={cn(channelField, "mt-1")} />
+          </label>
+          <label className="text-sm text-[#3f3a38]">
+            Compare-at price
+            <input inputMode="decimal" value={compareAt} onChange={(event) => setCompareAt(event.target.value)} placeholder="Optional, one product" className={cn(channelField, "mt-1")} />
+          </label>
+          <label className="text-sm text-[#3f3a38]">
+            Product type
+            <input value={productType} onChange={(event) => setProductType(event.target.value)} placeholder="Optional, such as Home" className={cn(channelField, "mt-1")} />
+          </label>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-[#5c5654]">
+          Your SKU is written on that Shopify product only. Orders still match the listing we created, so your SKU does not change charging or shipping. Leave it blank to send no SKU. Compare-at is a crossed-out price and is used only when it is higher than the list price. SKU and compare-at apply when you add one product. A custom price is used for every product in that add, so use it on one product when the prices should differ.
+        </p>
+      </div>
+
       {selected.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2d2d2d] bg-[#2d2d2d] px-4 py-3 text-white shadow-sm">
           <p className="text-sm font-medium">{selected.length} selected</p>
@@ -403,11 +495,11 @@ export function CatalogBoard({
                 <th className="w-12 px-4 py-3">
                   <input type="checkbox" checked={allOnPage} onChange={togglePage} aria-label="Select every product on this page" className="h-4 w-4 accent-[#B8282E]" />
                 </th>
-                <th className="px-3 py-3">Product</th>
-                <th className="px-3 py-3">Stock</th>
-                <th className="px-3 py-3">Lists at</th>
-                <th className="px-3 py-3">Your cost</th>
-                <th className="px-3 py-3">Margin</th>
+                <SortHead label="Product" tip="The product name. Click to sort A to Z or Z to A. After you add it, the name on your Shopify store stays as it was." active={sort === "name"} dir={dir} href={sortHref("name")} />
+                <SortHead label="Stock" tip="How many we can ship today. Your Shopify quantity follows this number. We do not sell more than we have." active={sort === "stock"} dir={dir} href={sortHref("stock")} />
+                <SortHead label="Lists at" tip="The price on theperfectpart.net. This is the starting price on your Shopify store. You can set a different price before you add it, and you can change the price any time directly in Shopify. We never change that price for you." active={sort === "price"} dir={dir} href={sortHref("price")} />
+                <SortHead label="Your cost" tip="What we charge your card when your customer pays. US shipping is $0. Raising or lowering your Shopify price does not change this charge." active={sort === "cost"} dir={dir} href={sortHref("cost")} />
+                <SortHead label="Margin" tip="Lists at minus your cost, before you change the Shopify price. A higher Shopify price increases what you keep. We still charge your cost." active={sort === "margin"} dir={dir} href={sortHref("margin")} />
                 <th className="px-4 py-3 text-right"> </th>
               </tr>
             </thead>
@@ -443,7 +535,7 @@ export function CatalogBoard({
                     <td className="px-3 py-3 tabular-nums text-[#3f3a38]">{product.stock}</td>
                     <td className="px-3 py-3 tabular-nums">{money(product.retail)}</td>
                     <td className="px-3 py-3 tabular-nums">{money(product.cost)}</td>
-                    <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(margin)}</td>
+                    <td className={cn("px-3 py-3 tabular-nums font-semibold", margin < 0 ? "text-[#B8282E]" : "text-emerald-700")}>{money(margin)}</td>
                     <td className="px-4 py-3 text-right">
                       {listed ? (
                         <div className="flex justify-end gap-2">
@@ -589,6 +681,39 @@ export function CatalogBoard({
   );
 }
 
+function SortHead({
+  label,
+  tip,
+  active,
+  dir,
+  href,
+}: {
+  label: string;
+  tip: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  href: string;
+}) {
+  return (
+    <th className="px-3 py-3">
+      <div className="flex items-center gap-1.5">
+        <Link href={href} className="inline-flex items-center gap-1 hover:text-white/80">
+          {label}
+          <span aria-hidden="true">{active ? (dir === "asc" ? "↑" : "↓") : ""}</span>
+        </Link>
+        <span className="group relative">
+          <button type="button" aria-label={tip} className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-white/40 text-[10px] font-bold normal-case leading-none text-white">
+            <Info className="h-3 w-3" aria-hidden="true" />
+          </button>
+          <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-xl bg-white px-3 py-2 text-left text-xs font-medium normal-case leading-5 tracking-normal text-[#1a1a1a] shadow-lg group-hover:block group-focus-within:block">
+            {tip}
+          </span>
+        </span>
+      </div>
+    </th>
+  );
+}
+
 function ReceiptBody({ receipt, onRemove }: { receipt: Receipt; onRemove?: () => void }) {
   return (
     <div className="mt-3 space-y-3 border-t border-[#f0ebe8] pt-3">
@@ -609,7 +734,7 @@ function ReceiptBody({ receipt, onRemove }: { receipt: Receipt; onRemove?: () =>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div><dt className="text-[#5c5654]">Lists at</dt><dd className="font-semibold tabular-nums">{money(receipt.retail)}</dd></div>
         <div><dt className="text-[#5c5654]">Your cost</dt><dd className="font-semibold tabular-nums">{money(receipt.cost)}</dd></div>
-        <div><dt className="text-[#5c5654]">Margin</dt><dd className="font-semibold tabular-nums text-emerald-700">{money(receipt.margin)}</dd></div>
+        <div><dt className="text-[#5c5654]">Margin</dt><dd className={cn("font-semibold tabular-nums", receipt.margin < 0 ? "text-[#B8282E]" : "text-emerald-700")}>{money(receipt.margin)}</dd></div>
         <div><dt className="text-[#5c5654]">Stock sent</dt><dd className="font-semibold tabular-nums">{receipt.stock}</dd></div>
       </dl>
       {receipt.variants.length > 0 && (

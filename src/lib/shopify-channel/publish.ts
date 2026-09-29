@@ -111,6 +111,48 @@ function retailOf(
   return Number(variant?.calculated_price || variant?.price || product.calculated_price || product.price || 0);
 }
 
+export type PushChoices = {
+  priceMode?: "retail" | "markup" | "custom";
+  markupPercent?: number;
+  customPrice?: number;
+  sellerSku?: string;
+  compareAt?: number;
+  productType?: string;
+};
+
+export function cleanPush(raw: unknown): PushChoices {
+  if (!raw || typeof raw !== "object") return { priceMode: "retail" };
+  const body = raw as Record<string, unknown>;
+  const priceMode = body.priceMode === "markup" || body.priceMode === "custom" ? body.priceMode : "retail";
+  const markup = Number(body.markupPercent);
+  const custom = Number(body.customPrice);
+  const compare = Number(body.compareAt);
+  const sellerSku = typeof body.sellerSku === "string" ? body.sellerSku.replace(/[\r\n]/g, " ").trim().slice(0, 64) : "";
+  const productType = typeof body.productType === "string" ? body.productType.replace(/[\r\n]/g, " ").trim().slice(0, 80) : "";
+  return {
+    priceMode,
+    markupPercent: priceMode === "markup" && Number.isFinite(markup) && markup >= 0 && markup <= 500 ? markup : undefined,
+    customPrice: priceMode === "custom" && Number.isFinite(custom) && custom >= 0.01 && custom <= 100000 ? roundMoney(custom) : undefined,
+    sellerSku: sellerSku || undefined,
+    compareAt: Number.isFinite(compare) && compare >= 0.01 && compare <= 100000 ? roundMoney(compare) : undefined,
+    productType: productType || undefined,
+  };
+}
+
+function listPrice(retail: number, cost: number, choices: PushChoices): number {
+  if (choices.priceMode === "custom" && choices.customPrice) return choices.customPrice;
+  if (choices.priceMode === "markup" && choices.markupPercent != null) {
+    return Math.max(0.01, roundMoney(cost * (1 + choices.markupPercent / 100)));
+  }
+  return Math.max(0.01, roundMoney(retail));
+}
+
+function variantSellerSku(base: string | undefined, index: number, count: number): string | undefined {
+  if (!base) return undefined;
+  if (count <= 1) return base;
+  return `${base}-${index + 1}`.slice(0, 64);
+}
+
 function emptyReceipt(shopDomain: string, status: ListingReceipt["status"], message: string, title = "Product"): ListingReceipt {
   return {
     status,
@@ -219,7 +261,11 @@ export async function alignListingImages(connectionId: string, bcProductId: numb
   alignedOnce.add(mark);
 }
 
-export async function publishBigCommerceProduct(connectionId: string, bcProductId: number): Promise<ListingReceipt> {
+export async function publishBigCommerceProduct(
+  connectionId: string,
+  bcProductId: number,
+  choices: PushChoices = {}
+): Promise<ListingReceipt> {
   const connection = await db.shopifyConnection.findUnique({
     where: { id: connectionId },
     include: { account: true },
@@ -248,19 +294,26 @@ export async function publishBigCommerceProduct(connectionId: string, bcProductI
   const percent = await discountPercent(connection.account);
   const sourceVariants = product.variants?.length ? product.variants : [];
   const rows = sourceVariants.length ? sourceVariants : [undefined];
-  const choices = variantChoices(sourceVariants);
+  const options = variantChoices(sourceVariants);
   const orderedImages = imagesInEditorOrder(product.images || []);
   const created = await createProduct(connection.shopDomain, token, {
     title,
     bodyHtml: scrubListingText(product.description || ""),
     vendor: connection.account.companyName,
-    options: choices.names,
+    productType: choices.productType,
+    options: options.names,
     variants: rows.map((variant, index) => {
       const retail = retailOf(product, variant);
-      const choice = choices.rows[index] || [];
+      const cost = wholesaleUnitCost(retail, percent);
+      const list = listPrice(retail, cost, choices);
+      const sku = variantSellerSku(choices.sellerSku, index, rows.length);
+      const compare = choices.compareAt && choices.compareAt > list ? choices.compareAt.toFixed(2) : undefined;
+      const choice = options.rows[index] || [];
       return {
-        price: retail.toFixed(2),
-        cost: wholesaleUnitCost(retail, percent).toFixed(2),
+        price: list.toFixed(2),
+        cost: cost.toFixed(2),
+        sku,
+        compareAt: compare,
         option1: choice[0],
         option2: choice[1],
         option3: choice[2],
@@ -297,9 +350,10 @@ export async function publishBigCommerceProduct(connectionId: string, bcProductI
       await assignVariantImage(connection.shopDomain, token, created.productId, row.variantId, imageId);
     }
     if (sourceVariants.length > 1 && variant) {
+      const listed = listPrice(retail, cost, choices);
       variantReceipts.push({
-        label: variantLabel(choices.names, choices.rows[index] || []),
-        retail,
+        label: variantLabel(options.names, options.rows[index] || []),
+        retail: listed,
         cost,
         stock: Math.max(0, onHand),
         imageUrl: variant.image_url || null,
@@ -317,15 +371,17 @@ export async function publishBigCommerceProduct(connectionId: string, bcProductI
         shopifyProductId: created.productId,
         shopifyVariantId: row.variantId,
         shopifyInventoryItemId: row.inventoryItemId,
-        sellerPrice: retail,
+        sellerPrice: listPrice(retail, cost, choices),
+        sellerSku: variantSellerSku(choices.sellerSku, index, rows.length) || null,
         internalSku: variant?.sku || product.sku,
         titleSnapshot: title,
       },
     });
   }
 
-  const retail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
-  const cost = wholesaleUnitCost(retail, percent);
+  const catalogRetail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
+  const cost = wholesaleUnitCost(catalogRetail, percent);
+  const listed = listPrice(catalogRetail, cost, choices);
   const stock = sourceVariants.length > 1
     ? sourceVariants.reduce((sum, variant) => sum + Math.max(0, variant.inventory_level), 0)
     : Math.max(0, product.inventory_level);
@@ -339,9 +395,9 @@ export async function publishBigCommerceProduct(connectionId: string, bcProductI
     shopifyProductId: created.productId,
     storeUrl: links.storeUrl,
     adminUrl: links.adminUrl,
-    retail,
+    retail: listed,
     cost,
-    margin: roundMoney(retail - cost),
+    margin: roundMoney(listed - cost),
     stock,
     variants: variantReceipts,
     message: `${title} is on ${connection.shopDomain}.`,
@@ -361,8 +417,10 @@ async function receiptForExisting(
   const ordered = imagesInEditorOrder(product.images || []);
   const sourceVariants = product.variants || [];
   const choices = variantChoices(sourceVariants);
-  const retail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
-  const cost = wholesaleUnitCost(retail, percent);
+  const catalogRetail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
+  const cost = wholesaleUnitCost(catalogRetail, percent);
+  const livePrice = Number(live?.variants?.[0]?.price || 0);
+  const retail = livePrice > 0 ? livePrice : catalogRetail;
   const stock = sourceVariants.length > 1
     ? sourceVariants.reduce((sum, variant) => sum + Math.max(0, variant.inventory_level), 0)
     : Math.max(0, product.inventory_level);
@@ -381,13 +439,18 @@ async function receiptForExisting(
     margin: roundMoney(retail - cost),
     stock,
     variants: sourceVariants.length > 1
-      ? sourceVariants.map((variant, index) => ({
-          label: variantLabel(choices.names, choices.rows[index] || []),
-          retail: retailOf(product, variant),
-          cost: wholesaleUnitCost(retailOf(product, variant), percent),
-          stock: Math.max(0, variant.inventory_level),
-          imageUrl: variant.image_url || null,
-        }))
+      ? sourceVariants.map((variant, index) => {
+          const catalog = retailOf(product, variant);
+          const liveVariant = Number(live?.variants?.[index]?.price || 0);
+          const listed = liveVariant > 0 ? liveVariant : catalog;
+          return {
+            label: variantLabel(choices.names, choices.rows[index] || []),
+            retail: listed,
+            cost: wholesaleUnitCost(catalog, percent),
+            stock: Math.max(0, variant.inventory_level),
+            imageUrl: variant.image_url || null,
+          };
+        })
       : [],
     message: `${title} is already on ${shopDomain}.`,
   };
@@ -464,6 +527,7 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
     keyword?: string;
     categoryId?: number;
     page?: number;
+    push?: PushChoices;
   };
   let ids: number[] = [];
   let finished = false;
@@ -492,9 +556,14 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
   let skipped = job.skippedCount;
   let failed = job.failedCount;
   let cursor = job.cursor;
+  const push = cleanPush(detail.push);
+  if ((detail.bcProductIds?.length || 0) !== 1) {
+    delete push.sellerSku;
+    delete push.compareAt;
+  }
   for (const productId of ids) {
     try {
-      const result = await publishBigCommerceProduct(job.connectionId, productId);
+      const result = await publishBigCommerceProduct(job.connectionId, productId, push);
       if (result.status === "added") added += 1;
       else if (result.status === "skipped") skipped += 1;
       else failed += 1;

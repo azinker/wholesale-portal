@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign, Mail } from "lucide-react";
+import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign } from "lucide-react";
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { loadTierWindowDays, loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
@@ -17,6 +17,7 @@ import { DashboardRecalcTrigger } from "./dashboard-recalc-trigger";
 import { RollingWindowHelpDialog } from "./rolling-window-help-dialog";
 import { PublisherDashboard } from "./publisher-dashboard";
 import { ChannelSummary } from "./channel-summary";
+import { HowToStart } from "./how-to-start";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -155,23 +156,8 @@ export default async function DashboardPage() {
         />
       )}
 
-      {/* Checkout Email Reminder - always visible for approved users */}
       {status === "APPROVED" && (
-        <Card className="border-primary/20 bg-primary/[0.03]">
-          <CardContent className="pt-4 pb-4 flex items-start gap-3">
-            <Mail className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Use your registered email at checkout</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                To receive your wholesale discount and tax-free pricing, sign in to{" "}
-                <a href="https://theperfectpart.net" target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2">
-                  theperfectpart.net
-                </a>{" "}
-                with <strong className="text-foreground">{user.email}</strong> and enter your coupon code at checkout.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <HowToStart email={user.email} couponCode={activePromo?.code ?? null} />
       )}
 
       {/* Announcements Widget - above progress for all statuses */}

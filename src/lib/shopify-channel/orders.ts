@@ -390,21 +390,21 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
 
 function holdMessage(orderName: string, reason: string): string {
   if (reason === "store_paused") {
-    return `${orderName} arrived while new orders are paused. We did not charge you and we will not ship it. Refund your customer.`;
+    return `${orderName} came in while this store is paused. We didn't charge you, and we won't ship it. You can refund your customer on Shopify.`;
   }
   if (reason === "incomplete_address") {
-    return `${orderName} is missing a street or country. We did not charge you. Add the address on that Shopify order and we will charge and ship it.`;
+    return `${orderName} is missing a street or country. We didn't charge you. Add the address on that Shopify order and we'll charge your card and ship it.`;
   }
   if (reason === "missing_phone") {
-    return `${orderName} is outside the US and has no phone number. We did not charge you. Add a phone on that Shopify order and we will charge and ship it.`;
+    return `${orderName} is outside the US and needs a phone number. We didn't charge you. Add a phone on that Shopify order and we'll charge your card and ship it.`;
   }
   if (reason === "out_of_stock") {
-    return `${orderName} does not have enough stock. We did not charge you and we will not ship it. Refund your customer.`;
+    return `${orderName} doesn't have enough stock. We didn't charge you, and we won't ship it. You can refund your customer on Shopify.`;
   }
   if (reason === "needs_retest") {
-    return `${orderName} arrived before we could confirm shipping addresses for that store. We did not charge you. Open My Shopify and run the address test.`;
+    return `${orderName} came in before we confirmed the shipping address for that store. We didn't charge you. Open My Shopify and we'll check the address.`;
   }
-  return `${orderName} needs a working credit card before we can ship. Nothing was charged.`;
+  return `${orderName} needs a working card before we can ship. Nothing was charged. You can update the card on Billing.`;
 }
 
 function warehouseOrder(input: {

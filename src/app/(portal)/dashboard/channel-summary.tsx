@@ -58,9 +58,9 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
     <section className="overflow-hidden rounded-2xl border border-[#e7e1de] bg-white shadow-[0_10px_30px_rgba(45,45,45,0.05)]">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#f0ebe8] px-5 py-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Shopify channel</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Shopify</p>
           <h2 className="font-display text-xl font-semibold">This month</h2>
-          {access.preview && <p className="text-xs text-[#5c5654]">Preview. Other wholesalers do not see this yet.</p>}
+          {access.preview && <p className="text-xs text-[#5c5654]">Only you can see this while we finish testing.</p>}
         </div>
         <Link href="/my-shopify/orders" className="cursor-pointer text-sm font-semibold text-primary hover:underline">
           Open orders
@@ -75,7 +75,7 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
         ))}
       </div>
       <p className="px-5 pb-2 text-xs text-[#5c5654]">
-        Buyers paid {money(sold)}. We charged {money(charged)}. Margin is before Shopify fees.
+        Buyers paid {money(sold)}. We charged {money(charged)}. Your margin is before Shopify's own fees.
       </p>
       {latest.length > 0 && (
         <div className="border-t border-[#f0ebe8]">

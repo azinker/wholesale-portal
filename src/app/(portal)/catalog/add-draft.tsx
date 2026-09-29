@@ -187,7 +187,7 @@ export function DraftEditor({
               className={cn(channelField, "mt-1")}
             />
           </Field>
-          <Field label="Your Shopify SKU" tip="Optional. This is written in the SKU field on your Shopify product. Leave it blank and no SKU is sent. Orders still match the listing we create, so this does not change charging or shipping.">
+          <Field label="Your Shopify SKU" tip="Optional. This is your own SKU on Shopify. Leave it blank if you don't need one. We still know which product was sold.">
             <input
               value={draft.sku}
               onChange={(event) => onChange({ ...draft, sku: event.target.value, saved: false })}
@@ -222,7 +222,7 @@ export function DraftEditor({
                       className={cn(channelField, "mt-1")}
                     />
                   </Field>
-                  <Field label="Your SKU for this option" tip="Optional SKU for this option on your Shopify store. Each option can have its own. Leave blank to send no SKU. This does not change how we match or charge the order.">
+                  <Field label="Your SKU for this option" tip="Optional. Your own SKU for this option. Leave it blank if you don't need one. We still match the sale to this product.">
                     <input
                       value={variant.sku}
                       onChange={(event) => {
@@ -244,7 +244,7 @@ export function DraftEditor({
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Compare-at price" tip="Optional. A higher crossed-out price on your Shopify store. It is sent only when it is above the list price. It does not change what we charge.">
+        <Field label="Compare-at price" tip="Optional. A higher crossed-out price on your store, like a sale. We'll only use it when it's above your list price.">
           <input
             inputMode="decimal"
             value={draft.compareAt}

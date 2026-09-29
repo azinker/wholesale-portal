@@ -12,10 +12,10 @@ import { ChannelSchemaNotice } from "../channel-schema-notice";
 import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
 
 const FLOW = [
-  { title: "Add a product", body: "It starts at the retail price. You can raise or lower that price, and add your own SKU, before it goes to Shopify." },
-  { title: "Your customer pays you", body: "The sale stays on your store. We never charge your customer." },
-  { title: "We charge your credit card", body: "The wholesale cost that day. The statement says THE PERFECT PART." },
-  { title: "We ship it", body: "Same day or the next business day. Tracking goes onto your Shopify order." },
+  { title: "Add a product", body: "It starts at the same price as our site. You can change the price, or add your own SKU, before it goes to your store." },
+  { title: "Your customer pays you", body: "They pay on your Shopify store. We never charge your customer." },
+  { title: "We charge your card", body: "We charge your wholesale cost when they pay. It shows on your statement as THE PERFECT PART." },
+  { title: "We ship it", body: "We ship the same day or the next business day, and put tracking on your Shopify order." },
 ];
 
 export default async function CatalogPage({
@@ -117,9 +117,9 @@ export default async function CatalogPage({
   return (
     <ChannelPage>
       <ChannelHeading
-        kicker="Shopify channel"
+        kicker="Shopify"
         title="Catalog"
-        lede="Pick products, add them to your store, and we fulfill the paid orders. Your cost is today’s wholesale price. Margin is the sale price minus that cost, before Shopify fees."
+        lede="Pick a product and add it to your Shopify store. Your customer pays you. We charge your card and ship it."
       />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -133,21 +133,21 @@ export default async function CatalogPage({
       </div>
 
       <p className="text-sm leading-6 text-[#5c5654]">
-        Shipping inside the US is free, including PO Boxes. Anywhere else is $18.99 once per order. We do not charge tax or duty.
-        If we are out of stock, or the credit card does not work, we do not ship and we email you. After the credit card is charged, the address is locked. Cancel or change it in Support before it ships.
+        Shipping in the US is free, including PO Boxes, Alaska, and Hawaii. Everywhere else is $18.99 for the whole order. We don't add tax.
+        If we're out of stock, or the card doesn't go through, we'll email you and we won't ship. Once we've charged the card, write to Support if the address needs a change.
       </p>
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-          Preview. Other wholesalers still see Hot Sellers. Add sends the product to the Shopify store you connected. A paid order is saved and is not charged until the channel switch is on.
+          Only you can see this while we finish testing. Other wholesalers still use their regular dashboard.
         </ChannelPanel>
       )}
 
       {!ready && (
         <ChannelPanel className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div>
-            <p className="font-semibold text-[#1a1a1a]">Finish setup before Add turns on</p>
-            <p className="text-sm text-[#5c5654]">The terms, a credit card, and a store that passed the address test.</p>
+            <p className="font-semibold text-[#1a1a1a]">You're almost ready to add products</p>
+            <p className="text-sm text-[#5c5654]">Agree to the terms, save a card, and connect your store.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {setup.map((item) => (

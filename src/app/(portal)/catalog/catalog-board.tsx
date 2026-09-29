@@ -341,7 +341,7 @@ export function CatalogBoard({
   }
 
   const blocked = !ready || !canAdd;
-  const reason = !canAdd ? "Viewers cannot add products." : "Finish setup on My Shopify before Add turns on.";
+  const reason = !canAdd ? "You can look through the catalog. An owner or admin can add products." : "Agree to the terms, save a card, and connect your store. Then you can add products.";
 
   function pageHref(nextPage: number) {
     const params = new URLSearchParams({
@@ -436,7 +436,7 @@ export function CatalogBoard({
                 <SortHead label="Product" tip="The product name. Click to sort A to Z or Z to A. After you add it, the name on your Shopify store stays as it was." active={sort === "name"} dir={dir} href={sortHref("name")} />
                 <SortHead label="Stock" tip="How many we can ship today. Your Shopify quantity follows this number. We do not sell more than we have." active={sort === "stock"} dir={dir} href={sortHref("stock")} />
                 <SortHead label="Lists at" tip="The price on theperfectpart.net. This is the starting price on your Shopify store. You can set a different price before you add it, and you can change the price any time directly in Shopify. We never change that price for you." active={sort === "price"} dir={dir} href={sortHref("price")} />
-                <SortHead label="Your cost" tip="What we charge your card when your customer pays. US shipping is $0. Raising or lowering your Shopify price does not change this charge." active={sort === "cost"} dir={dir} href={sortHref("cost")} />
+                <SortHead label="Your cost" tip="What we charge your card when your customer pays. Shipping in the US is free. Your Shopify price can be higher or lower. We still charge this cost." active={sort === "cost"} dir={dir} href={sortHref("cost")} />
                 <SortHead label="Margin" tip="Lists at minus your cost, before you change the Shopify price. A higher Shopify price increases what you keep. We still charge your cost." active={sort === "margin"} dir={dir} href={sortHref("margin")} />
                 <th className="px-4 py-3 text-right"> </th>
               </tr>
@@ -502,7 +502,7 @@ export function CatalogBoard({
                       {loadFailed ? "The catalog cannot load yet." : "No products match this search."}
                     </p>
                     <p className="mt-1 text-sm text-[#5c5654]">
-                      {loadFailed ? "The store connection does not have permission to read products." : "Clear the search or pick another category."}
+                      {loadFailed ? "We couldn't load the catalog. Refresh the page and try again." : "Clear the search or pick another category."}
                     </p>
                   </td>
                 </tr>

@@ -4,6 +4,7 @@ import { bc, type BCOrder } from "@/lib/bigcommerce/client";
 import { getTierStatusForOrder, loadTierWindowDays, loadTiers } from "@/lib/tier-engine";
 import { formatTierWindowLabel } from "@/lib/tier-window";
 import { orderHistoryMinDate } from "@/lib/order-history";
+import { channelVisibility } from "@/lib/shopify-channel/visibility";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { OrdersTable } from "./orders-table";
@@ -49,6 +50,7 @@ export default async function OrdersPage() {
   }
   const tierWindowDays = await loadTierWindowDays();
   const tierWindowLabel = formatTierWindowLabel(tierWindowDays);
+  const channel = await channelVisibility(user.email);
 
   // Tier progress (approved wholesale accounts only)
   const account = user.wholesaleAccount;
@@ -102,7 +104,9 @@ export default async function OrdersPage() {
           Orders
         </h1>
         <p className="text-muted-foreground mt-1">
-          Orders you place on theperfectpart.net with your discount code. A Shopify sale is marked Shopify. Your customer paid you, and we charged your card to ship it.
+          {channel.visible
+            ? "Your orders from theperfectpart.net are here. Shopify sales are marked Shopify, so you can tell them apart."
+            : "View your recent orders from The Perfect Part."}
         </p>
       </div>
 

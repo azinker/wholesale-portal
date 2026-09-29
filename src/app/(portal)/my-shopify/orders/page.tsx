@@ -103,9 +103,9 @@ export default async function ChannelOrdersPage({
   return (
     <ChannelPage>
       <ChannelHeading
-        kicker="Shopify channel"
+        kicker="Shopify"
         title="Orders"
-        lede="Only orders that include a product you added from the catalog. Other products on your Shopify store never show up here."
+        lede="These are sales of products you added from the catalog. Your other Shopify products stay on Shopify and don't show up here."
       />
 
       <div className="grid gap-3 md:grid-cols-3">

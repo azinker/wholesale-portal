@@ -50,14 +50,14 @@ export default async function MyShopifyPage() {
   return (
     <ChannelPage>
       <ChannelHeading
-        kicker="Shopify channel"
+        kicker="Shopify"
         title="My Shopify"
-        lede="Connect up to 5 Shopify stores. Add stays off until the terms, a credit card, and a passed address test are done."
+        lede="Connect your Shopify store and start selling. You can connect up to 5 stores."
       />
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-          Preview. The channel is off for other wholesalers. A paid order is saved and is not charged until the channel switch is on.
+          Only you can see this while we finish testing. Other wholesalers still use their regular dashboard.
         </ChannelPanel>
       )}
 
@@ -85,7 +85,7 @@ export default async function MyShopifyPage() {
             detail: passed ? "Address test passed" : "Connect the store, then send a test webhook",
             done: passed,
             href: "#connect",
-            tip: "Jumps to your connected Shopify store on this page.",
+            tip: "Takes you down to your store on this page.",
           },
         ]}
       />
@@ -119,10 +119,10 @@ export default async function MyShopifyPage() {
         <ChannelPanel className="p-5 md:p-6" delay={140}>
           <h2 className="font-display text-xl font-semibold">What you do next</h2>
           <ol className="mt-4 space-y-4 text-sm leading-6 text-[#3f3a38]">
-            <li><span className="font-semibold text-[#1a1a1a]">1. Agree.</span> An owner or admin scrolls the terms and agrees.</li>
-            <li><span className="font-semibold text-[#1a1a1a]">2. Save a credit card.</span> On Billing. This is the credit card we charge. It is not store credit. We store the brand and last four digits only.</li>
-            <li><span className="font-semibold text-[#1a1a1a]">3. Connect the store</span> and follow the six steps on the store card. They say where to click and what to type.</li>
-            <li><span className="font-semibold text-[#1a1a1a]">4. Open Catalog</span> and add products. One email arrives when the add finishes.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">1. Agree.</span> An owner or admin reads the terms and agrees.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">2. Save a card.</span> On Billing. This is the card we charge when a customer pays you. It isn't store credit. We only keep the card brand and last four digits.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">3. Connect your store.</span> The steps on your store card tell you exactly where to click.</li>
+            <li><span className="font-semibold text-[#1a1a1a]">4. Add products.</span> Open Catalog, pick a product, and add it to your store.</li>
           </ol>
           <Link href="/billing" className={`${channelPrimaryBtn} mt-5`}>
             {card ? "Review the credit card" : "Save a credit card"}
@@ -179,7 +179,7 @@ export default async function MyShopifyPage() {
                 </p>
               ) : (
                 <div className="mt-5 space-y-3">
-                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1a1a1a]">Address test <Tip text="Shopify sends a test so we can see a ship-to address. Add stays off until this passes." /></p>
+                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1a1a1a]">Address test <Tip text="A quick check so we know where to ship. A green check means you're ready to add products." /></p>
                   {connection.addressTestStatus === "PASSED" ? (
                     <p className="text-sm leading-6 text-[#5c5654]">
                       This store passed. The two webhooks are in place. You do not need to add them again.
@@ -261,7 +261,7 @@ export default async function MyShopifyPage() {
 
         {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
-            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Connect a United States dollar Shopify store. You can connect up to 5. This does not change products already on that store." /></h2>
+            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Use your store's myshopify.com address. You can connect up to 5 stores. Products already on the store stay as they are." /></h2>
             <p className="mt-1 text-sm text-[#5c5654]">You can add up to 5 Shopify stores. Use the myshopify.com address. Example: north-auto.myshopify.com. USD stores only.</p>
             <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="shop">Store domain</label>

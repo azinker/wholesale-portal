@@ -90,9 +90,9 @@ export default async function BillingPage({
   return (
     <ChannelPage>
       <ChannelHeading
-        kicker="Shopify channel"
+        kicker="Shopify"
         title="Billing"
-        lede="We charge the credit card saved here when a Shopify order is paid. The statement name is THE PERFECT PART. This page is a record of charges already taken, not a second bill."
+        lede="When your customer pays, we charge the card saved here. You'll see THE PERFECT PART on your statement."
       />
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -126,10 +126,10 @@ export default async function BillingPage({
               </form>
             )}
             {canBill && !stripeConfigured() && <p className="text-[#5c5654]">Credit card setup is not configured yet.</p>}
-            {!canBill && <p className="text-[#5c5654]">Only an owner or admin can save the credit card.</p>}
-            <p className="leading-6 text-[#5c5654]">This is the credit card we charge for Shopify orders. It is not store credit.</p>
+            {!canBill && <p className="text-[#5c5654]">An owner or admin can save the card for this account.</p>}
+            <p className="leading-6 text-[#5c5654]">This is the card we charge when your customer pays. It isn't store credit.</p>
             {preview && (
-              <p className="leading-6 text-[#5c5654]">Saving a credit card uses the live Stripe account. A paid order is not charged until the channel switch is on.</p>
+              <p className="leading-6 text-[#5c5654]">Only you can see this while we finish testing. Saving a card is real. We won't charge it for a Shopify sale until testing is finished.</p>
             )}
             <Link href="/my-shopify" className="inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline">
               Back to My Shopify

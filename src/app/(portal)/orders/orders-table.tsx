@@ -136,7 +136,7 @@ export function OrdersTable({
                       {order.channel && (
                         <span className="inline-flex items-center gap-1">
                           <Badge className="bg-[#2d2d2d] text-[10px] text-white hover:bg-[#2d2d2d]">Shopify</Badge>
-                          <Tip text="Your customer paid you on Shopify. We charged your card and shipped it. This is not an order you placed on theperfectpart.net with your discount code, and it does not count toward your tier." />
+                          <Tip text="Your customer paid you on Shopify. We charged your card and shipped it. This is separate from an order you placed on theperfectpart.net, and it doesn't count toward your discount tier." />
                         </span>
                       )}
                     </span>

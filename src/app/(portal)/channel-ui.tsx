@@ -17,25 +17,25 @@ export function money(value: number): string {
 
 const STATUS_LABEL: Record<string, string> = {
   HELD: "Waiting",
-  QUEUED: "Waiting to charge",
-  NEEDS_ATTENTION: "Needs attention",
+  QUEUED: "Ready to charge",
+  NEEDS_ATTENTION: "Needs a look",
   CHARGED: "Charged",
-  SUBMITTED: "Sent to warehouse",
-  PICKING: "Picking",
+  SUBMITTED: "Getting ready",
+  PICKING: "Packing",
   SHIPPED: "Shipped",
-  FAILED: "Could not finish",
+  FAILED: "Needs a look",
   REFUNDED: "Refunded",
 };
 
 const ATTENTION_LABEL: Record<string, string> = {
-  store_paused: "This store is paused, so the order was not charged.",
-  incomplete_address: "The address is missing a street or country.",
-  needs_retest: "The store needs the address test again.",
-  missing_phone: "An international order is missing a phone number.",
-  out_of_stock: "We were out of stock, so nothing was charged.",
-  card_missing: "No credit card is saved on this account.",
-  card_declined: "The credit card was declined.",
-  warehouse_create_failed: "The credit card charge was refunded because the warehouse order could not be created.",
+  store_paused: "This store is paused, so we didn't charge this order.",
+  incomplete_address: "The shipping address needs a street and a country.",
+  needs_retest: "We need to confirm this store's shipping address again.",
+  missing_phone: "Orders outside the US need a phone number.",
+  out_of_stock: "We didn't have enough in stock, so we didn't charge you.",
+  card_missing: "Save a card on Billing so we can charge this order.",
+  card_declined: "The card was declined. Update it on Billing and we'll try again.",
+  warehouse_create_failed: "We refunded the charge because we couldn't start the shipment.",
 };
 
 export function statusLabel(status: string): string {

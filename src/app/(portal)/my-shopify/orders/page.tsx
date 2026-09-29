@@ -11,6 +11,7 @@ import {
   type OrderLine,
 } from "@/lib/shopify-channel/order-view";
 import { ChannelSchemaNotice } from "../../channel-schema-notice";
+import { Tip, TipLabel } from "../../tip";
 import {
   ChannelHeading,
   ChannelPage,
@@ -109,17 +110,17 @@ export default async function ChannelOrdersPage({
 
       <div className="grid gap-3 md:grid-cols-3">
         <ChannelPanel className="px-5 py-4">
-          <p className="text-xs font-medium text-[#5c5654]">Awaiting shipment</p>
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5c5654]">Awaiting shipment <Tip text="The customer has paid. We charge your card, then ship. Tracking is not on the order yet." /></p>
           <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{awaiting}</p>
           <p className="mt-1 text-xs text-[#5c5654]">Paid, not shipped yet</p>
         </ChannelPanel>
         <ChannelPanel className="px-5 py-4">
-          <p className="text-xs font-medium text-[#5c5654]">Shipped</p>
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5c5654]">Shipped <Tip text="We shipped the order and put tracking on your Shopify order." /></p>
           <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{shipped}</p>
           <p className="mt-1 text-xs text-[#5c5654]">Tracking is on the order</p>
         </ChannelPanel>
         <ChannelPanel className="px-5 py-4">
-          <p className="text-xs font-medium text-[#5c5654]">Needs a look</p>
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5c5654]">Needs a look <Tip text="The card was declined, or the order could not finish. Nothing was shipped for a declined card." /></p>
           <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{attention}</p>
           <p className="mt-1 text-xs text-[#5c5654]">Not charged, or could not finish</p>
         </ChannelPanel>
@@ -157,12 +158,12 @@ export default async function ChannelOrdersPage({
           <table className="w-full min-w-[920px] text-sm">
             <thead className="bg-[#2d2d2d] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
               <tr>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-3 py-3">Product</th>
-                <th className="px-3 py-3">Buyer paid</th>
-                <th className="px-3 py-3">Charge</th>
-                <th className="px-3 py-3">Shipment</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3"><TipLabel tone="dark" tip="Your Shopify order number. Open it for the address, products, and tracking.">Order</TipLabel></th>
+                <th className="px-3 py-3"><TipLabel tone="dark" tip="A product you added from the catalog. Other products on your Shopify store are not listed here.">Product</TipLabel></th>
+                <th className="px-3 py-3"><TipLabel tone="dark" tip="What your customer paid you on Shopify.">Buyer paid</TipLabel></th>
+                <th className="px-3 py-3"><TipLabel tone="dark" tip="What we charged your card when the order was paid. Open it to see that charge on Billing.">Charge</TipLabel></th>
+                <th className="px-3 py-3"><TipLabel tone="dark" tip="Tracking after we ship. US shipping is $0. We ship after the card charge.">Shipment</TipLabel></th>
+                <th className="px-4 py-3"><TipLabel tone="dark" tip="Awaiting shipment, shipped, or needs a look.">Status</TipLabel></th>
               </tr>
             </thead>
             <tbody>

@@ -7,6 +7,7 @@ import { isAffiliatedOrder, netCharged, wasCharged, whenEastern } from "@/lib/sh
 import { stripeConfigured, readCheckoutSession, readSetupIntent, readCard } from "@/lib/shopify-channel/stripe";
 import { retryCardAttention } from "@/lib/shopify-channel/orders";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
+import { Tip, TipLabel } from "../tip";
 import {
   ChannelHeading,
   ChannelPage,
@@ -97,7 +98,10 @@ export default async function BillingPage({
       <div className="grid gap-3 md:grid-cols-3">
         {stats.map((stat, index) => (
           <ChannelPanel key={stat.label} delay={index * 60} className="px-5 py-4">
-            <p className="text-xs font-medium text-[#5c5654]">{stat.label}</p>
+            <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5c5654]">
+              {stat.label}
+              <Tip text={stat.label === "Buyer paid" ? "The total your customer paid you on Shopify for these orders." : stat.label === "Charged" ? "What we already took from the credit card on this account. This happens when the order is paid, before we ship." : "Buyer paid minus what we charged. Shopify's own fees are not included."} />
+            </p>
             <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{stat.value}</p>
             <p className="mt-1 text-xs text-[#5c5654]">{stat.hint}</p>
           </ChannelPanel>
@@ -199,12 +203,12 @@ export default async function BillingPage({
                   <table className="w-full min-w-[720px] text-sm">
                     <thead className="bg-[#2d2d2d] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
                       <tr>
-                        <th className="px-4 py-3">Order</th>
-                        <th className="px-3 py-3">Buyer paid</th>
-                        <th className="px-3 py-3">Charged</th>
-                        <th className="px-3 py-3">Shipping</th>
-                        <th className="px-3 py-3">Margin</th>
-                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3"><TipLabel tone="dark" tip="The Shopify order. Open it to see the address, products, and tracking.">Order</TipLabel></th>
+                        <th className="px-3 py-3"><TipLabel tone="dark" tip="What your customer paid you on Shopify.">Buyer paid</TipLabel></th>
+                        <th className="px-3 py-3"><TipLabel tone="dark" tip="What we took from your credit card. The charge happens when the order is paid, not when it ships.">Charged</TipLabel></th>
+                        <th className="px-3 py-3"><TipLabel tone="dark" tip="US shipping is $0, including PO Boxes, Alaska, and Hawaii. Every other country is $18.99 once per order.">Shipping</TipLabel></th>
+                        <th className="px-3 py-3"><TipLabel tone="dark" tip="Buyer paid minus what we charged. This is before Shopify fees.">Margin</TipLabel></th>
+                        <th className="px-4 py-3"><TipLabel tone="dark" tip="Waiting to charge, charged, shipped, or needs a look. Open the order for the detail.">Status</TipLabel></th>
                       </tr>
                     </thead>
                     <tbody>

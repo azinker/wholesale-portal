@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
 import { ChannelSchemaNotice } from "../../../channel-schema-notice";
+import { Tip } from "../../../tip";
 import {
   ChannelHeading,
   ChannelPage,
@@ -145,10 +146,10 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
           <ChannelPanel className="bg-[#2d2d2d] p-5 text-sm text-white">
             <h2 className="font-display text-lg font-semibold">Money</h2>
             <dl className="mt-3 space-y-2">
-              <div className="flex justify-between gap-3"><dt className="text-white/70">Buyer paid</dt><dd className="tabular-nums">{money(sold)}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-white/70">Our product cost</dt><dd className="tabular-nums">{money(goods || Number(order.goodsCharged))}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-white/70">Shipping we charged</dt><dd className="tabular-nums">{money(Number(order.shippingCharged))}</dd></div>
-              <div className="flex justify-between gap-3 border-t border-white/15 pt-2"><dt>Total we charged</dt><dd className="tabular-nums font-semibold">{money(net)}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="inline-flex items-center gap-1.5 text-white/70">Buyer paid <Tip tone="dark" text="What your customer paid you on Shopify." /></dt><dd className="tabular-nums">{money(sold)}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="inline-flex items-center gap-1.5 text-white/70">Our product cost <Tip tone="dark" text="The wholesale cost for the products. This is what the product portion of the charge is based on." /></dt><dd className="tabular-nums">{money(goods || Number(order.goodsCharged))}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="inline-flex items-center gap-1.5 text-white/70">Shipping we charged <Tip tone="dark" text="US addresses are $0. Every other country is $18.99 once for the order." /></dt><dd className="tabular-nums">{money(Number(order.shippingCharged))}</dd></div>
+              <div className="flex justify-between gap-3 border-t border-white/15 pt-2"><dt className="inline-flex items-center gap-1.5">Total we charged <Tip tone="dark" text="Taken from your card when the customer paid, before we ship." /></dt><dd className="tabular-nums font-semibold">{money(net)}</dd></div>
               {refunded > 0 && <div className="flex justify-between gap-3"><dt className="text-white/70">Refunded</dt><dd className="tabular-nums">{money(refunded)}</dd></div>}
               <div className="flex justify-between gap-3 text-emerald-300"><dt>Margin</dt><dd className="tabular-nums font-semibold">{money(sold - net)}</dd></div>
             </dl>

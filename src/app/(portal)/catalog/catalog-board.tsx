@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Info, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { channelField, channelGhostBtn, channelPrimaryBtn, money } from "../channel-ui";
+import { Tip } from "../tip";
 import { cn } from "@/lib/utils";
+import { DraftEditor, draftFromProduct, draftSummary, pushFromDraft, type CatalogVariant, type ListingDraft } from "./add-draft";
 
 type ProductCard = {
   id: number;
@@ -15,6 +17,7 @@ type ProductCard = {
   stock: number;
   retail: number;
   cost: number;
+  variants?: CatalogVariant[];
 };
 
 type StoreChoice = { id: string; shopDomain: string };
@@ -105,25 +108,7 @@ export function CatalogBoard({
   const [viewLoading, setViewLoading] = useState(false);
   const [viewTitle, setViewTitle] = useState("");
   const [task, setTask] = useState<"add" | "remove">("add");
-  const [priceMode, setPriceMode] = useState<"retail" | "20" | "35" | "50" | "custom">("retail");
-  const [customPrice, setCustomPrice] = useState("");
-  const [sellerSku, setSellerSku] = useState("");
-  const [compareAt, setCompareAt] = useState("");
-  const [productType, setProductType] = useState("");
-
-  function pushChoices(count: number) {
-    const custom = Number(customPrice);
-    const compare = Number(compareAt);
-    const single = count === 1;
-    return {
-      priceMode: priceMode === "custom" ? "custom" : priceMode === "retail" ? "retail" : "markup",
-      markupPercent: priceMode === "20" || priceMode === "35" || priceMode === "50" ? Number(priceMode) : undefined,
-      customPrice: priceMode === "custom" && custom > 0 ? custom : undefined,
-      sellerSku: single ? sellerSku.trim() : undefined,
-      compareAt: single && compare > 0 ? compare : undefined,
-      productType: productType.trim() || undefined,
-    };
-  }
+  const [drafts, setDrafts] = useState<ListingDraft[] | null>(null);
 
   const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
   const running = pending;
@@ -156,18 +141,18 @@ export function CatalogBoard({
     setViewLoading(false);
   }
 
-  async function addOne(productId: number, connectionId: string, count: number): Promise<Receipt> {
+  async function addOne(productId: number, connectionId: string, push: ReturnType<typeof pushFromDraft>): Promise<Receipt> {
     const res = await fetch("/api/portal/shopify-channel/listings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scope: "selection", bcProductIds: [productId], connectionIds: [connectionId], push: pushChoices(count) }),
+      body: JSON.stringify({ scope: "selection", bcProductIds: [productId], connectionIds: [connectionId], push }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Could not add");
     return data.receipt as Receipt;
   }
 
-  async function publishSelection(ids: number[]) {
+  function openDrafts(ids: number[]) {
     const targets = chosenStores();
     if (!canAdd || !ready) return;
     if (targets.length === 0) {
@@ -178,29 +163,40 @@ export function CatalogBoard({
       .map((id) => products.find((product) => product.id === id))
       .filter((product): product is ProductCard => Boolean(product));
     if (queue.length === 0) return;
+    setView(null);
+    setRows(null);
+    setDrafts(queue.map((product) => draftFromProduct(product, queue.length === 1)));
+  }
+
+  async function publishDrafts() {
+    const queue = drafts;
+    const targets = chosenStores();
+    if (!queue || queue.length === 0 || !canAdd || !ready) return;
+    if (targets.length === 0) return;
+    setDrafts(null);
     setPending(true);
     setView(null);
     setViewProduct(null);
     setJobLabel(null);
     setTask("add");
-    setRows(queue.map((product) => ({ id: product.id, name: product.name, state: "waiting", receipts: [] })));
+    setRows(queue.map((draft) => ({ id: draft.productId, name: draft.name, state: "waiting", receipts: [] })));
     const finished: number[] = [];
-    for (const product of queue) {
-      setRows((current) => current?.map((row) => (row.id === product.id ? { ...row, state: "adding" } : row)) || null);
+    for (const draft of queue) {
+      setRows((current) => current?.map((row) => (row.id === draft.productId ? { ...row, state: "adding" } : row)) || null);
       const receipts: Receipt[] = [];
       let error = "";
       for (const store of targets) {
         try {
-          receipts.push(await addOne(product.id, store.id, queue.length));
+          receipts.push(await addOne(draft.productId, store.id, pushFromDraft(draft)));
         } catch (caught) {
           error = caught instanceof Error ? caught.message : "Could not add";
         }
       }
       const ok = receipts.some((receipt) => receipt.status === "added" || receipt.status === "skipped");
-      if (ok) finished.push(product.id);
+      if (ok) finished.push(draft.productId);
       setRows((current) =>
         current?.map((row) =>
-          row.id === product.id ? { ...row, state: error && !ok ? "failed" : "done", receipts, error: error || undefined } : row
+          row.id === draft.productId ? { ...row, state: error && !ok ? "failed" : "done", receipts, error: error || undefined } : row
         ) || null
       );
     }
@@ -219,7 +215,7 @@ export function CatalogBoard({
     }
     const count = scope === "catalog" ? catalogCount : matchCount;
     const label = scope === "catalog" ? "the entire catalog" : "everything in this search";
-    if (!window.confirm(`Add ${count} products from ${label}? Products already on the store are skipped.`)) return;
+    if (!window.confirm(`Add ${count} products from ${label} at the retail price, with no SKU? To set a price or SKU, select products and use Add selected.`)) return;
     setPending(true);
     setTask("add");
     setRows(null);
@@ -235,7 +231,7 @@ export function CatalogBoard({
           connectionIds: targets.map((store) => store.id),
           keyword: scope === "catalog" ? undefined : keyword,
           categoryId: scope === "catalog" || !categoryId ? undefined : Number(categoryId),
-          push: pushChoices(count),
+          push: { priceMode: "retail" },
         }),
       });
       const data = await res.json();
@@ -389,6 +385,7 @@ export function CatalogBoard({
         <label className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm text-[#3f3a38]">
           <input type="checkbox" name="stock" value="1" defaultChecked={inStock} className="h-4 w-4 accent-[#B8282E]" />
           In stock
+          <Tip text="Show only products we can ship today." />
         </label>
         <button className={channelPrimaryBtn} type="submit">Search</button>
       </form>
@@ -419,69 +416,10 @@ export function CatalogBoard({
         </div>
       )}
 
-      <div className="rounded-2xl border border-[#e7e1de] bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-[#1a1a1a]">Price on your Shopify store</p>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-[#5c5654]">
-          Starts at the theperfectpart.net price. Raise it for more margin, or type your own price, including a lower one. We charge your cost when your customer pays, not when it ships. Changing this price does not change that charge.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(
-            [
-              ["retail", "Retail price"],
-              ["20", "20% above cost"],
-              ["35", "35% above cost"],
-              ["50", "50% above cost"],
-              ["custom", "Custom price"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setPriceMode(value)}
-              className={cn(
-                "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-200",
-                priceMode === value ? "border-[#2d2d2d] bg-[#2d2d2d] text-white" : "border-[#e4ddd9] bg-white text-[#3f3a38] hover:border-[#2d2d2d]"
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {priceMode === "custom" && (
-          <label className="mt-3 block max-w-xs text-sm text-[#3f3a38]">
-            List price
-            <input
-              inputMode="decimal"
-              value={customPrice}
-              onChange={(event) => setCustomPrice(event.target.value)}
-              placeholder="0.00"
-              className={cn(channelField, "mt-1")}
-            />
-          </label>
-        )}
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <label className="text-sm text-[#3f3a38]">
-            Your Shopify SKU
-            <input value={sellerSku} onChange={(event) => setSellerSku(event.target.value)} placeholder="Optional, one product at a time" className={cn(channelField, "mt-1")} />
-          </label>
-          <label className="text-sm text-[#3f3a38]">
-            Compare-at price
-            <input inputMode="decimal" value={compareAt} onChange={(event) => setCompareAt(event.target.value)} placeholder="Optional, one product" className={cn(channelField, "mt-1")} />
-          </label>
-          <label className="text-sm text-[#3f3a38]">
-            Product type
-            <input value={productType} onChange={(event) => setProductType(event.target.value)} placeholder="Optional, such as Home" className={cn(channelField, "mt-1")} />
-          </label>
-        </div>
-        <p className="mt-3 text-xs leading-5 text-[#5c5654]">
-          Your SKU is written on that Shopify product only. Orders still match the listing we created, so your SKU does not change charging or shipping. Leave it blank to send no SKU. Compare-at is a crossed-out price and is used only when it is higher than the list price. SKU and compare-at apply when you add one product. A custom price is used for every product in that add, so use it on one product when the prices should differ.
-        </p>
-      </div>
-
       {selected.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2d2d2d] bg-[#2d2d2d] px-4 py-3 text-white shadow-sm">
           <p className="text-sm font-medium">{selected.length} selected</p>
-          <button type="button" disabled={blocked || pending} onClick={() => publishSelection(selected)} className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1a1a1a] hover:bg-[#f6f3f1] disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" disabled={blocked || pending} onClick={() => openDrafts(selected)} className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1a1a1a] hover:bg-[#f6f3f1] disabled:cursor-not-allowed disabled:opacity-45">
             Add selected to Shopify
           </button>
         </div>
@@ -547,7 +485,7 @@ export function CatalogBoard({
                           type="button"
                           disabled={blocked || pending}
                           title={blocked ? reason : "Adds this product to your Shopify store at the retail price."}
-                          onClick={() => publishSelection([product.id])}
+                          onClick={() => openDrafts([product.id])}
                           className={channelPrimaryBtn}
                         >
                           Add
@@ -587,7 +525,7 @@ export function CatalogBoard({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e7e1de] bg-white/95 px-4 py-3 shadow-[0_12px_40px_rgba(45,45,45,0.12)] backdrop-blur">
           <p className="max-w-md text-sm text-[#5c5654]">{blocked ? reason : selected.length ? `${selected.length} selected.` : "Check products, then add them together."}</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={blocked || pending || selected.length === 0} onClick={() => publishSelection(selected)} className={channelPrimaryBtn}>
+            <button type="button" disabled={blocked || pending || selected.length === 0} onClick={() => openDrafts(selected)} className={channelPrimaryBtn}>
               Add selected ({selected.length})
             </button>
             <button type="button" disabled={blocked || pending || matchCount === 0} onClick={() => publishScope("category")} className={channelGhostBtn}>
@@ -599,6 +537,68 @@ export function CatalogBoard({
           </div>
         </div>
       </div>
+
+      <Dialog open={drafts !== null} onOpenChange={(open) => { if (!open) setDrafts(null); }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{drafts && drafts.length === 1 ? "Add to your Shopify store" : `Add ${drafts?.length || 0} products`}</DialogTitle>
+            <DialogDescription>
+              List price starts at the retail price. Set your price and SKU, then add. We charge your cost when the customer pays.
+            </DialogDescription>
+          </DialogHeader>
+          {drafts && drafts.length === 1 && (
+            <div className="space-y-4">
+              <p className="font-medium text-[#1a1a1a]">{drafts[0].name}</p>
+              <DraftEditor draft={drafts[0]} onChange={(next) => setDrafts([next])} />
+              <button type="button" onClick={() => publishDrafts()} className={channelPrimaryBtn}>Add to Shopify</button>
+            </div>
+          )}
+          {drafts && drafts.length > 1 && (
+            <div className="space-y-3">
+              {drafts.map((draft, index) => (
+                <div key={draft.productId} className="rounded-xl border border-[#e7e1de]">
+                  <button
+                    type="button"
+                    onClick={() => setDrafts(drafts.map((row, rowIndex) => rowIndex === index ? { ...row, open: !row.open } : row))}
+                    className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <span>
+                      <span className="block font-medium text-[#1a1a1a]">{draft.name}</span>
+                      <span className="text-sm text-[#5c5654]">{draftSummary(draft)}</span>
+                    </span>
+                    <span className={cn("shrink-0 text-xs font-semibold", draft.saved && !draft.open ? "text-emerald-700" : "text-[#5c5654]")}>
+                      {draft.open ? "Close" : draft.saved ? "Saved" : "Edit"}
+                    </span>
+                  </button>
+                  {draft.open && (
+                    <div className="space-y-3 border-t border-[#f0ebe8] px-4 py-3">
+                      <DraftEditor
+                        draft={draft}
+                        onChange={(next) => setDrafts(drafts.map((row, rowIndex) => rowIndex === index ? next : row))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setDrafts(drafts.map((row, rowIndex) => rowIndex === index ? { ...row, open: false, saved: true } : row))}
+                        className={channelPrimaryBtn}
+                      >
+                        Save this item
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                disabled={drafts.some((draft) => draft.open || !draft.saved)}
+                onClick={() => publishDrafts()}
+                className={channelPrimaryBtn}
+              >
+                {drafts.some((draft) => draft.open || !draft.saved) ? "Save each open item first" : `Add all ${drafts.length} to Shopify`}
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl" onPointerDownOutside={(event) => { if (running) event.preventDefault(); }} onEscapeKeyDown={(event) => { if (running) event.preventDefault(); }}>
@@ -701,14 +701,7 @@ function SortHead({
           {label}
           <span aria-hidden="true">{active ? (dir === "asc" ? "↑" : "↓") : ""}</span>
         </Link>
-        <span className="group relative">
-          <button type="button" aria-label={tip} className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-white/40 text-[10px] font-bold normal-case leading-none text-white">
-            <Info className="h-3 w-3" aria-hidden="true" />
-          </button>
-          <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-xl bg-white px-3 py-2 text-left text-xs font-medium normal-case leading-5 tracking-normal text-[#1a1a1a] shadow-lg group-hover:block group-focus-within:block">
-            {tip}
-          </span>
-        </span>
+        <Tip text={tip} tone="dark" />
       </div>
     </th>
   );

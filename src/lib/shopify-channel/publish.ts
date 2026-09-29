@@ -111,6 +111,12 @@ function retailOf(
   return Number(variant?.calculated_price || variant?.price || product.calculated_price || product.price || 0);
 }
 
+export type PushVariant = {
+  bcVariantId: number;
+  price?: number;
+  sku?: string;
+};
+
 export type PushChoices = {
   priceMode?: "retail" | "markup" | "custom";
   markupPercent?: number;
@@ -118,6 +124,7 @@ export type PushChoices = {
   sellerSku?: string;
   compareAt?: number;
   productType?: string;
+  variants?: PushVariant[];
 };
 
 export function cleanPush(raw: unknown): PushChoices {
@@ -129,6 +136,21 @@ export function cleanPush(raw: unknown): PushChoices {
   const compare = Number(body.compareAt);
   const sellerSku = typeof body.sellerSku === "string" ? body.sellerSku.replace(/[\r\n]/g, " ").trim().slice(0, 64) : "";
   const productType = typeof body.productType === "string" ? body.productType.replace(/[\r\n]/g, " ").trim().slice(0, 80) : "";
+  const variants = Array.isArray(body.variants)
+    ? body.variants.slice(0, 80).flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        const id = Number(row.bcVariantId);
+        if (!Number.isInteger(id) || id <= 0) return [];
+        const price = Number(row.price);
+        const sku = typeof row.sku === "string" ? row.sku.replace(/[\r\n]/g, " ").trim().slice(0, 64) : "";
+        return [{
+          bcVariantId: id,
+          price: Number.isFinite(price) && price >= 0.01 && price <= 100000 ? roundMoney(price) : undefined,
+          sku: sku || undefined,
+        }];
+      })
+    : [];
   return {
     priceMode,
     markupPercent: priceMode === "markup" && Number.isFinite(markup) && markup >= 0 && markup <= 500 ? markup : undefined,
@@ -136,10 +158,13 @@ export function cleanPush(raw: unknown): PushChoices {
     sellerSku: sellerSku || undefined,
     compareAt: Number.isFinite(compare) && compare >= 0.01 && compare <= 100000 ? roundMoney(compare) : undefined,
     productType: productType || undefined,
+    variants: variants.length ? variants : undefined,
   };
 }
 
-function listPrice(retail: number, cost: number, choices: PushChoices): number {
+function listPrice(retail: number, cost: number, choices: PushChoices, variantId?: number): number {
+  const row = variantId ? choices.variants?.find((item) => item.bcVariantId === variantId) : undefined;
+  if (row?.price) return Math.max(0.01, row.price);
   if (choices.priceMode === "custom" && choices.customPrice) return choices.customPrice;
   if (choices.priceMode === "markup" && choices.markupPercent != null) {
     return Math.max(0.01, roundMoney(cost * (1 + choices.markupPercent / 100)));
@@ -147,10 +172,14 @@ function listPrice(retail: number, cost: number, choices: PushChoices): number {
   return Math.max(0.01, roundMoney(retail));
 }
 
-function variantSellerSku(base: string | undefined, index: number, count: number): string | undefined {
-  if (!base) return undefined;
-  if (count <= 1) return base;
-  return `${base}-${index + 1}`.slice(0, 64);
+function sellerSkuFor(choices: PushChoices, variantId: number | undefined, index: number, count: number): string | undefined {
+  if (choices.variants?.length) {
+    const row = variantId ? choices.variants.find((item) => item.bcVariantId === variantId) : undefined;
+    return row?.sku;
+  }
+  if (!choices.sellerSku) return undefined;
+  if (count <= 1) return choices.sellerSku;
+  return `${choices.sellerSku}-${index + 1}`.slice(0, 64);
 }
 
 function emptyReceipt(shopDomain: string, status: ListingReceipt["status"], message: string, title = "Product"): ListingReceipt {
@@ -305,8 +334,8 @@ export async function publishBigCommerceProduct(
     variants: rows.map((variant, index) => {
       const retail = retailOf(product, variant);
       const cost = wholesaleUnitCost(retail, percent);
-      const list = listPrice(retail, cost, choices);
-      const sku = variantSellerSku(choices.sellerSku, index, rows.length);
+      const list = listPrice(retail, cost, choices, variant?.id);
+      const sku = sellerSkuFor(choices, variant?.id, index, rows.length);
       const compare = choices.compareAt && choices.compareAt > list ? choices.compareAt.toFixed(2) : undefined;
       const choice = options.rows[index] || [];
       return {
@@ -350,7 +379,7 @@ export async function publishBigCommerceProduct(
       await assignVariantImage(connection.shopDomain, token, created.productId, row.variantId, imageId);
     }
     if (sourceVariants.length > 1 && variant) {
-      const listed = listPrice(retail, cost, choices);
+      const listed = listPrice(retail, cost, choices, variant.id);
       variantReceipts.push({
         label: variantLabel(options.names, options.rows[index] || []),
         retail: listed,
@@ -371,8 +400,8 @@ export async function publishBigCommerceProduct(
         shopifyProductId: created.productId,
         shopifyVariantId: row.variantId,
         shopifyInventoryItemId: row.inventoryItemId,
-        sellerPrice: listPrice(retail, cost, choices),
-        sellerSku: variantSellerSku(choices.sellerSku, index, rows.length) || null,
+        sellerPrice: listPrice(retail, cost, choices, variant?.id),
+        sellerSku: sellerSkuFor(choices, variant?.id, index, rows.length) || null,
         internalSku: variant?.sku || product.sku,
         titleSnapshot: title,
       },
@@ -381,7 +410,7 @@ export async function publishBigCommerceProduct(
 
   const catalogRetail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
   const cost = wholesaleUnitCost(catalogRetail, percent);
-  const listed = listPrice(catalogRetail, cost, choices);
+  const listed = listPrice(catalogRetail, cost, choices, sourceVariants.length === 1 ? sourceVariants[0]?.id : undefined);
   const stock = sourceVariants.length > 1
     ? sourceVariants.reduce((sum, variant) => sum + Math.max(0, variant.inventory_level), 0)
     : Math.max(0, product.inventory_level);

@@ -68,7 +68,7 @@ export default async function CatalogPage({
     sort: bcSort,
     direction: dir,
     inStock,
-    include: "images",
+    include: "images,variants",
     limit: 24,
     page,
   };
@@ -174,6 +174,19 @@ export default async function CatalogPage({
             stock: product.inventory_level,
             retail,
             cost: wholesaleUnitCost(retail, percent),
+            variants: (product.variants || []).length > 1
+              ? (product.variants || []).map((variant, index) => {
+                  const variantRetail = Number(variant.calculated_price || variant.price || retail);
+                  const label = (variant.option_values || []).map((option) => option.label).filter(Boolean).join(" / ") || `Option ${index + 1}`;
+                  return {
+                    id: variant.id,
+                    label,
+                    retail: variantRetail,
+                    cost: wholesaleUnitCost(variantRetail, percent),
+                    stock: variant.inventory_level,
+                  };
+                })
+              : [],
           };
         })}
         stores={stores.map((store) => ({ id: store.id, shopDomain: store.shopDomain }))}

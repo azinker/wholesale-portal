@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
-import { publishBigCommerceProduct } from "@/lib/shopify-channel/publish";
+import { listingDetails, publishBigCommerceProduct } from "@/lib/shopify-channel/publish";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 async function readyStores(accountId: string) {
@@ -34,6 +34,13 @@ export async function GET(req: NextRequest) {
   const keyword = req.nextUrl.searchParams.get("q") || undefined;
   const categoryRaw = req.nextUrl.searchParams.get("category");
   const categoryId = categoryRaw ? Number(categoryRaw) : undefined;
+  const productRaw = req.nextUrl.searchParams.get("bcProductId");
+  const bcProductId = productRaw ? Number(productRaw) : 0;
+  if (Number.isInteger(bcProductId) && bcProductId > 0) {
+    const receipts = await listingDetails(auth.user.wholesaleAccount.id, bcProductId);
+    if (receipts.length === 0) return NextResponse.json({ error: "This product is not on your Shopify store yet" }, { status: 404 });
+    return NextResponse.json({ receipts });
+  }
   const result = await bc().getProducts({
     is_visible: true,
     keyword,
@@ -108,32 +115,31 @@ export async function POST(req: NextRequest) {
     const job = jobs[0];
     const connection = chosen[0];
     try {
-      const result = await publishBigCommerceProduct(connection.id, ids[0]);
+      const receipt = await publishBigCommerceProduct(connection.id, ids[0]);
       await db.channelPublishJob.update({
         where: { id: job.id },
         data: {
           status: "COMPLETED",
-          addedCount: result === "added" ? 1 : 0,
-          skippedCount: result === "skipped" ? 1 : 0,
-          failedCount: result === "failed" ? 1 : 0,
+          addedCount: receipt.status === "added" ? 1 : 0,
+          skippedCount: receipt.status === "skipped" ? 1 : 0,
+          failedCount: receipt.status === "failed" ? 1 : 0,
           emailSentAt: new Date(),
         },
       });
-      const { emailAccount } = await import("@/lib/shopify-channel/notify");
-      await emailAccount(
-        auth.user.email,
-        "Your Shopify listing is finished",
-        result === "added" ? "The product was added." : `The product was ${result}.`
-      );
+      if (receipt.status === "failed") {
+        return NextResponse.json({ error: receipt.message, receipt }, { status: 422 });
+      }
+      return NextResponse.json({ ok: true, jobIds: [job.id], receipt });
     } catch (error) {
       await db.channelPublishJob.update({
         where: { id: job.id },
         data: { status: "FAILED", failedCount: 1, emailSentAt: new Date() },
       });
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Add failed" },
-        { status: 500 }
-      );
+      const message = error instanceof Error ? error.message : "Add failed";
+      const friendly = message.startsWith("Shopify ")
+        ? "Shopify did not accept this product. Wait a minute and try again."
+        : message;
+      return NextResponse.json({ error: friendly }, { status: 500 });
     }
   }
 

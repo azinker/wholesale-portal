@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { channelField, channelGhostBtn, channelPrimaryBtn, money } from "../channel-ui";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,40 @@ type ProductCard = {
 };
 
 type StoreChoice = { id: string; shopDomain: string };
+
+type VariantReceipt = {
+  label: string;
+  retail: number;
+  cost: number;
+  stock: number;
+  imageUrl: string | null;
+};
+
+type Receipt = {
+  status: "added" | "skipped" | "failed";
+  title: string;
+  imageUrl: string | null;
+  shopDomain: string;
+  storeUrl: string | null;
+  adminUrl: string | null;
+  retail: number;
+  cost: number;
+  margin: number;
+  stock: number;
+  variants: VariantReceipt[];
+  message: string;
+};
+
+type ProgressRow = {
+  id: number;
+  name: string;
+  state: "waiting" | "adding" | "done" | "failed";
+  receipts: Receipt[];
+  error?: string;
+};
+
+const addedBtn =
+  "inline-flex cursor-pointer items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2";
 
 export function CatalogBoard({
   products,
@@ -31,6 +66,7 @@ export function CatalogBoard({
   inStock,
   categories,
   loadFailed,
+  listedIds,
 }: {
   products: ProductCard[];
   stores: StoreChoice[];
@@ -45,11 +81,22 @@ export function CatalogBoard({
   inStock: boolean;
   categories: Array<{ id: number; name: string; count: number }>;
   loadFailed: boolean;
+  listedIds: number[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
   const [storeIds, setStoreIds] = useState<string[]>(stores.length === 1 ? [stores[0].id] : []);
   const [pending, setPending] = useState(false);
+  const [knownListed, setKnownListed] = useState<number[]>(listedIds);
+  const [rows, setRows] = useState<ProgressRow[] | null>(null);
+  const [jobLabel, setJobLabel] = useState<string | null>(null);
+  const [jobCounts, setJobCounts] = useState<{ added: number; skipped: number; failed: number; status: string } | null>(null);
+  const [view, setView] = useState<Receipt[] | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewTitle, setViewTitle] = useState("");
+
+  const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
+  const running = pending;
 
   function toggle(id: number) {
     setSelected((current) => (current.includes(id) ? current.filter((row) => row !== id) : [...current, id]));
@@ -64,48 +111,170 @@ export function CatalogBoard({
     );
   }
 
-  async function publish(scope: "selection" | "category" | "catalog", ids: number[] = []) {
+  function chosenStores(): StoreChoice[] {
+    if (stores.length === 1) return stores;
+    return stores.filter((store) => storeIds.includes(store.id));
+  }
+
+  function closeDialog() {
+    if (pending) return;
+    setRows(null);
+    setJobLabel(null);
+    setJobCounts(null);
+    setView(null);
+    setViewLoading(false);
+  }
+
+  async function addOne(productId: number, connectionId: string): Promise<Receipt> {
+    const res = await fetch("/api/portal/shopify-channel/listings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "selection", bcProductIds: [productId], connectionIds: [connectionId] }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not add");
+    return data.receipt as Receipt;
+  }
+
+  async function publishSelection(ids: number[]) {
+    const targets = chosenStores();
     if (!canAdd || !ready) return;
-    if (stores.length > 1 && storeIds.length === 0) {
-      toast.error("Choose which stores to add to");
+    if (targets.length === 0) {
+      setRows([{ id: 0, name: "Choose a store", state: "failed", receipts: [], error: "Choose which store to add to, above the list." }]);
       return;
     }
-    if (scope === "category" || scope === "catalog") {
-      const count = scope === "catalog" ? catalogCount : matchCount;
-      const label = scope === "catalog" ? "the entire catalog" : "everything in this search";
-      if (!window.confirm(`Add ${count} products from ${label}? Already listed products are skipped. One email arrives when it finishes.`)) {
-        return;
-      }
-    }
+    const queue = ids
+      .map((id) => products.find((product) => product.id === id))
+      .filter((product): product is ProductCard => Boolean(product));
+    if (queue.length === 0) return;
     setPending(true);
+    setView(null);
+    setJobLabel(null);
+    setRows(queue.map((product) => ({ id: product.id, name: product.name, state: "waiting", receipts: [] })));
+    const finished: number[] = [];
+    for (const product of queue) {
+      setRows((current) => current?.map((row) => (row.id === product.id ? { ...row, state: "adding" } : row)) || null);
+      const receipts: Receipt[] = [];
+      let error = "";
+      for (const store of targets) {
+        try {
+          receipts.push(await addOne(product.id, store.id));
+        } catch (caught) {
+          error = caught instanceof Error ? caught.message : "Could not add";
+        }
+      }
+      const ok = receipts.some((receipt) => receipt.status === "added" || receipt.status === "skipped");
+      if (ok) finished.push(product.id);
+      setRows((current) =>
+        current?.map((row) =>
+          row.id === product.id ? { ...row, state: error && !ok ? "failed" : "done", receipts, error: error || undefined } : row
+        ) || null
+      );
+    }
+    if (finished.length) setKnownListed((current) => [...new Set([...current, ...finished])]);
+    setSelected([]);
+    setPending(false);
+    router.refresh();
+  }
+
+  async function publishScope(scope: "category" | "catalog") {
+    const targets = chosenStores();
+    if (!canAdd || !ready) return;
+    if (targets.length === 0) {
+      setRows([{ id: 0, name: "Choose a store", state: "failed", receipts: [], error: "Choose which store to add to, above the list." }]);
+      return;
+    }
+    const count = scope === "catalog" ? catalogCount : matchCount;
+    const label = scope === "catalog" ? "the entire catalog" : "everything in this search";
+    if (!window.confirm(`Add ${count} products from ${label}? Products already on the store are skipped.`)) return;
+    setPending(true);
+    setRows(null);
+    setView(null);
+    setJobCounts({ added: 0, skipped: 0, failed: 0, status: "RUNNING" });
+    setJobLabel(scope === "catalog" ? "Adding the catalog" : "Adding this search");
     try {
       const res = await fetch("/api/portal/shopify-channel/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scope,
-          bcProductIds: ids,
-          connectionIds: storeIds,
+          connectionIds: targets.map((store) => store.id),
           keyword: scope === "catalog" ? undefined : keyword,
           categoryId: scope === "catalog" || !categoryId ? undefined : Number(categoryId),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not add");
-      toast.success("Add started. We will email you when it finishes.");
-      setSelected([]);
-      router.refresh();
+      const jobIds = (data.jobIds || []) as string[];
+      const snapshots = new Map<string, { added: number; skipped: number; failed: number; status: string }>();
+      const totals = () => {
+        let added = 0;
+        let skipped = 0;
+        let failed = 0;
+        let stillRunning = false;
+        for (const snap of snapshots.values()) {
+          added += snap.added;
+          skipped += snap.skipped;
+          failed += snap.failed;
+          if (snap.status === "QUEUED" || snap.status === "RUNNING") stillRunning = true;
+        }
+        return { added, skipped, failed, status: stillRunning ? "RUNNING" : "COMPLETED" };
+      };
+      for (const jobId of jobIds) {
+        let status = "RUNNING";
+        while (status === "QUEUED" || status === "RUNNING") {
+          const tick = await fetch(`/api/portal/shopify-channel/listings/jobs/${jobId}`, { method: "POST" });
+          const body = await tick.json();
+          if (!tick.ok) throw new Error(body.error || "The add stopped");
+          status = body.status || "FAILED";
+          snapshots.set(jobId, {
+            added: body.addedCount || 0,
+            skipped: body.skippedCount || 0,
+            failed: body.failedCount || 0,
+            status,
+          });
+          setJobCounts(totals());
+        }
+      }
+      setJobCounts(totals());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add");
+      setRows([{ id: 0, name: label, state: "failed", receipts: [], error: error instanceof Error ? error.message : "Could not add" }]);
+      setJobLabel(null);
     } finally {
       setPending(false);
+      router.refresh();
+    }
+  }
+
+  async function openListing(product: ProductCard) {
+    setRows(null);
+    setJobLabel(null);
+    setViewTitle(product.name);
+    setViewLoading(true);
+    setView(null);
+    try {
+      const res = await fetch(`/api/portal/shopify-channel/listings?bcProductId=${product.id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not open this listing");
+      setView((data.receipts || []) as Receipt[]);
+    } catch (error) {
+      setRows([
+        {
+          id: product.id,
+          name: product.name,
+          state: "failed",
+          receipts: [],
+          error: error instanceof Error ? error.message : "Could not open this listing",
+        },
+      ]);
+      setViewLoading(false);
+    } finally {
+      setViewLoading(false);
     }
   }
 
   const blocked = !ready || !canAdd;
-  const reason = !canAdd
-    ? "Viewers cannot add products."
-    : "Finish setup on My Shopify before Add turns on.";
+  const reason = !canAdd ? "Viewers cannot add products." : "Finish setup on My Shopify before Add turns on.";
 
   function pageHref(nextPage: number) {
     const params = new URLSearchParams({
@@ -117,6 +286,8 @@ export function CatalogBoard({
     });
     return `/catalog?${params.toString()}`;
   }
+
+  const detailReceipts = view && view.length > 0 ? view : rows?.length === 1 && rows[0].state === "done" ? rows[0].receipts : null;
 
   return (
     <div className="space-y-4 pb-28">
@@ -167,6 +338,15 @@ export function CatalogBoard({
         </div>
       )}
 
+      {selected.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#2d2d2d] bg-[#2d2d2d] px-4 py-3 text-white shadow-sm">
+          <p className="text-sm font-medium">{selected.length} selected</p>
+          <button type="button" disabled={blocked || pending} onClick={() => publishSelection(selected)} className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1a1a1a] hover:bg-[#f6f3f1] disabled:cursor-not-allowed disabled:opacity-45">
+            Add selected to Shopify
+          </button>
+        </div>
+      )}
+
       <div className="channel-in overflow-hidden rounded-2xl border border-[#e7e1de] bg-white shadow-[0_10px_30px_rgba(45,45,45,0.05)]" style={{ animationDelay: "140ms" }}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[920px] text-sm">
@@ -187,6 +367,7 @@ export function CatalogBoard({
               {products.map((product) => {
                 const margin = product.retail - product.cost;
                 const checked = selected.includes(product.id);
+                const listed = knownListed.includes(product.id);
                 return (
                   <tr key={product.id} className={cn("border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6]", checked && "bg-[#fdf6f6]")}>
                     <td className="px-4 py-3">
@@ -202,7 +383,13 @@ export function CatalogBoard({
                             <span className="text-[10px] font-medium text-[#8a8481]">No photo</span>
                           )}
                         </div>
-                        <p className="line-clamp-2 font-medium text-[#1a1a1a]">{product.name}</p>
+                        {listed ? (
+                          <button type="button" onClick={() => openListing(product)} className="line-clamp-2 cursor-pointer text-left font-medium text-[#1a1a1a] underline-offset-2 hover:underline">
+                            {product.name}
+                          </button>
+                        ) : (
+                          <p className="line-clamp-2 font-medium text-[#1a1a1a]">{product.name}</p>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-3 tabular-nums text-[#3f3a38]">{product.stock}</td>
@@ -210,15 +397,19 @@ export function CatalogBoard({
                     <td className="px-3 py-3 tabular-nums">{money(product.cost)}</td>
                     <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(margin)}</td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        disabled={blocked || pending}
-                        title={blocked ? reason : "Adds this product at the retail price. We email you when it finishes."}
-                        onClick={() => publish("selection", [product.id])}
-                        className={channelPrimaryBtn}
-                      >
-                        Add
-                      </button>
+                      {listed ? (
+                        <button type="button" onClick={() => openListing(product)} className={addedBtn}>Added</button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={blocked || pending}
+                          title={blocked ? reason : "Adds this product to your Shopify store at the retail price."}
+                          onClick={() => publishSelection([product.id])}
+                          className={channelPrimaryBtn}
+                        >
+                          Add
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -251,19 +442,145 @@ export function CatalogBoard({
 
       <div className="sticky bottom-4 z-20">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e7e1de] bg-white/95 px-4 py-3 shadow-[0_12px_40px_rgba(45,45,45,0.12)] backdrop-blur">
-          <p className="max-w-md text-sm text-[#5c5654]">{blocked ? reason : `${selected.length} selected on this page.`}</p>
+          <p className="max-w-md text-sm text-[#5c5654]">{blocked ? reason : selected.length ? `${selected.length} selected.` : "Check products, then add them together."}</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={blocked || pending || selected.length === 0} title="Adds the checked products. Already listed ones are skipped." onClick={() => publish("selection", selected)} className={channelPrimaryBtn}>
+            <button type="button" disabled={blocked || pending || selected.length === 0} onClick={() => publishSelection(selected)} className={channelPrimaryBtn}>
               Add selected ({selected.length})
             </button>
-            <button type="button" disabled={blocked || pending || matchCount === 0} title="Example: search brake pads, then add every match. One email when it finishes." onClick={() => publish("category")} className={channelGhostBtn}>
+            <button type="button" disabled={blocked || pending || matchCount === 0} onClick={() => publishScope("category")} className={channelGhostBtn}>
               Add this search ({matchCount})
             </button>
-            <button type="button" disabled={blocked || pending || catalogCount === 0} title="Adds every visible product. One email when the whole catalog finishes." onClick={() => publish("catalog")} className={channelGhostBtn}>
+            <button type="button" disabled={blocked || pending || catalogCount === 0} onClick={() => publishScope("catalog")} className={channelGhostBtn}>
               Add entire catalog ({catalogCount})
             </button>
           </div>
         </div>
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl" onPointerDownOutside={(event) => { if (running) event.preventDefault(); }} onEscapeKeyDown={(event) => { if (running) event.preventDefault(); }}>
+          <DialogHeader>
+            <DialogTitle>
+              {viewLoading ? "Opening the listing" : view ? viewTitle || "On your Shopify store" : jobLabel ? jobLabel : rows?.some((row) => row.state === "adding" || row.state === "waiting") ? "Adding to your Shopify store" : "Added to your Shopify store"}
+            </DialogTitle>
+            <DialogDescription>
+              {viewLoading
+                ? "Loading the price, stock, and the link on your store."
+                : view
+                  ? "This is the listing on your Shopify store."
+                  : running
+                    ? "Stay on this page. Each product is added before the next one starts."
+                    : "The price is the retail price. Change it later in Shopify if you want a different sale price."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewLoading && (
+            <div className="flex items-center gap-3 py-6 text-sm text-[#3f3a38]">
+              <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />
+              Opening this listing…
+            </div>
+          )}
+
+          {jobLabel && jobCounts && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-sm text-[#3f3a38]">
+                {jobCounts.status === "RUNNING" || jobCounts.status === "QUEUED" ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />
+                ) : null}
+                <p>{jobCounts.status === "COMPLETED" || jobCounts.status === "FAILED" ? "Finished." : "Working through the products."}</p>
+              </div>
+              <dl className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div className="rounded-xl bg-emerald-50 px-3 py-3"><dt className="text-[#5c5654]">Added</dt><dd className="text-lg font-semibold text-emerald-800">{jobCounts.added}</dd></div>
+                <div className="rounded-xl bg-[#f6f3f1] px-3 py-3"><dt className="text-[#5c5654]">Already there</dt><dd className="text-lg font-semibold">{jobCounts.skipped}</dd></div>
+                <div className="rounded-xl bg-red-50 px-3 py-3"><dt className="text-[#5c5654]">Not added</dt><dd className="text-lg font-semibold text-[#B8282E]">{jobCounts.failed}</dd></div>
+              </dl>
+            </div>
+          )}
+
+          {rows && !view && (
+            <ul className="space-y-3">
+              {rows.map((row) => (
+                <li key={row.id} className="rounded-xl border border-[#e7e1de] p-3">
+                  <div className="flex items-start gap-3">
+                    {row.state === "adding" || row.state === "waiting" ? (
+                      <Loader2 className={cn("mt-0.5 h-4 w-4 shrink-0 text-[#B8282E]", row.state === "adding" && "animate-spin")} />
+                    ) : (
+                      <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", row.state === "failed" ? "bg-[#B8282E]" : "bg-emerald-600")} />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-[#1a1a1a]">{row.name}</p>
+                      <p className="text-sm text-[#5c5654]">
+                        {row.state === "waiting" && "Waiting"}
+                        {row.state === "adding" && "Adding now"}
+                        {row.state === "failed" && (row.error || "Could not add")}
+                        {row.state === "done" && (row.receipts[0]?.message || "Done")}
+                      </p>
+                    </div>
+                  </div>
+                  {row.state === "done" && row.receipts.map((receipt, index) => (
+                    <ReceiptBody key={`${receipt.shopDomain}-${index}`} receipt={receipt} />
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {detailReceipts && view && (
+            <div className="space-y-4">
+              {detailReceipts.map((receipt, index) => (
+                <ReceiptBody key={`${receipt.shopDomain}-${index}`} receipt={receipt} />
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ReceiptBody({ receipt }: { receipt: Receipt }) {
+  return (
+    <div className="mt-3 space-y-3 border-t border-[#f0ebe8] pt-3">
+      <div className="flex gap-3">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f6f3f1]">
+          {receipt.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={receipt.imageUrl} alt="" className="h-full w-full object-contain" />
+          ) : (
+            <span className="text-[10px] text-[#8a8481]">No photo</span>
+          )}
+        </div>
+        <div className="min-w-0 text-sm">
+          <p className="font-medium text-[#1a1a1a]">{receipt.shopDomain}</p>
+          <p className="text-[#5c5654]">{receipt.status === "failed" ? receipt.message : receipt.status === "skipped" ? "Already on this store" : "Added just now"}</p>
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <div><dt className="text-[#5c5654]">Lists at</dt><dd className="font-semibold tabular-nums">{money(receipt.retail)}</dd></div>
+        <div><dt className="text-[#5c5654]">Your cost</dt><dd className="font-semibold tabular-nums">{money(receipt.cost)}</dd></div>
+        <div><dt className="text-[#5c5654]">Margin</dt><dd className="font-semibold tabular-nums text-emerald-700">{money(receipt.margin)}</dd></div>
+        <div><dt className="text-[#5c5654]">Stock sent</dt><dd className="font-semibold tabular-nums">{receipt.stock}</dd></div>
+      </dl>
+      {receipt.variants.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#5c5654]">Variants</p>
+          <ul className="space-y-2">
+            {receipt.variants.map((variant) => (
+              <li key={variant.label} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-[#1a1a1a]">{variant.label}{variant.imageUrl ? " · own photo" : ""}</span>
+                <span className="shrink-0 tabular-nums text-[#3f3a38]">{money(variant.retail)} · {variant.stock} in stock</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {receipt.storeUrl && (
+          <a className={channelPrimaryBtn} href={receipt.storeUrl} target="_blank" rel="noreferrer">View on your store</a>
+        )}
+        {receipt.adminUrl && (
+          <a className={channelGhostBtn} href={receipt.adminUrl} target="_blank" rel="noreferrer">Edit price in Shopify</a>
+        )}
       </div>
     </div>
   );

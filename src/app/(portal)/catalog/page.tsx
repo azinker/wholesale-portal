@@ -6,6 +6,7 @@ import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { wholesaleUnitCost } from "@/lib/shopify-channel/money";
+import { alignListingImages } from "@/lib/shopify-channel/publish";
 import { CatalogBoard } from "./catalog-board";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
 import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
@@ -81,6 +82,25 @@ export default async function CatalogPage({
   } catch {
     loadFailed = true;
     products = [];
+  }
+
+  const listedRows = products.length
+    ? await db.channelListing.findMany({
+        where: {
+          accountId: account.id,
+          removedAt: null,
+          bcProductId: { in: products.map((product) => product.id) },
+          connection: { disconnectedAt: null },
+        },
+        select: { bcProductId: true, connectionId: true },
+      })
+    : [];
+  const seenPairs = new Set<string>();
+  for (const row of listedRows) {
+    const pair = `${row.connectionId}:${row.bcProductId}`;
+    if (seenPairs.has(pair)) continue;
+    seenPairs.add(pair);
+    await alignListingImages(row.connectionId, row.bcProductId).catch(() => undefined);
   }
 
   const setup = [
@@ -163,6 +183,7 @@ export default async function CatalogPage({
         inStock={inStock}
         categories={categories.map((row) => ({ id: row.id, name: row.name, count: categoryCounts[row.id] || 0 }))}
         loadFailed={loadFailed}
+        listedIds={[...new Set(listedRows.map((row) => row.bcProductId))]}
       />
     </ChannelPage>
   );

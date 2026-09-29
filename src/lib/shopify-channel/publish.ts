@@ -1,18 +1,101 @@
 import { db } from "@/lib/db";
 import { decrypt } from "@/lib/bigcommerce/encryption";
-import { bc, type BCProduct } from "@/lib/bigcommerce/client";
+import { bc, type BCProduct, type BCProductImage } from "@/lib/bigcommerce/client";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
-import { wholesaleUnitCost } from "./money";
+import { roundMoney, wholesaleUnitCost } from "./money";
 import { emailAccount } from "./notify";
 import { scrubListingText } from "./scrub";
 import {
+  addProductImage,
+  assignVariantImage,
   createProduct,
   deleteProduct,
+  deleteProductImage,
   downloadAsBase64,
   productExists,
+  readProduct,
+  setImagePosition,
   setInventory,
   ShopifyNotFoundError,
 } from "./shopify-admin";
+
+export type ListingVariantReceipt = {
+  label: string;
+  retail: number;
+  cost: number;
+  stock: number;
+  imageUrl: string | null;
+};
+
+export type ListingReceipt = {
+  status: "added" | "skipped" | "failed";
+  title: string;
+  imageUrl: string | null;
+  shopDomain: string;
+  shopifyProductId: string | null;
+  storeUrl: string | null;
+  adminUrl: string | null;
+  retail: number;
+  cost: number;
+  margin: number;
+  stock: number;
+  variants: ListingVariantReceipt[];
+  message: string;
+};
+
+type BcVariant = NonNullable<BCProduct["variants"]>[number];
+
+function fileKey(url: string): string {
+  let name = "";
+  try {
+    name = decodeURIComponent(new URL(url).pathname.split("/").pop() || "");
+  } catch {
+    name = url.split("?")[0].split("/").pop() || "";
+  }
+  name = name.toLowerCase().replace(/\.[a-z0-9]{2,5}$/, "").replace(/\.__\d+$/, "");
+  return name.replace(/[^a-z0-9]+/g, "");
+}
+
+function uploadName(url: string, index: number): string {
+  const match = url.split("?")[0].match(/\.([a-zA-Z0-9]{2,5})$/);
+  const ext = (match?.[1] || "jpg").toLowerCase();
+  return `${fileKey(url) || `photo-${index + 1}`}.${ext}`;
+}
+
+function imagesInEditorOrder(images: BCProductImage[]): BCProductImage[] {
+  return [...images].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+}
+
+function variantChoices(variants: BcVariant[]): { names: string[]; rows: string[][] } {
+  if (variants.length <= 1) return { names: [], rows: variants.map(() => []) };
+  const names: string[] = [];
+  for (const variant of variants) {
+    for (const value of variant.option_values || []) {
+      const name = value.option_display_name?.trim();
+      if (name && !names.includes(name) && names.length < 3) names.push(name);
+    }
+  }
+  if (names.length === 0) names.push("Style");
+  const rows = variants.map((variant, index) =>
+    names.map((name) => {
+      const found = variant.option_values?.find((value) => value.option_display_name === name);
+      return found?.label?.trim() || `Choice ${index + 1}`;
+    })
+  );
+  return { names, rows };
+}
+
+function variantLabel(names: string[], row: string[]): string {
+  if (row.length === 0) return "Default";
+  return row.map((value, index) => (names[index] ? `${names[index]}: ${value}` : value)).join(", ");
+}
+
+function storeUrls(shopDomain: string, productId: string | null, handle: string | null) {
+  return {
+    storeUrl: handle ? `https://${shopDomain}/products/${handle}` : null,
+    adminUrl: productId ? `https://${shopDomain}/admin/products/${productId}` : null,
+  };
+}
 
 async function discountPercent(account: { lastTier: string; welcomeExpiresAt: Date | null }): Promise<number> {
   const earned = await getTierDiscountPercent(account.lastTier);
@@ -28,53 +111,202 @@ function retailOf(
   return Number(variant?.calculated_price || variant?.price || product.calculated_price || product.price || 0);
 }
 
-export async function publishBigCommerceProduct(connectionId: string, bcProductId: number): Promise<"added" | "skipped" | "failed"> {
+function emptyReceipt(shopDomain: string, status: ListingReceipt["status"], message: string, title = "Product"): ListingReceipt {
+  return {
+    status,
+    title,
+    imageUrl: null,
+    shopDomain,
+    shopifyProductId: null,
+    storeUrl: null,
+    adminUrl: null,
+    retail: 0,
+    cost: 0,
+    margin: 0,
+    stock: 0,
+    variants: [],
+    message,
+  };
+}
+
+async function uploadImagesInOrder(
+  shop: string,
+  token: string,
+  productId: string,
+  images: BCProductImage[]
+): Promise<Array<{ bcImageId: number; shopifyImageId: string; key: string }>> {
+  const uploaded: Array<{ bcImageId: number; shopifyImageId: string; key: string }> = [];
+  for (let index = 0; index < images.length; index++) {
+    const image = images[index];
+    const file = await downloadAsBase64(image.url_standard || image.url_zoom || "");
+    if (!file) continue;
+    const created = await addProductImage(shop, token, productId, {
+      attachment: file,
+      filename: uploadName(image.url_standard || image.url_zoom || "", index),
+      position: uploaded.length + 1,
+    });
+    uploaded.push({
+      bcImageId: image.id,
+      shopifyImageId: created.id,
+      key: fileKey(image.url_standard || image.url_zoom || ""),
+    });
+  }
+  if (uploaded[0]) {
+    await setImagePosition(shop, token, productId, uploaded[0].shopifyImageId, 1);
+  }
+  return uploaded;
+}
+
+function shopifyImageForVariant(
+  variant: BcVariant | undefined,
+  uploaded: Array<{ bcImageId: number; shopifyImageId: string; key: string }>,
+  gallery: BCProductImage[]
+): string | null {
+  const source = variant?.image_url;
+  if (!source) return null;
+  const key = fileKey(source);
+  const match = uploaded.find((image) => image.key && image.key === key);
+  if (match) return match.shopifyImageId;
+  const galleryMatch = gallery.find((image) => fileKey(image.url_standard || "") === key || fileKey(image.url_zoom || "") === key);
+  if (!galleryMatch) return null;
+  return uploaded.find((image) => image.bcImageId === galleryMatch.id)?.shopifyImageId || null;
+}
+
+const alignedOnce = new Set<string>();
+
+export async function alignListingImages(connectionId: string, bcProductId: number): Promise<void> {
+  const mark = `${connectionId}:${bcProductId}`;
+  if (alignedOnce.has(mark)) return;
+  const connection = await db.shopifyConnection.findUnique({ where: { id: connectionId } });
+  if (!connection?.accessTokenEnc || connection.disconnectedAt) return;
+  const listing = await db.channelListing.findFirst({
+    where: { connectionId, bcProductId, removedAt: null },
+  });
+  if (!listing) return;
+  const product = await bc().getProductById(bcProductId);
+  if (!product) return;
+  const ordered = imagesInEditorOrder(product.images || []);
+  if (ordered.length === 0) return;
+  const token = decrypt(connection.accessTokenEnc);
+  const live = await readProduct(connection.shopDomain, token, listing.shopifyProductId);
+  if (!live) return;
+  const mainKey = fileKey(ordered[0].url_standard || ordered[0].url_zoom || "");
+  const current = [...live.images].sort((a, b) => a.position - b.position);
+  if (current[0] && mainKey && fileKey(current[0].src) === mainKey) {
+    alignedOnce.add(mark);
+    return;
+  }
+  const uploaded = await uploadImagesInOrder(connection.shopDomain, token, listing.shopifyProductId, ordered);
+  if (uploaded.length === 0) return;
+  for (const image of current) {
+    try {
+      await deleteProductImage(connection.shopDomain, token, listing.shopifyProductId, image.id);
+    } catch (error) {
+      if (!(error instanceof ShopifyNotFoundError)) throw error;
+    }
+  }
+  await setImagePosition(connection.shopDomain, token, listing.shopifyProductId, uploaded[0].shopifyImageId, 1);
+  const listings = await db.channelListing.findMany({
+    where: { connectionId, bcProductId, removedAt: null },
+  });
+  const variants = product.variants || [];
+  for (const row of listings) {
+    const variant = variants.find((item) => item.id === row.bcVariantId);
+    const imageId = shopifyImageForVariant(variant, uploaded, ordered);
+    if (!imageId) continue;
+    await assignVariantImage(connection.shopDomain, token, listing.shopifyProductId, row.shopifyVariantId, imageId);
+  }
+  alignedOnce.add(mark);
+}
+
+export async function publishBigCommerceProduct(connectionId: string, bcProductId: number): Promise<ListingReceipt> {
   const connection = await db.shopifyConnection.findUnique({
     where: { id: connectionId },
     include: { account: true },
   });
-  if (!connection || connection.disconnectedAt || !connection.accessTokenEnc) return "failed";
-  if (connection.addressTestStatus !== "PASSED") return "failed";
+  if (!connection || connection.disconnectedAt || !connection.accessTokenEnc) {
+    return emptyReceipt("", "failed", "That store is not connected.");
+  }
+  if (connection.addressTestStatus !== "PASSED") {
+    return emptyReceipt(connection.shopDomain, "failed", "This store has not passed the address test.");
+  }
   const product = await bc().getProductById(bcProductId);
-  if (!product || !product.is_visible) return "skipped";
+  const title = scrubListingText(product?.name || "") || "Product";
+  if (!product || !product.is_visible) {
+    return emptyReceipt(connection.shopDomain, "skipped", "This product is not available to add.", title);
+  }
 
   const existing = await db.channelListing.findFirst({
     where: { connectionId, bcProductId, removedAt: null },
   });
-  if (existing) return "skipped";
+  if (existing) {
+    await alignListingImages(connectionId, bcProductId).catch(() => undefined);
+    return receiptForExisting(connection.shopDomain, connection.accessTokenEnc, product, existing.shopifyProductId, connection.account);
+  }
 
   const token = decrypt(connection.accessTokenEnc);
   const percent = await discountPercent(connection.account);
-  const variants = product.variants?.length ? product.variants : [undefined];
-  const images = [];
-  for (const image of product.images || []) {
-    const file = await downloadAsBase64(image.url_standard);
-    if (file) images.push(file);
-  }
-  const title = scrubListingText(product.name) || "Product";
+  const sourceVariants = product.variants?.length ? product.variants : [];
+  const rows = sourceVariants.length ? sourceVariants : [undefined];
+  const choices = variantChoices(sourceVariants);
+  const orderedImages = imagesInEditorOrder(product.images || []);
   const created = await createProduct(connection.shopDomain, token, {
     title,
     bodyHtml: scrubListingText(product.description || ""),
     vendor: connection.account.companyName,
-    imageAttachments: images,
-    options: variants.length > 1 ? ["Option"] : undefined,
-    variants: variants.map((variant) => {
+    options: choices.names,
+    variants: rows.map((variant, index) => {
       const retail = retailOf(product, variant);
+      const choice = choices.rows[index] || [];
       return {
         price: retail.toFixed(2),
         cost: wholesaleUnitCost(retail, percent).toFixed(2),
-        option1: variants.length > 1 ? `Option ${variant?.id || product.id}` : undefined,
+        option1: choice[0],
+        option2: choice[1],
+        option3: choice[2],
       };
     }),
   });
 
+  const uploaded = await uploadImagesInOrder(connection.shopDomain, token, created.productId, orderedImages);
   const locationId = connection.primaryLocationId;
-  for (let index = 0; index < created.length; index++) {
-    const row = created[index];
-    const variant = variants[index];
+  const variantReceipts: ListingVariantReceipt[] = [];
+  for (let index = 0; index < created.variants.length; index++) {
+    const row = created.variants[index];
+    const variant = rows[index];
+    const retail = retailOf(product, variant);
+    const cost = wholesaleUnitCost(retail, percent);
     const onHand = variant ? variant.inventory_level : product.inventory_level;
     if (locationId) {
       await setInventory(connection.shopDomain, token, locationId, row.inventoryItemId, Math.max(0, onHand));
+    }
+    let imageId = shopifyImageForVariant(variant, uploaded, orderedImages);
+    if (!imageId && variant?.image_url) {
+      const file = await downloadAsBase64(variant.image_url);
+      if (file) {
+        const extra = await addProductImage(connection.shopDomain, token, created.productId, {
+          attachment: file,
+          filename: uploadName(variant.image_url, uploaded.length),
+          position: uploaded.length + 1,
+        });
+        imageId = extra.id;
+        uploaded.push({ bcImageId: 0, shopifyImageId: extra.id, key: fileKey(variant.image_url) });
+      }
+    }
+    if (imageId) {
+      await assignVariantImage(connection.shopDomain, token, created.productId, row.variantId, imageId);
+    }
+    if (sourceVariants.length > 1 && variant) {
+      variantReceipts.push({
+        label: variantLabel(choices.names, choices.rows[index] || []),
+        retail,
+        cost,
+        stock: Math.max(0, onHand),
+        imageUrl: variant.image_url || null,
+      });
+    }
+    if (uploaded[0]) {
+      await setImagePosition(connection.shopDomain, token, created.productId, uploaded[0].shopifyImageId, 1);
     }
     await db.channelListing.create({
       data: {
@@ -82,26 +314,125 @@ export async function publishBigCommerceProduct(connectionId: string, bcProductI
         connectionId,
         bcProductId: product.id,
         bcVariantId: variant?.id || 0,
-        shopifyProductId: row.productId,
+        shopifyProductId: created.productId,
         shopifyVariantId: row.variantId,
         shopifyInventoryItemId: row.inventoryItemId,
-        sellerPrice: retailOf(product, variant),
+        sellerPrice: retail,
         internalSku: variant?.sku || product.sku,
         titleSnapshot: title,
       },
     });
   }
-  return "added";
+
+  const retail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
+  const cost = wholesaleUnitCost(retail, percent);
+  const stock = sourceVariants.length > 1
+    ? sourceVariants.reduce((sum, variant) => sum + Math.max(0, variant.inventory_level), 0)
+    : Math.max(0, product.inventory_level);
+  const links = storeUrls(connection.shopDomain, created.productId, created.handle);
+  const mainImage = orderedImages[0]?.url_standard || null;
+  return {
+    status: "added",
+    title,
+    imageUrl: mainImage,
+    shopDomain: connection.shopDomain,
+    shopifyProductId: created.productId,
+    storeUrl: links.storeUrl,
+    adminUrl: links.adminUrl,
+    retail,
+    cost,
+    margin: roundMoney(retail - cost),
+    stock,
+    variants: variantReceipts,
+    message: `${title} is on ${connection.shopDomain}.`,
+  };
+}
+
+async function receiptForExisting(
+  shopDomain: string,
+  tokenEnc: string,
+  product: BCProduct,
+  shopifyProductId: string,
+  account: { lastTier: string; welcomeExpiresAt: Date | null }
+): Promise<ListingReceipt> {
+  const percent = await discountPercent(account);
+  const token = decrypt(tokenEnc);
+  const live = await readProduct(shopDomain, token, shopifyProductId).catch(() => null);
+  const ordered = imagesInEditorOrder(product.images || []);
+  const sourceVariants = product.variants || [];
+  const choices = variantChoices(sourceVariants);
+  const retail = retailOf(product, sourceVariants.length === 1 ? sourceVariants[0] : undefined);
+  const cost = wholesaleUnitCost(retail, percent);
+  const stock = sourceVariants.length > 1
+    ? sourceVariants.reduce((sum, variant) => sum + Math.max(0, variant.inventory_level), 0)
+    : Math.max(0, product.inventory_level);
+  const links = storeUrls(shopDomain, shopifyProductId, live?.handle || null);
+  const title = scrubListingText(live?.title || product.name) || "Product";
+  return {
+    status: "skipped",
+    title,
+    imageUrl: live?.images.slice().sort((a, b) => a.position - b.position)[0]?.src || ordered[0]?.url_standard || null,
+    shopDomain,
+    shopifyProductId,
+    storeUrl: links.storeUrl,
+    adminUrl: links.adminUrl,
+    retail,
+    cost,
+    margin: roundMoney(retail - cost),
+    stock,
+    variants: sourceVariants.length > 1
+      ? sourceVariants.map((variant, index) => ({
+          label: variantLabel(choices.names, choices.rows[index] || []),
+          retail: retailOf(product, variant),
+          cost: wholesaleUnitCost(retailOf(product, variant), percent),
+          stock: Math.max(0, variant.inventory_level),
+          imageUrl: variant.image_url || null,
+        }))
+      : [],
+    message: `${title} is already on ${shopDomain}.`,
+  };
+}
+
+export async function listingDetails(accountId: string, bcProductId: number): Promise<ListingReceipt[]> {
+  const product = await bc().getProductById(bcProductId);
+  if (!product) return [];
+  const rows = await db.channelListing.findMany({
+    where: { accountId, bcProductId, removedAt: null, connection: { disconnectedAt: null } },
+    include: { connection: true, account: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const seen = new Set<string>();
+  const receipts: ListingReceipt[] = [];
+  for (const row of rows) {
+    if (seen.has(row.connectionId) || !row.connection.accessTokenEnc) continue;
+    seen.add(row.connectionId);
+    await alignListingImages(row.connectionId, bcProductId).catch(() => undefined);
+    receipts.push(
+      await receiptForExisting(
+        row.connection.shopDomain,
+        row.connection.accessTokenEnc,
+        product,
+        row.shopifyProductId,
+        row.account
+      )
+    );
+  }
+  return receipts;
 }
 
 const PUBLISH_BATCH = 20;
 
-export async function runNextPublishJob(): Promise<boolean> {
-  const job = await db.channelPublishJob.findFirst({
-    where: { status: { in: ["QUEUED", "RUNNING"] } },
-    orderBy: { updatedAt: "asc" },
-    include: { connection: true },
-  });
+export async function runNextPublishJob(jobId?: string): Promise<boolean> {
+  const job = jobId
+    ? await db.channelPublishJob.findFirst({
+        where: { id: jobId, status: { in: ["QUEUED", "RUNNING"] } },
+        include: { connection: true },
+      })
+    : await db.channelPublishJob.findFirst({
+        where: { status: { in: ["QUEUED", "RUNNING"] } },
+        orderBy: { updatedAt: "asc" },
+        include: { connection: true },
+      });
   if (!job) return false;
   if (job.connection.shopDomain.startsWith("preview-")) {
     await db.channelPublishJob.update({
@@ -164,8 +495,8 @@ export async function runNextPublishJob(): Promise<boolean> {
   for (const productId of ids) {
     try {
       const result = await publishBigCommerceProduct(job.connectionId, productId);
-      if (result === "added") added += 1;
-      else if (result === "skipped") skipped += 1;
+      if (result.status === "added") added += 1;
+      else if (result.status === "skipped") skipped += 1;
       else failed += 1;
     } catch {
       failed += 1;

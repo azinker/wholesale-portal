@@ -75,6 +75,7 @@ export interface BCProductImage {
   url_standard: string;
   url_thumbnail: string;
   url_tiny: string;
+  url_zoom?: string;
   is_thumbnail: boolean;
   sort_order: number;
   description: string;
@@ -101,6 +102,8 @@ export interface BCProduct {
     price: number | null;
     calculated_price: number;
     inventory_level: number;
+    image_url?: string;
+    option_values?: Array<{ label: string; option_display_name: string }>;
   }>;
 }
 

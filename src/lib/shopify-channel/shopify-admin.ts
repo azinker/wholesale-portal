@@ -129,6 +129,12 @@ export async function readPrimaryLocationId(shop: string, token: string): Promis
   return active ? String(active.id) : null;
 }
 
+export type ShopifyCreatedProduct = {
+  productId: string;
+  handle: string;
+  variants: Array<{ variantId: string; inventoryItemId: string }>;
+};
+
 export async function createProduct(
   shop: string,
   token: string,
@@ -136,18 +142,16 @@ export async function createProduct(
     title: string;
     bodyHtml: string;
     vendor: string;
-    imageAttachments: string[];
     options?: string[];
-    variants: Array<{ price: string; cost: string; option1?: string; sellerSku?: string | null }>;
+    variants: Array<{ price: string; cost: string; option1?: string; option2?: string; option3?: string }>;
   }
-): Promise<Array<{ productId: string; variantId: string; inventoryItemId: string }>> {
+): Promise<ShopifyCreatedProduct> {
   const body = {
     product: {
       title: product.title,
       body_html: product.bodyHtml,
       vendor: product.vendor,
       status: "active",
-      images: product.imageAttachments.map((attachment) => ({ attachment })),
       options: product.options?.length ? product.options.map((name) => ({ name })) : undefined,
       variants: product.variants.map((variant) => {
         const row: Record<string, unknown> = {
@@ -156,7 +160,8 @@ export async function createProduct(
           inventory_policy: "deny",
         };
         if (variant.option1) row.option1 = variant.option1;
-        if (variant.sellerSku) row.sku = variant.sellerSku;
+        if (variant.option2) row.option2 = variant.option2;
+        if (variant.option3) row.option3 = variant.option3;
         return row;
       }),
     },
@@ -164,10 +169,10 @@ export async function createProduct(
   const json = await shopify<{
     product: {
       id: number;
+      handle: string;
       variants: Array<{ id: number; inventory_item_id: number }>;
     };
   }>(shop, token, "products.json", { method: "POST", body: JSON.stringify(body) });
-  const created = [];
   for (let index = 0; index < json.product.variants.length; index++) {
     const variant = json.product.variants[index];
     const cost = product.variants[index]?.cost;
@@ -177,13 +182,115 @@ export async function createProduct(
         body: JSON.stringify({ inventory_item: { id: variant.inventory_item_id, cost } }),
       });
     }
-    created.push({
-      productId: String(json.product.id),
+  }
+  return {
+    productId: String(json.product.id),
+    handle: json.product.handle,
+    variants: json.product.variants.map((variant) => ({
       variantId: String(variant.id),
       inventoryItemId: String(variant.inventory_item_id),
-    });
+    })),
+  };
+}
+
+export type ShopifyImageRecord = { id: string; position: number; src: string };
+
+export async function addProductImage(
+  shop: string,
+  token: string,
+  productId: string,
+  image: { attachment: string; filename: string; position: number }
+): Promise<ShopifyImageRecord> {
+  const json = await shopify<{ image: { id: number; position: number; src: string } }>(
+    shop,
+    token,
+    `products/${productId}/images.json`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        image: {
+          attachment: image.attachment,
+          filename: image.filename,
+          position: image.position,
+        },
+      }),
+    }
+  );
+  return { id: String(json.image.id), position: json.image.position, src: json.image.src };
+}
+
+export async function setImagePosition(
+  shop: string,
+  token: string,
+  productId: string,
+  imageId: string,
+  position: number
+): Promise<void> {
+  await shopify(shop, token, `products/${productId}/images/${imageId}.json`, {
+    method: "PUT",
+    body: JSON.stringify({ image: { id: Number(imageId), position } }),
+  });
+}
+
+export async function deleteProductImage(shop: string, token: string, productId: string, imageId: string): Promise<void> {
+  await shopify(shop, token, `products/${productId}/images/${imageId}.json`, { method: "DELETE" });
+}
+
+export async function assignVariantImage(
+  shop: string,
+  token: string,
+  productId: string,
+  variantId: string,
+  imageId: string
+): Promise<void> {
+  await shopify(shop, token, `products/${productId}/variants/${variantId}.json`, {
+    method: "PUT",
+    body: JSON.stringify({ variant: { id: Number(variantId), image_id: Number(imageId) } }),
+  });
+}
+
+export async function readProduct(
+  shop: string,
+  token: string,
+  productId: string
+): Promise<{
+  id: string;
+  title: string;
+  handle: string;
+  images: ShopifyImageRecord[];
+  variants: Array<{ id: string; title: string; price: string; imageId: string | null; inventoryItemId: string }>;
+} | null> {
+  try {
+    const json = await shopify<{
+      product: {
+        id: number;
+        title: string;
+        handle: string;
+        images?: Array<{ id: number; position: number; src: string }>;
+        variants: Array<{ id: number; title: string; price: string; image_id: number | null; inventory_item_id: number }>;
+      };
+    }>(shop, token, `products/${productId}.json`);
+    return {
+      id: String(json.product.id),
+      title: json.product.title,
+      handle: json.product.handle,
+      images: (json.product.images || []).map((image) => ({
+        id: String(image.id),
+        position: image.position,
+        src: image.src,
+      })),
+      variants: json.product.variants.map((variant) => ({
+        id: String(variant.id),
+        title: variant.title,
+        price: variant.price,
+        imageId: variant.image_id ? String(variant.image_id) : null,
+        inventoryItemId: String(variant.inventory_item_id),
+      })),
+    };
+  } catch (error) {
+    if (error instanceof ShopifyNotFoundError) return null;
+    throw error;
   }
-  return created;
 }
 
 export async function setInventory(

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
-import { listingDetails, publishBigCommerceProduct } from "@/lib/shopify-channel/publish";
+import { listingDetails, publishBigCommerceProduct, removeListing } from "@/lib/shopify-channel/publish";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 async function readyStores(accountId: string) {
@@ -144,4 +144,37 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, jobIds: jobs.map((job) => job.id) });
+}
+
+export async function DELETE(req: NextRequest) {
+  const auth = await requirePortalAccount("manage_channel_listings");
+  if (!auth.user?.wholesaleAccount) {
+    return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
+  }
+  const access = await channelVisibility(auth.user.email);
+  if (!access.visible) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const bcProductId = Number(req.nextUrl.searchParams.get("bcProductId"));
+  if (!Number.isInteger(bcProductId) || bcProductId <= 0) {
+    return NextResponse.json({ error: "Choose a product" }, { status: 400 });
+  }
+  const shop = req.nextUrl.searchParams.get("shop");
+  const listings = await db.channelListing.findMany({
+    where: {
+      accountId: auth.user.wholesaleAccount.id,
+      bcProductId,
+      removedAt: null,
+      connection: {
+        disconnectedAt: null,
+        ...(shop ? { shopDomain: shop } : {}),
+      },
+    },
+  });
+  const seen = new Set<string>();
+  for (const listing of listings) {
+    const key = `${listing.connectionId}:${listing.shopifyProductId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await removeListing(listing.id);
+  }
+  return NextResponse.json({ ok: true, removed: seen.size });
 }

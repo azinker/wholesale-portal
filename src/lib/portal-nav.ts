@@ -60,11 +60,14 @@ export function getPortalNav(
     const hotIndex = items.findIndex((item) => item.href === "/hot-sellers");
     const channelItems: PortalNavDefinition[] = [
       { href: "/catalog", label: "Catalog", icon: "catalog" },
+      { href: "/my-shopify/orders", label: "Orders", icon: "orders" },
       { href: "/billing", label: "Billing", icon: "billing" },
-      { href: "/my-shopify", label: "My Shopify", icon: "shopify" },
+      { href: "/my-shopify", label: "My Shopify", icon: "shopify", exact: true },
     ];
     if (hotIndex >= 0) items.splice(hotIndex, 1, ...channelItems);
     else items.splice(1, 0, ...channelItems);
+    const purchases = items.find((item) => item.href === "/orders");
+    if (purchases) purchases.label = "Purchases";
   }
 
   if (status === "RETAIL" || status === "DENIED") {

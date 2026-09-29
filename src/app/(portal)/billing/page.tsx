@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { easternMonthKey } from "@/lib/shopify-channel/calendar";
+import { isAffiliatedOrder, netCharged, wasCharged, whenEastern } from "@/lib/shopify-channel/order-view";
 import { stripeConfigured, readCheckoutSession, readSetupIntent, readCard } from "@/lib/shopify-channel/stripe";
 import { retryCardAttention } from "@/lib/shopify-channel/orders";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
@@ -27,11 +28,11 @@ function toneFor(status: string): "good" | "wait" | "bad" | "neutral" {
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string }>;
+  searchParams: Promise<{ session_id?: string; order?: string }>;
 }) {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
-  const { session_id: sessionId } = await searchParams;
+  const { session_id: sessionId, order: focusId } = await searchParams;
   const canBill = userHasPermission(user, "manage_channel_billing");
 
   if (sessionId && canBill && stripeConfigured()) {
@@ -62,11 +63,18 @@ export default async function BillingPage({
   }
 
   const card = await db.sellerPaymentMethod.findUnique({ where: { accountId: account.id } });
-  const orders = await db.channelOrder.findMany({
-    where: { accountId: account.id },
+  const stored = await db.channelOrder.findMany({
+    where: { accountId: account.id, shopifyOrderId: { not: "preview" } },
     orderBy: { createdAt: "desc" },
-    take: 30,
+    take: 60,
   });
+  const affiliated = stored.filter((order) => isAffiliatedOrder(order));
+  const orders = affiliated.slice(0, 30);
+  const focus = focusId
+    ? affiliated.find((order) => order.id === focusId) ||
+      (await db.channelOrder.findFirst({ where: { id: focusId, accountId: account.id } }))
+    : null;
+  const focused = focus && isAffiliatedOrder(focus) ? focus : null;
   const charged = orders.reduce((sum, row) => sum + Number(row.amountCharged) - Number(row.amountRefunded), 0);
   const sold = orders.reduce((sum, row) => sum + Number(row.soldFor), 0);
   const attention = orders.filter((order) => order.status === "NEEDS_ATTENTION");
@@ -126,6 +134,29 @@ export default async function BillingPage({
         </ChannelPanel>
 
         <div className="space-y-4">
+          {focused && (
+            <div id="charge">
+            <ChannelPanel className="overflow-hidden border-[#2d2d2d]">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0ebe8] px-5 py-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">This charge</p>
+                  <h2 className="font-display text-xl font-semibold">{focused.shopifyOrderName}</h2>
+                  <p className="text-sm text-[#5c5654]">{whenEastern(focused.createdAt)}</p>
+                </div>
+                <StatusPill tone={toneFor(focused.status)}>{statusLabel(focused.status)}</StatusPill>
+              </div>
+              <dl className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-4">
+                <div><dt className="text-[#5c5654]">Buyer paid</dt><dd className="font-semibold tabular-nums">{money(Number(focused.soldFor))}</dd></div>
+                <div><dt className="text-[#5c5654]">Product cost</dt><dd className="font-semibold tabular-nums">{money(Number(focused.goodsCharged))}</dd></div>
+                <div><dt className="text-[#5c5654]">Shipping</dt><dd className="font-semibold tabular-nums">{money(Number(focused.shippingCharged))}</dd></div>
+                <div><dt className="text-[#5c5654]">{wasCharged(focused) ? "Charged" : "Not charged yet"}</dt><dd className="font-semibold tabular-nums">{money(netCharged(focused))}</dd></div>
+              </dl>
+              <div className="px-5 pb-4">
+                <Link href={`/my-shopify/orders/${focused.id}`} className="text-sm font-semibold text-primary hover:underline">Open this order</Link>
+              </div>
+            </ChannelPanel>
+            </div>
+          )}
           {attention.length > 0 && (
             <ChannelPanel className="border-red-200 bg-red-50 p-5">
               <h2 className="font-semibold text-red-900">Needs attention</h2>
@@ -180,7 +211,7 @@ export default async function BillingPage({
                       {monthOrders.map((order) => {
                         const net = Number(order.amountCharged) - Number(order.amountRefunded);
                         return (
-                          <tr key={order.id} className="border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6]">
+                          <tr key={order.id} id={order.id === focused?.id ? "charge-row" : undefined} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${order.id === focused?.id ? "bg-[#fdf6f6]" : ""}`}>
                             <td className="px-4 py-3">
                               <Link className="font-semibold hover:underline" href={`/my-shopify/orders/${order.id}`}>{order.shopifyOrderName}</Link>
                             </td>

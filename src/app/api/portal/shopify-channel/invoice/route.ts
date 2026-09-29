@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { easternMonthKey } from "@/lib/shopify-channel/calendar";
+import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 type Line = { title?: string; quantity?: number; salePrice?: number; unitCost?: number; lineCost?: number };
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   const rows = ["date,store,order,product,quantity,sold for,tier,unit cost,charged,shipping,margin"];
   for (const order of orders) {
     if (easternMonthKey(order.createdAt) !== month) continue;
+    if (!isAffiliatedOrder(order)) continue;
     const lines = Array.isArray(order.lines) ? (order.lines as Line[]) : [];
     const margin = Number(order.soldFor) - (Number(order.amountCharged) - Number(order.amountRefunded));
     if (lines.length === 0) {

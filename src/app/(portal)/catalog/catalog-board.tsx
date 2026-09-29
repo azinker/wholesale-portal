@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,6 +52,9 @@ type ProgressRow = {
 const addedBtn =
   "inline-flex cursor-pointer items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2";
 
+const removeBtn =
+  "inline-flex cursor-pointer items-center justify-center rounded-xl bg-[#B8282E] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-[#9c2126] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8282E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45";
+
 export function CatalogBoard({
   products,
   stores,
@@ -88,12 +91,17 @@ export function CatalogBoard({
   const [storeIds, setStoreIds] = useState<string[]>(stores.length === 1 ? [stores[0].id] : []);
   const [pending, setPending] = useState(false);
   const [knownListed, setKnownListed] = useState<number[]>(listedIds);
+  useEffect(() => {
+    setKnownListed(listedIds);
+  }, [listedIds]);
   const [rows, setRows] = useState<ProgressRow[] | null>(null);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [jobCounts, setJobCounts] = useState<{ added: number; skipped: number; failed: number; status: string } | null>(null);
   const [view, setView] = useState<Receipt[] | null>(null);
+  const [viewProduct, setViewProduct] = useState<ProductCard | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewTitle, setViewTitle] = useState("");
+  const [task, setTask] = useState<"add" | "remove">("add");
 
   const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
   const running = pending;
@@ -122,6 +130,7 @@ export function CatalogBoard({
     setJobLabel(null);
     setJobCounts(null);
     setView(null);
+    setViewProduct(null);
     setViewLoading(false);
   }
 
@@ -149,7 +158,9 @@ export function CatalogBoard({
     if (queue.length === 0) return;
     setPending(true);
     setView(null);
+    setViewProduct(null);
     setJobLabel(null);
+    setTask("add");
     setRows(queue.map((product) => ({ id: product.id, name: product.name, state: "waiting", receipts: [] })));
     const finished: number[] = [];
     for (const product of queue) {
@@ -188,6 +199,7 @@ export function CatalogBoard({
     const label = scope === "catalog" ? "the entire catalog" : "everything in this search";
     if (!window.confirm(`Add ${count} products from ${label}? Products already on the store are skipped.`)) return;
     setPending(true);
+    setTask("add");
     setRows(null);
     setView(null);
     setJobCounts({ added: 0, skipped: 0, failed: 0, status: "RUNNING" });
@@ -250,6 +262,7 @@ export function CatalogBoard({
     setRows(null);
     setJobLabel(null);
     setViewTitle(product.name);
+    setViewProduct(product);
     setViewLoading(true);
     setView(null);
     try {
@@ -270,6 +283,41 @@ export function CatalogBoard({
       setViewLoading(false);
     } finally {
       setViewLoading(false);
+    }
+  }
+
+  async function removeListed(product: ProductCard, shop?: string) {
+    const where = shop ? ` from ${shop}` : " from your Shopify store";
+    if (!window.confirm(`Remove “${product.name}”${where}? This deletes that listing. Orders already placed are not changed.`)) return;
+    setPending(true);
+    setView(null);
+    setViewProduct(product);
+    setJobLabel(null);
+    setTask("remove");
+    setRows([{ id: product.id, name: product.name, state: "adding", receipts: [] }]);
+    try {
+      const params = new URLSearchParams({ bcProductId: String(product.id) });
+      if (shop) params.set("shop", shop);
+      const res = await fetch(`/api/portal/shopify-channel/listings?${params.toString()}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not remove");
+      if (!shop || stores.length <= 1) {
+        setKnownListed((current) => current.filter((id) => id !== product.id));
+      }
+      setRows([{ id: product.id, name: product.name, state: "done", receipts: [], error: "Removed from your Shopify store." }]);
+    } catch (error) {
+      setRows([
+        {
+          id: product.id,
+          name: product.name,
+          state: "failed",
+          receipts: [],
+          error: error instanceof Error ? error.message : "Could not remove",
+        },
+      ]);
+    } finally {
+      setPending(false);
+      router.refresh();
     }
   }
 
@@ -398,7 +446,10 @@ export function CatalogBoard({
                     <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(margin)}</td>
                     <td className="px-4 py-3 text-right">
                       {listed ? (
-                        <button type="button" onClick={() => openListing(product)} className={addedBtn}>Added</button>
+                        <div className="flex justify-end gap-2">
+                          <button type="button" onClick={() => openListing(product)} className={addedBtn}>Added</button>
+                          <button type="button" disabled={pending} onClick={() => removeListed(product)} className={removeBtn}>Remove</button>
+                        </div>
                       ) : (
                         <button
                           type="button"
@@ -461,7 +512,7 @@ export function CatalogBoard({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl" onPointerDownOutside={(event) => { if (running) event.preventDefault(); }} onEscapeKeyDown={(event) => { if (running) event.preventDefault(); }}>
           <DialogHeader>
             <DialogTitle>
-              {viewLoading ? "Opening the listing" : view ? viewTitle || "On your Shopify store" : jobLabel ? jobLabel : rows?.some((row) => row.state === "adding" || row.state === "waiting") ? "Adding to your Shopify store" : "Added to your Shopify store"}
+              {viewLoading ? "Opening the listing" : view ? viewTitle || "On your Shopify store" : task === "remove" ? (pending ? "Removing from your Shopify store" : "Removed from your Shopify store") : jobLabel ? jobLabel : rows?.some((row) => row.state === "adding" || row.state === "waiting") ? "Adding to your Shopify store" : "Added to your Shopify store"}
             </DialogTitle>
             <DialogDescription>
               {viewLoading
@@ -511,9 +562,9 @@ export function CatalogBoard({
                       <p className="font-medium text-[#1a1a1a]">{row.name}</p>
                       <p className="text-sm text-[#5c5654]">
                         {row.state === "waiting" && "Waiting"}
-                        {row.state === "adding" && "Adding now"}
+                        {row.state === "adding" && (task === "remove" ? "Removing now" : "Adding now")}
                         {row.state === "failed" && (row.error || "Could not add")}
-                        {row.state === "done" && (row.receipts[0]?.message || "Done")}
+                        {row.state === "done" && (row.receipts[0]?.message || row.error || "Done")}
                       </p>
                     </div>
                   </div>
@@ -528,7 +579,7 @@ export function CatalogBoard({
           {detailReceipts && view && (
             <div className="space-y-4">
               {detailReceipts.map((receipt, index) => (
-                <ReceiptBody key={`${receipt.shopDomain}-${index}`} receipt={receipt} />
+                <ReceiptBody key={`${receipt.shopDomain}-${index}`} receipt={receipt} onRemove={viewProduct ? () => removeListed(viewProduct, receipt.shopDomain) : undefined} />
               ))}
             </div>
           )}
@@ -538,7 +589,7 @@ export function CatalogBoard({
   );
 }
 
-function ReceiptBody({ receipt }: { receipt: Receipt }) {
+function ReceiptBody({ receipt, onRemove }: { receipt: Receipt; onRemove?: () => void }) {
   return (
     <div className="mt-3 space-y-3 border-t border-[#f0ebe8] pt-3">
       <div className="flex gap-3">
@@ -580,6 +631,9 @@ function ReceiptBody({ receipt }: { receipt: Receipt }) {
         )}
         {receipt.adminUrl && (
           <a className={channelGhostBtn} href={receipt.adminUrl} target="_blank" rel="noreferrer">Edit price in Shopify</a>
+        )}
+        {onRemove && (
+          <button type="button" onClick={onRemove} className={removeBtn}>Remove</button>
         )}
       </div>
     </div>

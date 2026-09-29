@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 import { easternMonthKey } from "@/lib/shopify-channel/calendar";
+import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
 import { statusLabel } from "../channel-ui";
 
 function money(value: number): string {
@@ -32,11 +33,11 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
     ]);
     stores = storeCount;
     listings = listingCount;
-    const monthOrders = orders.filter((order) => easternMonthKey(order.createdAt) === month);
+    const monthOrders = orders.filter((order) => isAffiliatedOrder(order) && easternMonthKey(order.createdAt) === month);
     ordersThisMonth = monthOrders.length;
     sold = monthOrders.reduce((sum, order) => sum + Number(order.soldFor), 0);
     charged = monthOrders.reduce((sum, order) => sum + Number(order.amountCharged) - Number(order.amountRefunded), 0);
-    latest = orders.slice(0, 4).map((order) => ({
+    latest = orders.filter((order) => isAffiliatedOrder(order)).slice(0, 4).map((order) => ({
       id: order.id,
       name: order.shopifyOrderName,
       status: statusLabel(order.status),
@@ -61,8 +62,8 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
           <h2 className="font-display text-xl font-semibold">This month</h2>
           {access.preview && <p className="text-xs text-[#5c5654]">Preview. Other wholesalers do not see this yet.</p>}
         </div>
-        <Link href="/my-shopify" className="cursor-pointer text-sm font-semibold text-primary hover:underline">
-          Open My Shopify
+        <Link href="/my-shopify/orders" className="cursor-pointer text-sm font-semibold text-primary hover:underline">
+          Open orders
         </Link>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4">

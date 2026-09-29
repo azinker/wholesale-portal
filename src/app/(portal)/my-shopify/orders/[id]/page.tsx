@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
+import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
 import { ChannelSchemaNotice } from "../../../channel-schema-notice";
 import {
   ChannelHeading,
@@ -35,7 +36,7 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
     where: { id, accountId: account.id },
     include: { connection: true },
   });
-  if (!order) notFound();
+  if (!order || !isAffiliatedOrder(order)) notFound();
   const lines = Array.isArray(order.lines) ? (order.lines as Line[]) : [];
   const ship = (order.shipTo || {}) as Ship;
   const sold = Number(order.soldFor);
@@ -60,7 +61,10 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
           <StatusPill tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" ? "good" : "wait"}>
             {statusLabel(order.status)}
           </StatusPill>
-          <Link href="/billing" className={channelGhostBtn}>Back to Billing</Link>
+          <Link href={`/billing?order=${order.id}#charge`} className={channelPrimaryBtn}>
+            {Number(order.amountCharged) > 0 ? "See this charge" : "Charge record"}
+          </Link>
+          <Link href="/my-shopify/orders" className={channelGhostBtn}>All orders</Link>
         </div>
       </ChannelHeading>
 

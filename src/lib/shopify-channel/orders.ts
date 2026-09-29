@@ -160,6 +160,19 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
     });
   }
 
+  if (quotedLines.length === 0) {
+    if (
+      existing &&
+      existing.status === "QUEUED" &&
+      !existing.bcOrderId &&
+      !existing.stripeChargeId &&
+      Number(existing.amountCharged) === 0
+    ) {
+      await db.channelOrder.delete({ where: { id: existing.id } });
+    }
+    return;
+  }
+
   const quote = quoteChannelCharge(
     quotedLines.map((line) => ({
       retail: line.retail,

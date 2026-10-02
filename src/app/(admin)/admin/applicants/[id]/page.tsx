@@ -113,6 +113,7 @@ export default async function ApplicantDetailPage({
             <Field label="Phone" value={account.phone} />
             <Field label="Address" value={account.businessAddress} />
             <Field label="Website" value={account.website} />
+            <Field label="Country" value={businessFields.country} />
             <Field label="State" value={account.primaryState} />
             <Field label="BC Customer" value={account.customerId ? `#${account.customerId}` : "Not linked"} />
             <Field label="Applied" value={account.createdAt.toLocaleString()} />

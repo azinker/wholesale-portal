@@ -55,6 +55,7 @@ export default async function CustomerDetailPage({
   }
 
   const publisher = account.partnerType === "AFFILIATE_PUBLISHER";
+  const businessFields = (account.businessFields as { country?: string } | null) || {};
   const activePromo = account.promotions.find((p) => p.enabled);
   const publisherConfig = publisher ? await loadPublisherTierConfig() : null;
   const dynamicTiers = publisher ? publisherConfig!.tiers : await loadTiers();
@@ -153,6 +154,11 @@ export default async function CustomerDetailPage({
             <div className="flex justify-between">
               <span className="text-muted-foreground">Approved</span>
               <span>{account.approvedAt?.toLocaleDateString() || "—"}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Country</span>
+              <span>{businessFields.country || "—"}</span>
             </div>
             <Separator />
             <div className="flex justify-between">

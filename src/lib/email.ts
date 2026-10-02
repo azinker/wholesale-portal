@@ -895,6 +895,7 @@ export type NewApplicantPayload = {
   businessAddress?: string;
   phone?: string;
   website?: string;
+  country?: string;
   primaryState?: string;
   customerId?: number | null;
   partnerType?: "DROPSHIPPER" | "AFFILIATE_PUBLISHER";
@@ -936,6 +937,7 @@ export async function sendNewApplicantNotification(payload: NewApplicantPayload)
       ...(payload.businessAddress ? [["Business address", payload.businessAddress]] : []),
       ...(payload.phone ? [["Phone", payload.phone]] : []),
       ...(payload.website ? [["Website", payload.website]] : []),
+      ...(payload.country ? [["Country", payload.country]] : []),
       ...(payload.primaryState ? [["Primary state", payload.primaryState]] : []),
       ...(payload.promoWebsite ? [["Promotion website", payload.promoWebsite]] : []),
       ...(payload.promoTypes?.length ? [["Promotion types", payload.promoTypes.join(", ")]] : []),

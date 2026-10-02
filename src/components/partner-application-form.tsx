@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { TermsOfServiceContent, PublisherTermsOfServiceContent } from "@/components/terms-of-service";
+import { COUNTRIES, UNITED_STATES, US_STATES } from "@/lib/countries";
 
 type ApplicationType = "DROPSHIPPER" | "AFFILIATE_PUBLISHER";
 
@@ -29,6 +30,8 @@ export function PartnerApplicationForm({ partnerType }: { partnerType: Applicati
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [awinJoined, setAwinJoined] = useState(false);
+  const [country, setCountry] = useState("");
+  const unitedStates = country === UNITED_STATES;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,7 +46,8 @@ export function PartnerApplicationForm({ partnerType }: { partnerType: Applicati
       lastName: String(form.get("lastName") || ""),
       companyName: String(form.get("companyName") || ""),
       phone: String(form.get("phone") || ""),
-      primaryState: String(form.get("primaryState") || ""),
+      country,
+      primaryState: unitedStates ? String(form.get("primaryState") || "") : "",
       attestation: form.get("attestation") === "on",
       legalName: String(form.get("legalName") || ""),
       businessAddress: String(form.get("businessAddress") || ""),
@@ -139,12 +143,28 @@ export function PartnerApplicationForm({ partnerType }: { partnerType: Applicati
                   </>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="primaryState">Primary state / region *</Label>
-                  <select id="primaryState" name="primaryState" required className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                    <option value="">Select a state</option>
-                    {US_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                  <Label htmlFor="country">Country *</Label>
+                  <select
+                    id="country"
+                    name="country"
+                    required
+                    value={country}
+                    onChange={(event) => setCountry(event.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  >
+                    <option value="">Select a country</option>
+                    {COUNTRIES.map((name) => <option key={name} value={name}>{name}</option>)}
                   </select>
                 </div>
+                {unitedStates && (
+                  <div className="space-y-2">
+                    <Label htmlFor="primaryState">Primary state *</Label>
+                    <select id="primaryState" name="primaryState" required className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                      <option value="">Select a state</option>
+                      {US_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                    </select>
+                  </div>
+                )}
               </Section>
 
               {publisher && (
@@ -235,11 +255,3 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ name, label, type = "text", required, placeholder }: { name: string; label: string; type?: string; required?: boolean; placeholder?: string }) {
   return <div className="space-y-2"><Label htmlFor={name}>{label}{required ? " *" : ""}</Label><Input id={name} name={name} type={type} required={required} placeholder={placeholder} /></div>;
 }
-
-const US_STATES = [
-  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia",
-  "Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts",
-  "Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey",
-  "New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island",
-  "South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming",
-];

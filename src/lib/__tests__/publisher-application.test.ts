@@ -8,7 +8,8 @@ const validPublisher = {
   lastName: "Publisher",
   companyName: "Parts Media",
   phone: "555-0100",
-  primaryState: "MI",
+  country: "United States",
+  primaryState: "Michigan",
   attestation: true,
   promoWebsite: "https://publisher.example.com",
   promoTypes: ["blog"],
@@ -26,5 +27,51 @@ describe("publisher application schema", () => {
     expect(
       applySchema.safeParse({ ...validPublisher, promoWebsite: "not-a-url" }).success
     ).toBe(false);
+  });
+
+  it("accepts a publisher outside the United States without a state", () => {
+    expect(
+      applySchema.safeParse({ ...validPublisher, country: "Portugal", primaryState: "" }).success
+    ).toBe(true);
+  });
+
+  it("rejects a US application without a state", () => {
+    expect(
+      applySchema.safeParse({ ...validPublisher, primaryState: "" }).success
+    ).toBe(false);
+  });
+});
+
+const validDropshipper = {
+  partnerType: "DROPSHIPPER",
+  email: "seller@example.com",
+  firstName: "Ana",
+  lastName: "Silva",
+  companyName: "Lisbon Parts",
+  phone: "+351 910000000",
+  country: "Portugal",
+  primaryState: "",
+  attestation: true,
+  businessAddress: "Lisbon, Portugal",
+  website: "https://www.ebay.com/str/example",
+};
+
+describe("dropshipper application schema", () => {
+  it("accepts an international dropshipper without a US state", () => {
+    expect(applySchema.safeParse(validDropshipper).success).toBe(true);
+  });
+
+  it("still requires a state for a US dropshipper", () => {
+    expect(
+      applySchema.safeParse({ ...validDropshipper, country: "United States", businessAddress: "1 Main St" }).success
+    ).toBe(false);
+    expect(
+      applySchema.safeParse({
+        ...validDropshipper,
+        country: "United States",
+        primaryState: "Florida",
+        businessAddress: "1 Main St",
+      }).success
+    ).toBe(true);
   });
 });

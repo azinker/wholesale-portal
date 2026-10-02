@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UNITED_STATES, isListedCountry, isListedUsState } from "@/lib/countries";
 
 export const PARTNER_TYPES = ["DROPSHIPPER", "AFFILIATE_PUBLISHER"] as const;
 export type PartnerType = (typeof PARTNER_TYPES)[number];
@@ -10,11 +11,33 @@ const commonApplicationFields = {
   lastName: z.string().trim().min(1),
   companyName: z.string().trim().min(1),
   phone: z.string().trim().min(1),
+  country: z.string().trim().min(1, "Select a country"),
   primaryState: z.string().trim().optional().default(""),
   attestation: z.literal(true, {
     errorMap: () => ({ message: "You must accept the attestation" }),
   }),
 };
+
+function requireLocation(
+  data: { country: string; primaryState: string },
+  ctx: z.RefinementCtx
+) {
+  if (!isListedCountry(data.country)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["country"],
+      message: "Select a country",
+    });
+    return;
+  }
+  if (data.country === UNITED_STATES && !isListedUsState(data.primaryState)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["primaryState"],
+      message: "Select a US state",
+    });
+  }
+}
 
 const dropshipperApplicationSchema = z.object({
   ...commonApplicationFields,
@@ -22,12 +45,11 @@ const dropshipperApplicationSchema = z.object({
   legalName: z.string().trim().optional().default(""),
   businessAddress: z.string().trim().min(1),
   website: z.string().trim().optional().default(""),
-});
+}).superRefine(requireLocation);
 
 const publisherApplicationSchema = z.object({
   ...commonApplicationFields,
   partnerType: z.literal("AFFILIATE_PUBLISHER"),
-  primaryState: z.string().trim().min(1),
   legalName: z.string().trim().optional().default(""),
   businessAddress: z.string().trim().optional().default(""),
   website: z.string().trim().optional().default(""),
@@ -38,6 +60,7 @@ const publisherApplicationSchema = z.object({
   awinJoined: z.boolean(),
   awinPublisherId: z.string().trim().optional().default(""),
 }).superRefine((data, ctx) => {
+  requireLocation(data, ctx);
   if (data.awinJoined && !data.awinPublisherId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

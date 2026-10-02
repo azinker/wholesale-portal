@@ -9,6 +9,7 @@ import {
   sendPublisherApplicationReceivedEmail,
   sendReapplicationReceivedEmail,
 } from "@/lib/email";
+import { UNITED_STATES } from "@/lib/countries";
 import { applySchema } from "@/lib/partner-types";
 
 export async function POST(req: NextRequest) {
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
             businessAddress: data.businessAddress,
             phone: data.phone,
             website: data.website || null,
-            primaryState: data.primaryState || null,
+            primaryState: data.country === UNITED_STATES ? data.primaryState || null : null,
             partnerType: data.partnerType,
             awinPublisherId: publisher ? data.awinPublisherId || null : null,
             promoWebsite: publisher ? data.promoWebsite : null,
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
             businessFields: {
               firstName: data.firstName,
               lastName: data.lastName,
+              country: data.country,
               ...(publisher ? { awinJoined: data.awinJoined } : {}),
             },
           },
@@ -123,7 +125,8 @@ export async function POST(req: NextRequest) {
           businessAddress: data.businessAddress,
           phone: data.phone,
           website: data.website || undefined,
-          primaryState: data.primaryState || undefined,
+          country: data.country,
+          primaryState: data.country === UNITED_STATES ? data.primaryState || undefined : undefined,
           partnerType: data.partnerType,
           ...(publisher ? {
             promoWebsite: data.promoWebsite,
@@ -211,7 +214,7 @@ export async function POST(req: NextRequest) {
         businessAddress: data.businessAddress,
         phone: data.phone,
         website: data.website || null,
-        primaryState: data.primaryState || null,
+        primaryState: data.country === UNITED_STATES ? data.primaryState || null : null,
         partnerType: data.partnerType,
         awinPublisherId: publisher ? data.awinPublisherId || null : null,
         promoWebsite: publisher ? data.promoWebsite : null,
@@ -223,6 +226,7 @@ export async function POST(req: NextRequest) {
         businessFields: {
           firstName: data.firstName,
           lastName: data.lastName,
+          country: data.country,
           ...(publisher ? { awinJoined: data.awinJoined } : {}),
         },
       },
@@ -255,7 +259,8 @@ export async function POST(req: NextRequest) {
       businessAddress: data.businessAddress,
       phone: data.phone,
       website: data.website || undefined,
-      primaryState: data.primaryState || undefined,
+      country: data.country,
+      primaryState: data.country === UNITED_STATES ? data.primaryState || undefined : undefined,
       partnerType: data.partnerType,
       ...(publisher ? {
         promoWebsite: data.promoWebsite,

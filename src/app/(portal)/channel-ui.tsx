@@ -26,7 +26,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const ATTENTION_LABEL: Record<string, string> = {
-  store_paused: "This store is paused, so we didn't charge this order.",
+  store_paused: "This store was paused. Your customer paid you on Shopify. We saw the order, and we did not charge your card or ship it.",
   incomplete_address: "The shipping address needs a street and a country.",
   needs_retest: "We need to confirm this store's shipping address again.",
   missing_phone: "Orders outside the US need a phone number.",

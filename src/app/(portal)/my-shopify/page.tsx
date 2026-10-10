@@ -162,7 +162,9 @@ export default async function MyShopifyPage({
                 </p>
               ) : connection.addressTestStatus === "PASSED" ? (
                 <p className="mt-4 text-sm leading-6 text-[#5c5654]">
-                  This store is connected. When a customer pays, we charge your card and ship the order.
+                  {connection.paused
+                    ? "Paused. Customers can still buy on Shopify. We see the order, but we do not charge your card or ship it. You handle that sale. Resume applies to new sales only."
+                    : "This store is connected. When a customer pays, we charge your card and ship the order."}
                 </p>
               ) : (
                 <div className="mt-5 rounded-xl border border-[#efeae7] bg-[#fbfaf9] p-4">
@@ -204,14 +206,23 @@ export default async function MyShopifyPage({
               )}
 
               {canConnect && !connection.disconnectedAt && (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   <form action="/api/portal/shopify-channel/pause" method="post">
                     <input type="hidden" name="connectionId" value={connection.id} />
                     <input type="hidden" name="paused" value={connection.paused ? "false" : "true"} />
-                    <button className={channelGhostBtn} type="submit" title="Pause before a vacation so new sales are not charged or shipped. Listings stay up.">
+                    <button
+                      className={channelGhostBtn}
+                      type="submit"
+                      title={connection.paused
+                        ? "New sales are charged and shipped again. A sale that came in while this was paused is not shipped later. Example: a customer paid you during the pause. That order stays on Shopify for you to refund or handle."
+                        : "Customers can still buy on your Shopify store. We see the order, but we do not charge your card and we do not ship it. Example: you pause before a trip, a customer buys a listed product and pays you on Shopify, and you handle that sale. Products stay up. When you resume, only new sales are charged and shipped."}
+                    >
                       {connection.paused ? "Resume new orders" : "Pause new orders"}
                     </button>
                   </form>
+                  <Tip text={connection.paused
+                    ? "New sales are charged and shipped again. A sale that came in while this was paused is not shipped later. Example: a customer paid you during the pause. That order stays on Shopify for you to refund or handle."
+                    : "Customers can still buy on your Shopify store. We see the order, but we do not charge your card and we do not ship it. Example: you pause before a trip, a customer buys a listed product and pays you on Shopify, and you handle that sale. Products stay up. When you resume, only new sales are charged and shipped."} />
                   <form action="/api/portal/shopify-channel/disconnect" method="post">
                     <input type="hidden" name="connectionId" value={connection.id} />
                     <button className={channelGhostBtn} type="submit" title="Disconnect one store. New sales stop and stock stops updating. Products already on that Shopify store stay there.">

@@ -390,7 +390,7 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
 
 function holdMessage(orderName: string, reason: string): string {
   if (reason === "store_paused") {
-    return `${orderName} came in while this store is paused. We didn't charge you, and we won't ship it. You can refund your customer on Shopify.`;
+    return `${orderName} came in while this store is paused. Your customer paid you on Shopify. We saw the order, and we did not charge your card or ship it. You can refund them on Shopify, or handle the sale yourself. Resuming later does not ship this one.`;
   }
   if (reason === "incomplete_address") {
     return `${orderName} is missing a street or country. We didn't charge you. Add the address on that Shopify order and we'll charge your card and ship it.`;

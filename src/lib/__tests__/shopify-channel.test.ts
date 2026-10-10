@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { atLeastOneBusinessDayLater, easternMonthKey } from "../shopify-channel/calendar";
 import { decidePaidOrder } from "../shopify-channel/decide";
+import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
 import { scrubListingText } from "../shopify-channel/scrub";
 
@@ -10,6 +11,8 @@ describe("shopify channel money", () => {
     expect(shippingForCountry("US")).toBe(0);
     expect(warehouseCountry("US")).toEqual({ country: "United States", countryIso2: "US" });
     expect(warehouseCountry("United States").country).toBe("United States");
+    expect(plainWarehouseFailure("The field 'country' is invalid.")).toMatch(/United States/);
+    expect(plainWarehouseFailure("BC API POST https://api.example.com/orders failed")).not.toMatch(/https:/);
     expect(shippingForCountry("CA")).toBe(18.99);
     const quote = quoteChannelCharge(
       [

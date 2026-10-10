@@ -490,6 +490,75 @@ export async function sendApplicantMoreInfoRequestEmail(to: string, companyName:
 // 3. SUPPORT CONFIRMATION (sent to customer)
 // ─────────────────────────────────────────────────────────────────
 
+/** Turn a warehouse error into a sentence a wholesaler can read. */
+export function plainWarehouseFailure(message: string): string {
+  const text = message.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+  if (/country/i.test(text) && /invalid/i.test(text)) {
+    return "The shipping country was sent as a short code, such as US. The warehouse needs the full name, United States. The address your customer typed can still be a normal US address. This happened on our side when we handed the order over.";
+  }
+  if (/phone/i.test(text) && /invalid|required|missing/i.test(text)) {
+    return "The warehouse needed a phone number before it could start this shipment.";
+  }
+  if (text && text.length < 180 && !/bigcommerce|api post|\{"status"/i.test(text)) {
+    return text;
+  }
+  return "The warehouse could not start the shipment. The charge was refunded so you are not paying for an order we did not ship.";
+}
+
+export async function sendChannelRefundEmail(input: {
+  to: string;
+  orderName: string;
+  orderId: string;
+  amount: number;
+  reason: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const supportUrl = `${appUrl}/support?category=shopify_order_change&order=${encodeURIComponent(input.orderName)}`;
+  const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
+  const amount = `$${input.amount.toFixed(2)}`;
+  const why = plainWarehouseFailure(input.reason);
+  const safeOrder = escapeHtml(input.orderName);
+  const safeWhy = escapeHtml(why);
+
+  await sendBrandedEmail({
+    logLabel: "channel refund",
+    to: input.to,
+    subject: `We refunded ${input.orderName} — The Perfect Part`,
+    throwOnError: false,
+    text: [
+      `We refunded ${input.orderName}. Nothing shipped.`,
+      ``,
+      `Your customer paid you on Shopify. We charged your card ${amount} so we could ship the order. The warehouse could not start the shipment, so we refunded that charge right away.`,
+      ``,
+      `What went wrong`,
+      why,
+      ``,
+      `Your statement should show a charge and a refund for ${amount}. They may both say Pending for a little while. They cancel each other out.`,
+      ``,
+      `Open the order: ${orderUrl}`,
+      `Contact Support in your dashboard: ${supportUrl}`,
+      `Support is also in the menu on the left after you sign in.`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We refunded this order</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${safeOrder} &mdash; nothing shipped</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your customer paid you on Shopify. We charged your card <strong>${amount}</strong> so we could ship the order. The warehouse could not start the shipment, so we refunded that charge right away.</p>
+      ${infoBox(`
+        <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">What went wrong</p>
+        <p style="margin:0;">${safeWhy}</p>
+      `)}
+      <p>On your statement you should see a charge and a refund for the same <strong>${amount}</strong>. They may both say Pending for a little while. They cancel each other out.</p>
+      <p>If you want us to look at this order, use Support in your dashboard. That sends a note straight to our team. Support is the menu on the left after you sign in.</p>
+      ${ctaButton(supportUrl, "Contact Support")}
+      <p style="font-size:13px;color:#a1a1aa;margin:0;">
+        Or open the order in your portal:
+        <a href="${escapeHtml(orderUrl)}" style="color:#71717a;text-decoration:underline;">${safeOrder}</a>
+      </p>
+    `,
+  });
+}
+
 export async function sendSupportConfirmation(to: string, subject: string): Promise<void> {
   const from = getEmailFrom();
 

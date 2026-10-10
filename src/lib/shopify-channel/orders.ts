@@ -9,6 +9,7 @@ import {
 import { atLeastOneBusinessDayLater } from "./calendar";
 import { decidePaidOrder } from "./decide";
 import { quoteChannelCharge, roundMoney, warehouseCountry } from "./money";
+import { sendChannelRefundEmail } from "@/lib/email";
 import { emailAccount, emailWholesaleDesk } from "./notify";
 import { isShopifyChannelEnabled } from "./settings";
 import { listRecentPaidOrders } from "./shopify-admin";
@@ -377,11 +378,13 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
         attentionNote: "warehouse_create_failed",
       },
     });
-    await emailAccount(
-      accountEmail,
-      `We refunded ${orderName}`,
-      `We charged ${orderName} and could not create the warehouse order, so the charge was refunded. Nothing shipped.`
-    );
+    await sendChannelRefundEmail({
+      to: accountEmail,
+      orderName,
+      orderId: saved.id,
+      amount: quote.total,
+      reason: message,
+    });
     await emailWholesaleDesk(
       `Warehouse order failed for ${orderName}`,
       `${connection.account.companyName} ${orderName} was refunded after the warehouse order failed. ${message}`

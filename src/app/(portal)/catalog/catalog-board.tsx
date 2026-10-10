@@ -109,6 +109,7 @@ export function CatalogBoard({
   const [viewTitle, setViewTitle] = useState("");
   const [task, setTask] = useState<"add" | "remove">("add");
   const [drafts, setDrafts] = useState<ListingDraft[] | null>(null);
+  const [removeAsk, setRemoveAsk] = useState<{ product: ProductCard; shop?: string } | null>(null);
 
   const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
   const running = pending;
@@ -305,9 +306,12 @@ export function CatalogBoard({
     }
   }
 
+  function askRemove(product: ProductCard, shop?: string) {
+    setRemoveAsk({ product, shop });
+  }
+
   async function removeListed(product: ProductCard, shop?: string) {
-    const where = shop ? ` from ${shop}` : " from your Shopify store";
-    if (!window.confirm(`Remove “${product.name}”${where}? This deletes that listing. Orders already placed are not changed.`)) return;
+    setRemoveAsk(null);
     setPending(true);
     setView(null);
     setViewProduct(product);
@@ -478,7 +482,7 @@ export function CatalogBoard({
                       {listed ? (
                         <div className="flex justify-end gap-2">
                           <button type="button" onClick={() => openListing(product)} className={addedBtn}>Added</button>
-                          <button type="button" disabled={pending} onClick={() => removeListed(product)} className={removeBtn}>Remove</button>
+                          <button type="button" disabled={pending} onClick={() => askRemove(product)} className={removeBtn}>Remove</button>
                         </div>
                       ) : (
                         <button
@@ -672,10 +676,33 @@ export function CatalogBoard({
           {detailReceipts && view && (
             <div className="space-y-4">
               {detailReceipts.map((receipt, index) => (
-                <ReceiptBody key={`${receipt.shopDomain}-${index}`} receipt={receipt} onRemove={viewProduct ? () => removeListed(viewProduct, receipt.shopDomain) : undefined} />
+                <ReceiptBody key={`${receipt.shopDomain}-${index}`} receipt={receipt} onRemove={viewProduct ? () => askRemove(viewProduct, receipt.shopDomain) : undefined} />
               ))}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={removeAsk !== null} onOpenChange={(open) => { if (!open) setRemoveAsk(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove this product?</DialogTitle>
+            <DialogDescription>
+              {removeAsk
+                ? `Remove “${removeAsk.product.name}”${removeAsk.shop ? ` from ${removeAsk.shop}` : " from your Shopify store"}. The listing is deleted. Orders already placed stay as they are.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" className={channelGhostBtn} onClick={() => setRemoveAsk(null)}>Keep it</button>
+            <button
+              type="button"
+              className={removeBtn}
+              onClick={() => { if (removeAsk) void removeListed(removeAsk.product, removeAsk.shop); }}
+            >
+              Remove
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

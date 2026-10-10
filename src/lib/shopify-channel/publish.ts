@@ -549,6 +549,34 @@ export async function listingDetails(accountId: string, bcProductId: number): Pr
 
 const PUBLISH_BATCH = 20;
 
+function finishNote(
+  added: number,
+  skipped: number,
+  failed: number,
+  errors: Array<{ title: string; message: string }>
+): { subject: string; text: string } {
+  const support = `${process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net"}/support`;
+  const lines = [
+    failed > 0
+      ? "We finished adding your products. Some could not be added."
+      : "Your products are on your Shopify store.",
+    "",
+    `Added: ${added}`,
+    `Already on your store: ${skipped}`,
+    `Could not add: ${failed}`,
+  ];
+  if (errors.length > 0) {
+    lines.push("", "Copy a line below into a message to Support if you want help:");
+    for (const error of errors.slice(0, 20)) lines.push(`- ${error.title}: ${error.message}`);
+    if (errors.length > 20) lines.push(`And ${errors.length - 20} more.`);
+  }
+  lines.push("", `Contact Support: ${support}`);
+  return {
+    subject: failed > 0 ? "Some Shopify products could not be added" : "Your Shopify products are ready",
+    text: lines.join("\n"),
+  };
+}
+
 export async function runNextPublishJob(jobId?: string): Promise<boolean> {
   const job = jobId
     ? await db.channelPublishJob.findFirst({
@@ -592,6 +620,9 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
     categoryId?: number;
     page?: number;
     push?: PushChoices;
+    total?: number;
+    current?: string;
+    errors?: Array<{ title: string; message: string }>;
   };
   let ids: number[] = [];
   let finished = false;
@@ -625,17 +656,39 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
     delete push.sellerSku;
     delete push.compareAt;
   }
+  const errors: Array<{ title: string; message: string }> = Array.isArray(detail.errors) ? [...detail.errors] : [];
+  let current = detail.current || "";
   for (const productId of ids) {
+    let title = "A product";
     try {
       const result = await publishBigCommerceProduct(job.connectionId, productId, push);
+      title = result.title || title;
+      current = title;
       if (result.status === "added") added += 1;
       else if (result.status === "skipped") skipped += 1;
-      else failed += 1;
-    } catch {
+      else {
+        failed += 1;
+        errors.push({ title, message: result.message || "This product could not be added." });
+      }
+    } catch (error) {
       failed += 1;
+      current = title;
+      errors.push({ title, message: plainAddError(error) });
     }
     cursor = String(productId);
+    await db.channelPublishJob.update({
+      where: { id: job.id },
+      data: {
+        addedCount: added,
+        skippedCount: skipped,
+        failedCount: failed,
+        cursor,
+        status: "RUNNING",
+        detail: { ...detail, page: nextPage, current, errors: errors.slice(-40) },
+      },
+    });
   }
+  const savedDetail = { ...detail, page: nextPage, current, errors: errors.slice(-40) };
   await db.channelPublishJob.update({
     where: { id: job.id },
     data: {
@@ -645,15 +698,12 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
       cursor,
       status: finished ? "COMPLETED" : "RUNNING",
       emailSentAt: finished ? new Date() : null,
-      detail: { ...detail, page: nextPage },
+      detail: savedDetail,
     },
   });
   if (finished) {
-    await emailAccount(
-      job.requestedByEmail,
-      "Your Shopify listings are finished",
-      `Added ${added}, skipped ${skipped}, failed ${failed}.`
-    );
+    const note = finishNote(added, skipped, failed, errors.slice(-40));
+    await emailAccount(job.requestedByEmail, note.subject, note.text);
   }
   return true;
 }

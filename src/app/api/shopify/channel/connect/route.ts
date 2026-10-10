@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { MAX_SHOPS_PER_ACCOUNT } from "@/lib/shopify-channel/constants";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
-import { normalizeShopDomain, oauthStartUrl, shopifyAppConfigured, signOauthState } from "@/lib/shopify-channel/shopify-admin";
+import { oauthStartUrl, resolveShopDomain, shopifyAppConfigured, signOauthState } from "@/lib/shopify-channel/shopify-admin";
 
 export async function GET(req: NextRequest) {
   const auth = await requirePortalAccount("manage_channel_billing");
@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
   if (!(await channelVisibility(auth.user.email)).visible || !shopifyAppConfigured()) {
     return NextResponse.redirect(appUrl("/my-shopify"));
   }
-  const shop = normalizeShopDomain(req.nextUrl.searchParams.get("shop") || "");
-  if (!shop) return NextResponse.redirect(appUrl("/my-shopify"));
+  const shop = await resolveShopDomain(req.nextUrl.searchParams.get("shop") || "");
+  if (!shop) return NextResponse.redirect(appUrl("/my-shopify?connect=unrecognized"));
 
   const accountId = auth.user.wholesaleAccount!.id;
   const existing = await db.shopifyConnection.findUnique({ where: { shopDomain: shop } });

@@ -21,8 +21,13 @@ import {
   channelPrimaryBtn,
 } from "../channel-ui";
 
-export default async function MyShopifyPage() {
+export default async function MyShopifyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connect?: string }>;
+}) {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
+  const query = await searchParams;
   if (!schemaReady) return <ChannelSchemaNotice />;
   const canConnect = userHasPermission(user, "manage_channel_billing");
   const [terms, card, connections] = await Promise.all([
@@ -236,11 +241,14 @@ export default async function MyShopifyPage() {
 
         {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
-            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Use your store's myshopify.com address. You can connect up to 5 stores. Products already on the store stay as they are." /></h2>
-            <p className="mt-1 text-sm leading-6 text-[#5c5654]">Type your store address, like north-auto.myshopify.com. Shopify will ask you to approve it, including orders, so a sale shows up here on its own. Then you come back here. USD stores only. Up to 5 stores.</p>
+            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Use the website your customers visit, or the .myshopify.com address. You can connect up to 5 stores. Products already on the store stay as they are." /></h2>
+            <p className="mt-1 text-sm leading-6 text-[#5c5654]">Type your store address. That can be the website customers already use, like www.yourstore.com, or the Shopify address, like your-store.myshopify.com. Shopify will ask you to approve it, including orders, so a sale shows up here on its own. Then you come back here. USD stores only. Up to 5 stores.</p>
+            {query.connect === "unrecognized" && (
+              <p className="mt-3 text-sm leading-6 text-[#B8282E]">We couldn't find a Shopify store at that address. Check the spelling, or try the .myshopify.com address.</p>
+            )}
             <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="shop">Store domain</label>
-              <input id="shop" name="shop" placeholder="your-store.myshopify.com" className={channelField} />
+              <input id="shop" name="shop" placeholder="www.yourstore.com" className={channelField} />
               <button className={channelPrimaryBtn} type="submit">Connect Shopify</button>
             </form>
           </ChannelPanel>

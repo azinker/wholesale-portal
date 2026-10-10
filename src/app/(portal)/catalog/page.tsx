@@ -168,20 +168,23 @@ export default async function CatalogPage({
         <Link href="/catalog?view=added" className={`rounded-full px-4 py-2 text-sm font-semibold ${view === "added" ? "bg-[#2d2d2d] text-white" : "bg-white text-[#1a1a1a]"}`}>On your store ({addedCount})</Link>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {FLOW.map((step, index) => (
-          <ChannelPanel key={step.title} delay={index * 60} className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">0{index + 1}</p>
-            <p className="mt-2 font-semibold text-[#1a1a1a]">{step.title}</p>
-            <p className="mt-1 text-sm leading-6 text-[#5c5654]">{step.body}</p>
-          </ChannelPanel>
-        ))}
-      </div>
-
-      <p className="text-sm leading-6 text-[#5c5654]">
-        Shipping in the US is free, including PO Boxes, Alaska, and Hawaii. Everywhere else is $18.99 for the whole order. We don't add tax.
-        If we're out of stock, or the card doesn't go through, we'll email you and we won't ship. Once we've charged the card, write to Support if the address needs a change.
-      </p>
+      {view === "browse" && (
+        <>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {FLOW.map((step, index) => (
+              <ChannelPanel key={step.title} delay={index * 60} className="p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">0{index + 1}</p>
+                <p className="mt-2 font-semibold text-[#1a1a1a]">{step.title}</p>
+                <p className="mt-1 text-sm leading-6 text-[#5c5654]">{step.body}</p>
+              </ChannelPanel>
+            ))}
+          </div>
+          <p className="text-sm leading-6 text-[#5c5654]">
+            Shipping in the US is free, including PO Boxes, Alaska, and Hawaii. Everywhere else is $18.99 for the whole order. We don't add tax.
+            If we're out of stock, or the card doesn't go through, we'll email you and we won't ship. Once we've charged the card, write to Support if the address needs a change.
+          </p>
+        </>
+      )}
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">

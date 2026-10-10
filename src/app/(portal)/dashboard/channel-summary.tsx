@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 import { easternMonthKey } from "@/lib/shopify-channel/calendar";
 import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
+import { gettingReadyTip } from "@/lib/shopify-channel/calendar";
 import { statusLabel } from "../channel-ui";
+import { HoverTip } from "../tip";
 
 function money(value: number): string {
   return `$${value.toFixed(2)}`;
@@ -17,7 +19,7 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
   let ordersThisMonth = 0;
   let sold = 0;
   let charged = 0;
-  let latest: Array<{ id: string; name: string; status: string; trackingNumber: string | null }> = [];
+  let latest: Array<{ id: string; name: string; status: string; tip: string; trackingNumber: string | null }> = [];
   try {
     const month = easternMonthKey(new Date());
     const [storeCount, listingCount, orders] = await Promise.all([
@@ -41,6 +43,7 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
       id: order.id,
       name: order.shopifyOrderName,
       status: statusLabel(order.status),
+      tip: order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : "",
       trackingNumber: order.trackingNumber,
     }));
   } catch {
@@ -96,7 +99,13 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
           {latest.map((order) => (
             <Link key={order.id} href={`/my-shopify/orders/${order.id}`} className="flex cursor-pointer items-center justify-between gap-3 px-5 py-3 text-sm transition-colors duration-200 hover:bg-[#faf7f6]">
               <span className="font-semibold">{order.name}</span>
-              <span className="text-[#5c5654]">{order.status}{order.trackingNumber ? ` · ${order.trackingNumber}` : ""}</span>
+              {order.tip ? (
+                <HoverTip text={order.tip}>
+                  <span className="text-[#5c5654]">{order.status}{order.trackingNumber ? ` · ${order.trackingNumber}` : ""}</span>
+                </HoverTip>
+              ) : (
+                <span className="text-[#5c5654]">{order.status}{order.trackingNumber ? ` · ${order.trackingNumber}` : ""}</span>
+              )}
             </Link>
           ))}
         </div>

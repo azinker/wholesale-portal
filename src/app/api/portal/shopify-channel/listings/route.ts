@@ -47,14 +47,22 @@ export async function GET(req: NextRequest) {
     const percent = isWelcomeActive(auth.user.wholesaleAccount.welcomeExpiresAt) && welcome.enabled && welcome.discount > earned
       ? welcome.discount
       : earned;
-    const cards: Array<{ id: number; name: string; image?: string; stock: number; retail: number; cost: number }> = [];
+    const cards: Array<{
+      id: number;
+      name: string;
+      image?: string;
+      stock: number;
+      retail: number;
+      cost: number;
+      variants: Array<{ id: number; label: string; retail: number; cost: number; stock: number }>;
+    }> = [];
     for (let page = 1; page <= 20 && cards.length < 800; page++) {
       const result = await bc().getProducts({
         is_visible: true,
         keyword,
         categoryId: categoryId && Number.isInteger(categoryId) ? categoryId : undefined,
         inStock,
-        include: "images",
+        include: "images,variants",
         limit: 50,
         page,
       });
@@ -62,6 +70,19 @@ export async function GET(req: NextRequest) {
       for (const product of rows) {
         const retail = Number(product.calculated_price || product.price || 0);
         const image = product.images?.find((row) => row.is_thumbnail) || product.images?.[0];
+        const variants = (product.variants || []).length > 1
+          ? (product.variants || []).map((variant, index) => {
+              const variantRetail = Number(variant.calculated_price || variant.price || retail);
+              const label = (variant.option_values || []).map((option) => option.label).filter(Boolean).join(" / ") || `Option ${index + 1}`;
+              return {
+                id: variant.id,
+                label,
+                retail: variantRetail,
+                cost: wholesaleUnitCost(variantRetail, percent),
+                stock: variant.inventory_level,
+              };
+            })
+          : [];
         cards.push({
           id: product.id,
           name: product.name,
@@ -69,6 +90,7 @@ export async function GET(req: NextRequest) {
           stock: product.inventory_level,
           retail,
           cost: wholesaleUnitCost(retail, percent),
+          variants,
         });
       }
       const pages = result.meta?.pagination?.total_pages || page;

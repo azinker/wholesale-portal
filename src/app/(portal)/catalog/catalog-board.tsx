@@ -148,6 +148,11 @@ export function CatalogBoard({
 
   const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
   const progress = jobProgress(tracked);
+  const [sawJob, setSawJob] = useState(false);
+  useEffect(() => {
+    if (!jobLabel) setSawJob(false);
+    else if (tracked.length > 0) setSawJob(true);
+  }, [jobLabel, tracked.length]);
   useEffect(() => {
     setCatalogDialogOpen(drafts !== null || dialogOpen);
     return () => setCatalogDialogOpen(false);
@@ -642,9 +647,11 @@ export function CatalogBoard({
               <div className="flex items-center gap-3 text-sm text-[#3f3a38]">
                 {tracked.length > 0 && <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />}
                 <p>
-                  {tracked.length === 0
+                  {tracked.length === 0 && sawJob
                     ? "Finished. We emailed you what was added, including any price or SKU you set."
-                    : `${progress.done} of ${progress.total || "…"}${progress.minutesLeft ? ` · about ${progress.minutesLeft} min left` : ""}`}
+                    : tracked.length === 0
+                      ? "Starting. You can close this window."
+                      : `${progress.done} of ${progress.total || "…"}${progress.minutesLeft ? ` · about ${progress.minutesLeft} min left` : ""}`}
                 </p>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#f0ebe8]">
@@ -655,7 +662,7 @@ export function CatalogBoard({
               </div>
               {progress.current && <p className="text-sm text-[#5c5654]">{progress.current}</p>}
               <p className="text-sm text-[#5c5654]">You can close this window. We'll email you when it's finished.</p>
-              {tracked.length === 0 && <a className={channelPrimaryBtn} href="/catalog?view=added">See products on your store</a>}
+              {tracked.length === 0 && sawJob && <a className={channelPrimaryBtn} href="/catalog?view=added">See products on your store</a>}
             </div>
           )}
 

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
+import { ChannelSetupGate } from "../../channel-setup-gate";
 import {
   affiliatedLines,
   isAffiliatedOrder,
@@ -47,6 +49,16 @@ export default async function ChannelOrdersPage({
 }) {
   const { account, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
+  const setup = await loadChannelSetup(account.id);
+  if (!setup.ready) {
+    return (
+      <ChannelSetupGate
+        setup={setup}
+        title="Orders"
+        lede="Orders from your Shopify store stay hidden until the terms, a card, and a Shopify store are finished."
+      />
+    );
+  }
   const params = await searchParams;
   const view: View = params.view === "awaiting" || params.view === "shipped" || params.view === "attention" ? params.view : "all";
   const productId = params.product && Number.isInteger(Number(params.product)) ? Number(params.product) : 0;

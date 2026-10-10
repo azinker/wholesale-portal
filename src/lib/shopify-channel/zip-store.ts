@@ -25,6 +25,7 @@ export function zipStore(files: Array<{ name: string; data: Buffer }>): Buffer {
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
     local.writeUInt16LE(0, 8);
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(file.data.length, 18);
@@ -35,6 +36,7 @@ export function zipStore(files: Array<{ name: string; data: Buffer }>): Buffer {
     cen.writeUInt32LE(0x02014b50, 0);
     cen.writeUInt16LE(20, 4);
     cen.writeUInt16LE(20, 6);
+    cen.writeUInt16LE(0x0800, 8);
     cen.writeUInt32LE(crc, 16);
     cen.writeUInt32LE(file.data.length, 20);
     cen.writeUInt32LE(file.data.length, 24);

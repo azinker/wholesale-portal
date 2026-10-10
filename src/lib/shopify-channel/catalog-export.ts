@@ -53,14 +53,34 @@ function howToCsv(): string {
     ["Wholesale cost", "What we charge your card for one item, at your discount today.", "This is your cost. It is not the price you charge your customer."],
     ["Retail price", "The price on theperfectpart.net before your discount.", "Use this to compare. Your customer does not have to pay this."],
     ["Quantity available", "How many we can ship right now.", "Stock changes. Check again before a big promotion."],
-    ["Image files", "The picture files in the images folder of this zip.", "Upload those pictures with the product. The names match this column."],
+    ["Image files", "The picture files for this product.", "Open the images folder, then the folder with this product's title. The file names in this column match the pictures inside."],
     ["Product page", "The page on theperfectpart.net.", "For your reference. Your customer buys on your store, not on ours."],
     ["", "", ""],
     ["About this file", "One row is one product.", "Your SKU and your selling price are blank so you can fill in your own. This file never includes our internal product codes."],
-    ["Images", "The images folder holds the pictures.", "The file names in Image files match the files in that folder."],
+    ["Images", "The images folder holds one folder per product.", "Each folder is named with the product title. That product's pictures are inside it."],
     ["Shopify", "You can also add products from Catalog inside this portal.", "Catalog sends the product to your Shopify store for you. This export is for any other sales channel."],
   ];
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function folderTitle(title: string): string {
+  const cleaned = title
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .trim()
+    .slice(0, 90);
+  return cleaned || "Product";
+}
+
+function uniqueFolder(title: string, used: Map<string, number>): string {
+  const base = folderTitle(title);
+  const key = base.toLowerCase();
+  const count = used.get(key) || 0;
+  used.set(key, count + 1);
+  if (count === 0) return base;
+  const suffix = ` (${count + 1})`;
+  return `${base.slice(0, 90 - suffix.length)}${suffix}`;
 }
 
 function extensionFor(url: string, type: string | null): string {
@@ -129,6 +149,7 @@ export async function runCatalogExport(exportId: string): Promise<void> {
     const byId = new Map(products.map((product) => [product.id, product]));
     const files: Array<{ name: string; data: Buffer }> = [];
     const listingRows = [COLUMNS.join(",")];
+    const usedFolders = new Map<string, number>();
     let done = 0;
 
     for (const id of ids) {
@@ -139,6 +160,7 @@ export async function runCatalogExport(exportId: string): Promise<void> {
         continue;
       }
       const names: string[] = [];
+      const folder = uniqueFolder(product.name, usedFolders);
       const images = (product.images || []).slice(0, 6);
       for (let index = 0; index < images.length; index++) {
         const image = images[index];
@@ -146,7 +168,7 @@ export async function runCatalogExport(exportId: string): Promise<void> {
         if (!url) continue;
         const downloaded = await downloadImage(url);
         if (!downloaded) continue;
-        const name = `images/item-${String(done).padStart(3, "0")}-${index + 1}.${extensionFor(url, downloaded.type)}`;
+        const name = `images/${folder}/${index + 1}.${extensionFor(url, downloaded.type)}`;
         names.push(name);
         files.push({ name, data: downloaded.data });
       }

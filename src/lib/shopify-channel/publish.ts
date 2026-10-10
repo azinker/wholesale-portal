@@ -3,7 +3,7 @@ import { decrypt } from "@/lib/bigcommerce/encryption";
 import { bc, type BCProduct, type BCProductImage } from "@/lib/bigcommerce/client";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { roundMoney, wholesaleUnitCost } from "./money";
-import { emailAccount } from "./notify";
+import { sendListingAddedEmail, sendListingsStoppedEmail } from "@/lib/email";
 import { scrubListingText } from "./scrub";
 import {
   addProductImage,
@@ -549,34 +549,6 @@ export async function listingDetails(accountId: string, bcProductId: number): Pr
 
 const PUBLISH_BATCH = 20;
 
-function finishNote(
-  added: number,
-  skipped: number,
-  failed: number,
-  errors: Array<{ title: string; message: string }>
-): { subject: string; text: string } {
-  const support = `${process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net"}/support`;
-  const lines = [
-    failed > 0
-      ? "We finished adding your products. Some could not be added."
-      : "Your products are on your Shopify store.",
-    "",
-    `Added: ${added}`,
-    `Already on your store: ${skipped}`,
-    `Could not add: ${failed}`,
-  ];
-  if (errors.length > 0) {
-    lines.push("", "Copy a line below into a message to Support if you want help:");
-    for (const error of errors.slice(0, 20)) lines.push(`- ${error.title}: ${error.message}`);
-    if (errors.length > 20) lines.push(`And ${errors.length - 20} more.`);
-  }
-  lines.push("", `Contact Support: ${support}`);
-  return {
-    subject: failed > 0 ? "Some Shopify products could not be added" : "Your Shopify products are ready",
-    text: lines.join("\n"),
-  };
-}
-
 export async function runNextPublishJob(jobId?: string): Promise<boolean> {
   const job = jobId
     ? await db.channelPublishJob.findFirst({
@@ -605,11 +577,13 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
       where: { id: job.id },
       data: { status: "FAILED", emailSentAt: new Date() },
     });
-    await emailAccount(
-      job.requestedByEmail,
-      "Your Shopify listings stopped",
-      `Added ${job.addedCount}, skipped ${job.skippedCount}, failed ${job.failedCount}. That store was disconnected, so the rest was not added.`
-    );
+    await sendListingsStoppedEmail({
+      to: job.requestedByEmail,
+      shopDomain: job.connection.shopDomain,
+      added: job.addedCount,
+      skipped: job.skippedCount,
+      failed: job.failedCount,
+    });
     return true;
   }
 
@@ -620,8 +594,10 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
     categoryId?: number;
     page?: number;
     push?: PushChoices;
+    pushes?: Record<string, PushChoices>;
     total?: number;
     current?: string;
+    edits?: Array<{ title: string; sku: string; price: string }>;
     errors?: Array<{ title: string; message: string }>;
   };
   let ids: number[] = [];
@@ -651,21 +627,31 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
   let skipped = job.skippedCount;
   let failed = job.failedCount;
   let cursor = job.cursor;
-  const push = cleanPush(detail.push);
-  if ((detail.bcProductIds?.length || 0) !== 1) {
-    delete push.sellerSku;
-    delete push.compareAt;
+  const shared = cleanPush(detail.push);
+  if (!detail.pushes && (detail.bcProductIds?.length || 0) !== 1) {
+    delete shared.sellerSku;
+    delete shared.compareAt;
   }
   const errors: Array<{ title: string; message: string }> = Array.isArray(detail.errors) ? [...detail.errors] : [];
+  const edits: Array<{ title: string; sku: string; price: string }> = Array.isArray(detail.edits) ? [...detail.edits] : [];
   let current = detail.current || "";
   for (const productId of ids) {
     let title = "A product";
+    const push = detail.pushes?.[String(productId)] ? cleanPush(detail.pushes[String(productId)]) : shared;
     try {
       const result = await publishBigCommerceProduct(job.connectionId, productId, push);
       title = result.title || title;
       current = title;
-      if (result.status === "added") added += 1;
-      else if (result.status === "skipped") skipped += 1;
+      if (result.status === "added") {
+        added += 1;
+        const sku = push.sellerSku || (push.variants || []).map((variant) => variant.sku).filter(Boolean).join(", ");
+        const customPrice = push.priceMode === "custom" && push.customPrice
+          ? `$${push.customPrice.toFixed(2)}`
+          : (push.variants || []).some((variant) => variant.price)
+            ? "your prices"
+            : "";
+        if (sku || customPrice) edits.push({ title, sku: sku || "No SKU", price: customPrice || "retail" });
+      } else if (result.status === "skipped") skipped += 1;
       else {
         failed += 1;
         errors.push({ title, message: result.message || "This product could not be added." });
@@ -684,11 +670,11 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
         failedCount: failed,
         cursor,
         status: "RUNNING",
-        detail: { ...detail, page: nextPage, current, errors: errors.slice(-40) },
+        detail: { ...detail, page: nextPage, current, errors: errors.slice(-40), edits: edits.slice(-80) },
       },
     });
   }
-  const savedDetail = { ...detail, page: nextPage, current, errors: errors.slice(-40) };
+  const savedDetail = { ...detail, page: nextPage, current, errors: errors.slice(-40), edits: edits.slice(-80) };
   await db.channelPublishJob.update({
     where: { id: job.id },
     data: {
@@ -702,8 +688,14 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
     },
   });
   if (finished) {
-    const note = finishNote(added, skipped, failed, errors.slice(-40));
-    await emailAccount(job.requestedByEmail, note.subject, note.text);
+    await sendListingAddedEmail({
+      to: job.requestedByEmail,
+      added,
+      skipped,
+      failed,
+      edits: edits.slice(-80),
+      errors: errors.slice(-40),
+    });
   }
   return true;
 }

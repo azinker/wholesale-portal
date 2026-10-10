@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { EXPORT_LIMIT, runCatalogExport } from "@/lib/shopify-channel/catalog-export";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 export async function POST(req: NextRequest) {
@@ -12,6 +13,9 @@ export async function POST(req: NextRequest) {
   }
   if (!(await channelVisibility(auth.user.email)).visible) {
     return NextResponse.json({ error: "Not available" }, { status: 404 });
+  }
+  if (!(await loadChannelSetup(auth.user.wholesaleAccount.id)).ready) {
+    return NextResponse.json({ error: "Agree to the terms, save a card, and connect your store first" }, { status: 403 });
   }
   const body = (await req.json().catch(() => null)) as { productIds?: number[] } | null;
   const productIds = [...new Set((body?.productIds || []).map((id) => Number(id)))]

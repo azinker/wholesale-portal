@@ -3,12 +3,14 @@ import { bc } from "@/lib/bigcommerce/client";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
-import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { wholesaleUnitCost } from "@/lib/shopify-channel/money";
 import { alignListingImages } from "@/lib/shopify-channel/publish";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { CatalogBoard } from "./catalog-board";
+import { AddedBoard, priceLabel } from "./catalog-added";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
+import { ChannelSetupGate } from "../channel-setup-gate";
 import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
 
 const FLOW = [
@@ -21,10 +23,20 @@ const FLOW = [
 export default async function CatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; sort?: string; dir?: string; stock?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; sort?: string; dir?: string; stock?: string; page?: string; view?: string }>;
 }) {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
+  const setup = await loadChannelSetup(account.id);
+  if (!setup.ready) {
+    return (
+      <ChannelSetupGate
+        setup={setup}
+        title="Catalog"
+        lede="Products, stock, and your cost stay hidden until the terms, a card, and a Shopify store are finished."
+      />
+    );
+  }
   const params = await searchParams;
   const q = params.q || "";
   const category = params.category || "";
@@ -38,29 +50,32 @@ export default async function CatalogPage({
   const page = Math.max(1, Number(params.page || "1") || 1);
   const categoryId = category ? Number(category) : undefined;
   const canAdd = userHasPermission(user, "manage_channel_listings");
-  const [terms, card, stores, earned, welcome, categories, categoryCounts] = await Promise.all([
-    db.shopifyTermsAcceptance.findUnique({
-      where: { accountId_version: { accountId: account.id, version: SHOPIFY_CHANNEL_TERMS_VERSION } },
-    }),
-    db.sellerPaymentMethod.findUnique({ where: { accountId: account.id } }),
-    db.shopifyConnection.findMany({
-      where: {
-        accountId: account.id,
-        disconnectedAt: null,
-        addressTestStatus: "PASSED",
-        NOT: { shopDomain: { startsWith: "preview-" } },
-      },
-    }),
+  const view = params.view === "added" ? "added" : "browse";
+  const [earned, welcome, categories, categoryCounts, listingRows] = await Promise.all([
     getTierDiscountPercent(account.lastTier),
     loadWelcomeConfig(),
-    bc().getCategories().catch(() => []),
-    bc().getVisibleCategoryCounts().catch((): Record<number, number> => ({})),
+    view === "browse" ? bc().getCategories().catch(() => []) : Promise.resolve([]),
+    view === "browse" ? bc().getVisibleCategoryCounts().catch((): Record<number, number> => ({})) : Promise.resolve({} as Record<number, number>),
+    db.channelListing.findMany({
+      where: { accountId: account.id, removedAt: null, connection: { disconnectedAt: null } },
+      select: {
+        bcProductId: true,
+        connectionId: true,
+        titleSnapshot: true,
+        sellerSku: true,
+        sellerPrice: true,
+        shopifyProductId: true,
+        createdAt: true,
+        connection: { select: { shopDomain: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
   const percent =
     isWelcomeActive(account.welcomeExpiresAt) && welcome.enabled && welcome.discount > earned
       ? welcome.discount
       : earned;
-  const ready = Boolean(terms && card && stores.length > 0);
+  const stores = setup.stores;
   const query = {
     is_visible: true as const,
     keyword: q || undefined,
@@ -108,19 +123,50 @@ export default async function CatalogPage({
     await alignListingImages(row.connectionId, row.bcProductId).catch(() => undefined);
   }
 
-  const setup = [
-    { done: Boolean(terms), label: "Terms", href: "/my-shopify#terms" },
-    { done: Boolean(card), label: card ? `Credit card ···· ${card.last4}` : "Credit card", href: "/billing" },
-    { done: stores.length > 0, label: stores.length ? `${stores.length} store ready` : "Store", href: "/my-shopify#connect" },
-  ];
+  const groups = new Map<string, { key: string; bcProductId: number; title: string; shop: string; shopifyProductId: string; skus: string[]; prices: number[] }>();
+  for (const row of listingRows) {
+    const key = `${row.connectionId}:${row.bcProductId}`;
+    const sku = (row.sellerSku || "").trim();
+    const price = Number(row.sellerPrice);
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        key,
+        bcProductId: row.bcProductId,
+        title: row.titleSnapshot,
+        shop: row.connection.shopDomain,
+        shopifyProductId: row.shopifyProductId,
+        skus: sku ? [sku] : [],
+        prices: Number.isFinite(price) ? [price] : [],
+      });
+    } else {
+      if (sku && !existing.skus.includes(sku)) existing.skus.push(sku);
+      if (Number.isFinite(price) && !existing.prices.includes(price)) existing.prices.push(price);
+    }
+  }
+  const addedCount = groups.size;
+  const addedFiltered = view === "added"
+    ? [...groups.values()].filter((row) => {
+        if (!q) return true;
+        return `${row.title} ${row.skus.join(" ")} ${row.shop}`.toLowerCase().includes(q.toLowerCase());
+      })
+    : [];
+  const addedPageCount = Math.max(1, Math.ceil(addedFiltered.length / 24));
+  const addedSlice = addedFiltered.slice((page - 1) * 24, page * 24);
+  const addedProducts = view === "added" ? await bc().getProductsByIds(addedSlice.map((row) => row.bcProductId)).catch(() => []) : [];
+  const addedById = new Map(addedProducts.map((product) => [product.id, product]));
 
   return (
     <ChannelPage>
       <ChannelHeading
         kicker="Shopify"
         title="Catalog"
-        lede="Pick a product and add it to your Shopify store. Your customer pays you. We charge your card and ship it."
+        lede={view === "added" ? "These products are already on your Shopify store." : "Pick a product and add it to your Shopify store. Your customer pays you. We charge your card and ship it."}
       />
+      <div className="flex flex-wrap gap-2">
+        <Link href="/catalog" className={`rounded-full px-4 py-2 text-sm font-semibold ${view === "browse" ? "bg-[#2d2d2d] text-white" : "bg-white text-[#1a1a1a]"}`}>Browse catalog</Link>
+        <Link href="/catalog?view=added" className={`rounded-full px-4 py-2 text-sm font-semibold ${view === "added" ? "bg-[#2d2d2d] text-white" : "bg-white text-[#1a1a1a]"}`}>On your store ({addedCount})</Link>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {FLOW.map((step, index) => (
@@ -143,26 +189,30 @@ export default async function CatalogPage({
         </ChannelPanel>
       )}
 
-      {!ready && (
-        <ChannelPanel className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <div>
-            <p className="font-semibold text-[#1a1a1a]">You're almost ready to add products</p>
-            <p className="text-sm text-[#5c5654]">Agree to the terms, save a card, and connect your store.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {setup.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold ${item.done ? "bg-emerald-50 text-emerald-800" : "bg-[#2d2d2d] text-white"}`}
-              >
-                {item.done ? item.label : `Do ${item.label}`}
-              </Link>
-            ))}
-          </div>
-        </ChannelPanel>
-      )}
-
+      {view === "added" ? (
+        <AddedBoard
+          rows={addedSlice.map((row) => {
+            const product = addedById.get(row.bcProductId);
+            const image = product?.images?.find((item) => item.is_thumbnail) || product?.images?.[0];
+            const retail = Number(product?.calculated_price || product?.price || 0);
+            return {
+              key: row.key,
+              bcProductId: row.bcProductId,
+              title: row.title,
+              shop: row.shop,
+              image: image?.url_thumbnail,
+              sku: row.skus.length ? row.skus.join(", ") : "No SKU",
+              priceLabel: priceLabel(row.prices),
+              costLabel: product ? `$${wholesaleUnitCost(retail, percent).toFixed(2)}` : "—",
+              adminUrl: `https://${row.shop}/admin/products/${row.shopifyProductId}`,
+            };
+          })}
+          page={Math.min(page, addedPageCount)}
+          pageCount={addedPageCount}
+          query={q}
+          total={addedFiltered.length}
+        />
+      ) : (
       <CatalogBoard
         products={products.map((product) => {
           const retail = Number(product.calculated_price || product.price || 0);
@@ -190,7 +240,7 @@ export default async function CatalogPage({
           };
         })}
         stores={stores.map((store) => ({ id: store.id, shopDomain: store.shopDomain }))}
-        ready={ready}
+        ready={true}
         canAdd={canAdd}
         keyword={q}
         categoryId={category}
@@ -204,6 +254,7 @@ export default async function CatalogPage({
         loadFailed={loadFailed}
         listedIds={[...new Set(listedRows.map((row) => row.bcProductId))]}
       />
+      )}
     </ChannelPage>
   );
 }

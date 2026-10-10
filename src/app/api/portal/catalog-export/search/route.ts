@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bc } from "@/lib/bigcommerce/client";
 import { requirePortalAccount } from "@/lib/portal-auth";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 export async function GET(req: NextRequest) {
@@ -10,6 +11,9 @@ export async function GET(req: NextRequest) {
   }
   if (!(await channelVisibility(auth.user.email)).visible) {
     return NextResponse.json({ error: "Not available" }, { status: 404 });
+  }
+  if (!(await loadChannelSetup(auth.user.wholesaleAccount.id)).ready) {
+    return NextResponse.json({ error: "Agree to the terms, save a card, and connect your store first" }, { status: 403 });
   }
   const q = new URL(req.url).searchParams.get("q")?.trim() || "";
   const page = Math.max(1, Number(new URL(req.url).searchParams.get("page") || "1") || 1);

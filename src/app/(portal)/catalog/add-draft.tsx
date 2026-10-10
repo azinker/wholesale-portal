@@ -41,6 +41,7 @@ export type ListingDraft = {
   variants: DraftVariant[];
   open: boolean;
   saved: boolean;
+  touched: boolean;
 };
 
 const modes: Array<{ id: PriceMode; label: string }> = [
@@ -79,7 +80,12 @@ export function draftFromProduct(product: DraftProduct, open: boolean): ListingD
     })),
     open,
     saved: !open,
+    touched: false,
   };
+}
+
+export function applyDraftMode(draft: ListingDraft, mode: PriceMode): ListingDraft {
+  return { ...applyMode(draft, mode), touched: true };
 }
 
 export function pushFromDraft(draft: ListingDraft) {
@@ -114,6 +120,7 @@ function applyMode(draft: ListingDraft, mode: PriceMode): ListingDraft {
       ...draft,
       priceMode: mode,
       saved: false,
+      touched: true,
       variants: draft.variants.map((variant) => ({
         ...variant,
         listPrice: mode === "custom" ? variant.listPrice : amount(variant.retail, variant.cost, mode),
@@ -124,6 +131,7 @@ function applyMode(draft: ListingDraft, mode: PriceMode): ListingDraft {
     ...draft,
     priceMode: mode,
     saved: false,
+    touched: true,
     listPrice: mode === "custom" ? draft.listPrice : amount(draft.retail, draft.cost, mode),
   };
 }
@@ -220,12 +228,12 @@ export function DraftEditor({
       {draft.variants.length === 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Your price" tip="What your customer pays on Shopify. It starts at the retail price. You can change it later in Shopify too.">
-            <MoneyInput value={draft.listPrice} onChange={(value) => onChange({ ...draft, priceMode: "custom", listPrice: value, saved: false })} />
+            <MoneyInput value={draft.listPrice} onChange={(value) => onChange({ ...draft, priceMode: "custom", listPrice: value, saved: false, touched: true })} />
           </Field>
           <Field label="Your SKU" tip="Optional. Your own code on Shopify. Leave it blank if you don't need one.">
             <input
               value={draft.sku}
-              onChange={(event) => onChange({ ...draft, sku: event.target.value, saved: false })}
+              onChange={(event) => onChange({ ...draft, sku: event.target.value, saved: false, touched: true })}
               placeholder="Optional"
               className={channelField}
             />
@@ -253,7 +261,7 @@ export function DraftEditor({
                   onChange={(value) => {
                     const variants = draft.variants.slice();
                     variants[index] = { ...variant, listPrice: value };
-                    onChange({ ...draft, priceMode: "custom", variants, saved: false });
+                    onChange({ ...draft, priceMode: "custom", variants, saved: false, touched: true });
                   }}
                 />
                 <input
@@ -261,7 +269,7 @@ export function DraftEditor({
                   onChange={(event) => {
                     const variants = draft.variants.slice();
                     variants[index] = { ...variant, sku: event.target.value };
-                    onChange({ ...draft, variants, saved: false });
+                    onChange({ ...draft, variants, saved: false, touched: true });
                   }}
                   placeholder="Optional"
                   aria-label={`SKU for ${variant.label}`}
@@ -279,12 +287,12 @@ export function DraftEditor({
         <p className="mt-1 text-sm text-[#5c5654]">Optional. Most stores skip this.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label="Compare-at price" tip="A higher crossed-out price, like a sale. We only send it when it is above your price.">
-            <MoneyInput value={draft.compareAt} onChange={(value) => onChange({ ...draft, compareAt: value, saved: false })} />
+            <MoneyInput value={draft.compareAt} onChange={(value) => onChange({ ...draft, compareAt: value, saved: false, touched: true })} />
           </Field>
           <Field label="Product type" tip="A label in Shopify, such as Home or Tools. Leave blank to skip it.">
             <input
               value={draft.productType}
-              onChange={(event) => onChange({ ...draft, productType: event.target.value, saved: false })}
+              onChange={(event) => onChange({ ...draft, productType: event.target.value, saved: false, touched: true })}
               placeholder="Home, Tools…"
               className={channelField}
             />

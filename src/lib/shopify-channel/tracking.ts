@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { decrypt } from "@/lib/bigcommerce/encryption";
-import { emailAccount } from "./notify";
+import { sendChannelShippedEmail } from "@/lib/email";
 import { createFulfillment } from "./shopify-admin";
 
 export async function pushChannelTracking(bcOrderId: number): Promise<void> {
@@ -32,10 +32,12 @@ export async function pushChannelTracking(bcOrderId: number): Promise<void> {
       trackingNumber: latest.tracking_number,
       carrier: latest.shipping_method,
     }).catch(() => undefined);
-    await emailAccount(
-      order.account.email,
-      `Tracking for ${order.shopifyOrderName}`,
-      `${order.shopifyOrderName} shipped. ${latest.shipping_method} ${latest.tracking_number}. Your Shopify store emails your customer.`
-    );
+    await sendChannelShippedEmail({
+      to: order.account.email,
+      orderName: order.shopifyOrderName,
+      orderId: order.id,
+      carrier: latest.shipping_method || "",
+      trackingNumber: latest.tracking_number,
+    });
   }
 }

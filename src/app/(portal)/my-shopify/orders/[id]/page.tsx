@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
+import { ChannelSetupGate } from "../../../channel-setup-gate";
 import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
 import { ChannelSchemaNotice } from "../../../channel-schema-notice";
 import { Tip } from "../../../tip";
@@ -33,6 +35,16 @@ type Ship = {
 export default async function ChannelOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { account, schemaReady, enabled } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
+  const setup = await loadChannelSetup(account.id);
+  if (!setup.ready) {
+    return (
+      <ChannelSetupGate
+        setup={setup}
+        title="Orders"
+        lede="Orders from your Shopify store stay hidden until the terms, a card, and a Shopify store are finished."
+      />
+    );
+  }
   const { id } = await params;
   const order = await db.channelOrder.findFirst({
     where: { id, accountId: account.id },

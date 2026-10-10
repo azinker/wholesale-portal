@@ -9,8 +9,8 @@ import {
 import { atLeastOneBusinessDayLater } from "./calendar";
 import { decidePaidOrder } from "./decide";
 import { quoteChannelCharge, roundMoney, warehouseCountry } from "./money";
-import { sendChannelRefundEmail } from "@/lib/email";
-import { emailAccount, emailWholesaleDesk } from "./notify";
+import { sendChannelAttentionEmail, sendChannelCardReminderEmail, sendChannelChargedEmail, sendChannelRefundEmail } from "@/lib/email";
+import { emailWholesaleDesk } from "./notify";
 import { isShopifyChannelEnabled } from "./settings";
 import { listRecentPaidOrders } from "./shopify-admin";
 import { chooseDropshipperCustomerId } from "./customer";
@@ -255,11 +255,11 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       });
     }
     if (existing?.attentionNote !== decision.reason) {
-      await emailAccount(
-        accountEmail,
-        `Shopify order ${orderName} needs attention`,
-        holdMessage(orderName, decision.reason)
-      );
+      await sendChannelAttentionEmail({
+        to: accountEmail,
+        orderName,
+        reason: decision.reason,
+      });
       if (decision.reason === "card_missing" || decision.reason === "card_declined") {
         await emailWholesaleDesk(
           `Credit card problem on ${orderName}`,
@@ -311,11 +311,11 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
         where: { id: saved.id },
         data: { status: "NEEDS_ATTENTION", attentionNote: "card_declined", error: lastError },
       });
-      await emailAccount(
-        accountEmail,
-        `Shopify order ${orderName} was not charged`,
-        `We could not charge the credit card on file for ${orderName}. Nothing shipped. Save a working credit card in Billing and we will retry the oldest unpaid order.`
-      );
+      await sendChannelAttentionEmail({
+        to: accountEmail,
+        orderName,
+        reason: "card_declined",
+      });
       await emailWholesaleDesk(
         `Credit card declined for ${orderName}`,
         `${connection.account.companyName} ${orderName} amount ${quote.total.toFixed(2)} was not charged. ${lastError}`
@@ -345,19 +345,17 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       where: { id: saved.id },
       data: { bcOrderId: warehouse.id, status: "SUBMITTED", error: null, attentionNote: null },
     });
-    await emailAccount(
-      accountEmail,
-      `We charged ${orderName}`,
-      [
-        `${orderName} is charged and sent to the warehouse.`,
-        `Products: ${quotedLines.map((line) => `${line.title} x${line.quantity} at $${line.unitCost.toFixed(2)}`).join("; ")}`,
-        `Shipping: $${quote.shipping.toFixed(2)}`,
-        `Total charged: $${quote.total.toFixed(2)}`,
-        `Credit card ending ${card.last4}. Statement name THE PERFECT PART.`,
-        `Ship to: ${destination.name}, ${destination.street}, ${destination.city} ${destination.province} ${destination.zip} ${destination.country}`,
-        `Warehouse order ${warehouse.id}. We ship the same day or the next business day.`,
-      ].join("\n")
-    );
+    await sendChannelChargedEmail({
+      to: accountEmail,
+      orderName,
+      orderId: saved.id,
+      lines: quotedLines.map((line) => ({ title: line.title, quantity: line.quantity, unitCost: line.unitCost })),
+      shipping: quote.shipping,
+      total: quote.total,
+      last4: card.last4,
+      shipTo: destination,
+      warehouseId: warehouse.id,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Warehouse order failed";
     let refundNote = message;
@@ -389,25 +387,6 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       `${connection.account.companyName} ${orderName} was refunded after the warehouse order failed. ${message}`
     );
   }
-}
-
-function holdMessage(orderName: string, reason: string): string {
-  if (reason === "store_paused") {
-    return `${orderName} came in while this store is paused. Your customer paid you on Shopify. We saw the order, and we did not charge your card or ship it. You can refund them on Shopify, or handle the sale yourself. Resuming later does not ship this one.`;
-  }
-  if (reason === "incomplete_address") {
-    return `${orderName} is missing a street or country. We didn't charge you. Add the address on that Shopify order and we'll charge your card and ship it.`;
-  }
-  if (reason === "missing_phone") {
-    return `${orderName} is outside the US and needs a phone number. We didn't charge you. Add a phone on that Shopify order and we'll charge your card and ship it.`;
-  }
-  if (reason === "out_of_stock") {
-    return `${orderName} doesn't have enough stock. We didn't charge you, and we won't ship it. You can refund your customer on Shopify.`;
-  }
-  if (reason === "needs_retest") {
-    return `${orderName} came in before we confirmed the shipping address for that store. We didn't charge you. Open My Shopify and we'll check the address.`;
-  }
-  return `${orderName} needs a working card before we can ship. Nothing was charged. You can update the card on Billing.`;
 }
 
 async function dropshipperCustomerId(account: {
@@ -663,11 +642,10 @@ export async function remindStaleCardAttention(now = new Date()): Promise<number
   let sent = 0;
   for (const row of rows) {
     if (!atLeastOneBusinessDayLater(row.updatedAt, now)) continue;
-    await emailAccount(
-      row.account.email,
-      "A Shopify sale still needs a credit card",
-      `${row.shopifyOrderName} is still unpaid on our side. Save a working credit card in Billing and we will retry it. We do not close this for you.`
-    );
+    await sendChannelCardReminderEmail({
+      to: row.account.email,
+      orderName: row.shopifyOrderName,
+    });
     await db.channelOrder.update({ where: { id: row.id }, data: { remindedAt: now } });
     sent += 1;
   }

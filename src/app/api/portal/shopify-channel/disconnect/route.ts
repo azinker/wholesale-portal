@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
-import { emailAccount } from "@/lib/shopify-channel/notify";
+import { sendListingsStoppedEmail } from "@/lib/email";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 export async function POST(req: NextRequest) {
@@ -31,11 +31,13 @@ export async function POST(req: NextRequest) {
       where: { id: job.id },
       data: { status: "FAILED", emailSentAt: new Date() },
     });
-    await emailAccount(
-      job.requestedByEmail,
-      "Your Shopify listings stopped",
-      `Added ${job.addedCount}, skipped ${job.skippedCount}, failed ${job.failedCount}. ${connection.shopDomain} was disconnected, so the rest was not added. Listings already on the store stay there. Stock updates for that store have stopped.`
-    );
+    await sendListingsStoppedEmail({
+      to: job.requestedByEmail,
+      shopDomain: connection.shopDomain,
+      added: job.addedCount,
+      skipped: job.skippedCount,
+      failed: job.failedCount,
+    });
   }
 
   return NextResponse.redirect(appUrl("/my-shopify"), 303);

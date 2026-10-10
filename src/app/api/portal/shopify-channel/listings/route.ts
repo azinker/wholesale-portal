@@ -4,7 +4,10 @@ import { bc } from "@/lib/bigcommerce/client";
 import { requirePortalAccount } from "@/lib/portal-auth";
 import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { listingDetails, publishBigCommerceProduct, removeListing, cleanPush, plainAddError } from "@/lib/shopify-channel/publish";
+import { wholesaleUnitCost } from "@/lib/shopify-channel/money";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
+import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 
 async function readyStores(accountId: string) {
   const [terms, card, stores] = await Promise.all([
@@ -31,6 +34,48 @@ export async function GET(req: NextRequest) {
   }
   const access = await channelVisibility(auth.user.email);
   if (!access.visible) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const setup = await loadChannelSetup(auth.user.wholesaleAccount.id);
+  if (!setup.ready) return NextResponse.json({ error: "Agree to the terms, save a card, and connect your store first" }, { status: 403 });
+  if (req.nextUrl.searchParams.get("cards") === "1") {
+    const scope = req.nextUrl.searchParams.get("scope") === "catalog" ? "catalog" : "search";
+    const keyword = scope === "catalog" ? undefined : req.nextUrl.searchParams.get("q") || undefined;
+    const categoryRaw = req.nextUrl.searchParams.get("category");
+    const categoryId = scope === "catalog" || !categoryRaw ? undefined : Number(categoryRaw);
+    const inStock = req.nextUrl.searchParams.get("stock") === "1";
+    const earned = await getTierDiscountPercent(auth.user.wholesaleAccount.lastTier);
+    const welcome = await loadWelcomeConfig();
+    const percent = isWelcomeActive(auth.user.wholesaleAccount.welcomeExpiresAt) && welcome.enabled && welcome.discount > earned
+      ? welcome.discount
+      : earned;
+    const cards: Array<{ id: number; name: string; image?: string; stock: number; retail: number; cost: number }> = [];
+    for (let page = 1; page <= 20 && cards.length < 800; page++) {
+      const result = await bc().getProducts({
+        is_visible: true,
+        keyword,
+        categoryId: categoryId && Number.isInteger(categoryId) ? categoryId : undefined,
+        inStock,
+        include: "images",
+        limit: 50,
+        page,
+      });
+      const rows = result.data || [];
+      for (const product of rows) {
+        const retail = Number(product.calculated_price || product.price || 0);
+        const image = product.images?.find((row) => row.is_thumbnail) || product.images?.[0];
+        cards.push({
+          id: product.id,
+          name: product.name,
+          image: image?.url_thumbnail,
+          stock: product.inventory_level,
+          retail,
+          cost: wholesaleUnitCost(retail, percent),
+        });
+      }
+      const pages = result.meta?.pagination?.total_pages || page;
+      if (rows.length === 0 || page >= pages) break;
+    }
+    return NextResponse.json({ products: cards });
+  }
   const keyword = req.nextUrl.searchParams.get("q") || undefined;
   const categoryRaw = req.nextUrl.searchParams.get("category");
   const categoryId = categoryRaw ? Number(categoryRaw) : undefined;
@@ -65,6 +110,7 @@ export async function POST(req: NextRequest) {
     keyword?: string;
     categoryId?: number;
     push?: unknown;
+    pushes?: Record<string, unknown>;
   };
   const scope = body.scope || "selection";
   const ids = (body.bcProductIds || []).filter((id) => Number.isInteger(id));
@@ -86,7 +132,14 @@ export async function POST(req: NextRequest) {
   }
 
   const push = cleanPush(body.push);
-  if (ids.length !== 1) {
+  const pushes: Record<string, ReturnType<typeof cleanPush>> = {};
+  if (body.pushes && typeof body.pushes === "object") {
+    for (const [key, value] of Object.entries(body.pushes)) {
+      if (!/^\d+$/.test(key)) continue;
+      pushes[key] = cleanPush(value);
+    }
+  }
+  if (Object.keys(pushes).length === 0 && ids.length !== 1) {
     delete push.sellerSku;
     delete push.compareAt;
   }
@@ -111,8 +164,8 @@ export async function POST(req: NextRequest) {
         scope: scope === "catalog" ? "CATALOG" : scope === "category" ? "CATEGORY" : ids.length === 1 ? "ONE" : "SELECTION",
         detail:
           scope === "selection"
-            ? { bcProductIds: ids, push }
-            : { keyword: body.keyword || "", categoryId: body.categoryId || null, page: 1, push },
+            ? { bcProductIds: ids, push, pushes, total: ids.length }
+            : { keyword: body.keyword || "", categoryId: body.categoryId || null, page: 1, push, total: ids.length },
       },
     });
     jobs.push(job);
@@ -122,7 +175,7 @@ export async function POST(req: NextRequest) {
     const job = jobs[0];
     const connection = chosen[0];
     try {
-      const receipt = await publishBigCommerceProduct(connection.id, ids[0], push);
+      const receipt = await publishBigCommerceProduct(connection.id, ids[0], pushes[String(ids[0])] || push);
       await db.channelPublishJob.update({
         where: { id: job.id },
         data: {

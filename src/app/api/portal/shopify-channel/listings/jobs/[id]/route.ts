@@ -20,10 +20,15 @@ export async function POST(_req: NextRequest, context: { params: Promise<{ id: s
     await runNextPublishJob(job.id);
   }
   const fresh = await db.channelPublishJob.findUnique({ where: { id: job.id } });
+  const detail = (fresh?.detail || {}) as { total?: number; bcProductIds?: number[]; current?: string };
+  const done = (fresh?.addedCount || 0) + (fresh?.skippedCount || 0) + (fresh?.failedCount || 0);
   return NextResponse.json({
     status: fresh?.status || job.status,
     addedCount: fresh?.addedCount || 0,
     skippedCount: fresh?.skippedCount || 0,
     failedCount: fresh?.failedCount || 0,
+    done,
+    total: detail.total || detail.bcProductIds?.length || done,
+    current: detail.current || "",
   });
 }

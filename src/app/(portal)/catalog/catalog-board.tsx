@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { channelField, channelGhostBtn, channelPrimaryBtn, money } from "../channel-ui";
 import { Tip } from "../tip";
 import { cn } from "@/lib/utils";
-import { DraftEditor, draftFromProduct, draftSummary, pushFromDraft, type CatalogVariant, type ListingDraft } from "./add-draft";
+import { applyDraftMode, DraftEditor, draftFromProduct, draftSummary, pushFromDraft, type CatalogVariant, type ListingDraft } from "./add-draft";
+import { jobProgress, readTrackedJobs, setCatalogDialogOpen, subscribeJobs, trackCatalogJobs, type TrackedJob } from "./catalog-jobs";
 
 type ProductCard = {
   id: number;
@@ -94,12 +95,46 @@ export function CatalogBoard({
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
+  const [knownCards, setKnownCards] = useState<Record<number, ProductCard>>({});
+  const [selectionReady, setSelectionReady] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [tracked, setTracked] = useState<TrackedJob[]>([]);
   const [storeIds, setStoreIds] = useState<string[]>(stores.length === 1 ? [stores[0].id] : []);
   const [pending, setPending] = useState(false);
   const [knownListed, setKnownListed] = useState<number[]>(listedIds);
   useEffect(() => {
     setKnownListed(listedIds);
   }, [listedIds]);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("tpp-catalog-selected");
+      const ids = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(ids)) setSelected(ids.map(Number).filter((id) => Number.isInteger(id) && id > 0));
+      const stored = sessionStorage.getItem("tpp-catalog-cards");
+      if (stored) setKnownCards(JSON.parse(stored));
+    } catch {
+      // A bad saved selection just starts empty.
+    }
+    setSelectionReady(true);
+  }, []);
+  useEffect(() => {
+    setKnownCards((current) => {
+      const next = { ...current };
+      for (const product of products) next[product.id] = product;
+      return next;
+    });
+  }, [products]);
+  useEffect(() => {
+    if (!selectionReady) return;
+    sessionStorage.setItem("tpp-catalog-selected", JSON.stringify(selected));
+    const keep: Record<number, ProductCard> = {};
+    for (const id of selected) {
+      const card = knownCards[id];
+      if (card) keep[id] = card;
+    }
+    sessionStorage.setItem("tpp-catalog-cards", JSON.stringify(keep));
+  }, [selected, knownCards, selectionReady]);
+  useEffect(() => subscribeJobs(() => setTracked(readTrackedJobs())), []);
   const [rows, setRows] = useState<ProgressRow[] | null>(null);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [jobCounts, setJobCounts] = useState<{ added: number; skipped: number; failed: number; status: string } | null>(null);
@@ -112,7 +147,11 @@ export function CatalogBoard({
   const [removeAsk, setRemoveAsk] = useState<{ product: ProductCard; shop?: string } | null>(null);
 
   const dialogOpen = rows !== null || jobLabel !== null || view !== null || viewLoading;
-  const running = pending;
+  const progress = jobProgress(tracked);
+  useEffect(() => {
+    setCatalogDialogOpen(drafts !== null || dialogOpen);
+    return () => setCatalogDialogOpen(false);
+  }, [drafts, dialogOpen]);
 
   function toggle(id: number) {
     setSelected((current) => (current.includes(id) ? current.filter((row) => row !== id) : [...current, id]));
@@ -133,7 +172,6 @@ export function CatalogBoard({
   }
 
   function closeDialog() {
-    if (pending) return;
     setRows(null);
     setJobLabel(null);
     setJobCounts(null);
@@ -161,7 +199,7 @@ export function CatalogBoard({
       return;
     }
     const queue = ids
-      .map((id) => products.find((product) => product.id === id))
+      .map((id) => knownCards[id] || products.find((product) => product.id === id))
       .filter((product): product is ProductCard => Boolean(product));
     if (queue.length === 0) return;
     setView(null);
@@ -169,109 +207,70 @@ export function CatalogBoard({
     setDrafts(queue.map((product) => draftFromProduct(product, queue.length === 1)));
   }
 
+  async function selectScope(scope: "search" | "catalog") {
+    setSelecting(true);
+    try {
+      const params = new URLSearchParams({ cards: "1", scope });
+      if (scope === "search") {
+        if (keyword) params.set("q", keyword);
+        if (categoryId) params.set("category", categoryId);
+        if (inStock) params.set("stock", "1");
+      }
+      const res = await fetch(`/api/portal/shopify-channel/listings?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not select those products");
+      const cards = (data.products || []) as ProductCard[];
+      setKnownCards((current) => {
+        const next = { ...current };
+        for (const card of cards) next[card.id] = { ...current[card.id], ...card, variants: current[card.id]?.variants || card.variants };
+        return next;
+      });
+      setSelected([...new Set(cards.map((card) => card.id))]);
+    } catch (error) {
+      setRows([{ id: 0, name: "Selection", state: "failed", receipts: [], error: error instanceof Error ? error.message : "Could not select those products" }]);
+    } finally {
+      setSelecting(false);
+    }
+  }
+
   async function publishDrafts() {
     const queue = drafts;
     const targets = chosenStores();
-    if (!queue || queue.length === 0 || !canAdd || !ready) return;
-    if (targets.length === 0) return;
+    if (!queue || queue.length === 0 || !canAdd || !ready || targets.length === 0) return;
+    const pushes: Record<string, ReturnType<typeof pushFromDraft>> = {};
+    for (const draft of queue) {
+      if (draft.touched) pushes[String(draft.productId)] = pushFromDraft(draft);
+    }
     setDrafts(null);
     setPending(true);
     setView(null);
-    setViewProduct(null);
-    setJobLabel(null);
     setTask("add");
-    setRows(queue.map((draft) => ({ id: draft.productId, name: draft.name, state: "waiting", receipts: [] })));
-    const finished: number[] = [];
-    for (const draft of queue) {
-      setRows((current) => current?.map((row) => (row.id === draft.productId ? { ...row, state: "adding" } : row)) || null);
-      const receipts: Receipt[] = [];
-      let error = "";
-      for (const store of targets) {
-        try {
-          receipts.push(await addOne(draft.productId, store.id, pushFromDraft(draft)));
-        } catch (caught) {
-          error = caught instanceof Error ? caught.message : "Could not add";
-        }
-      }
-      const ok = receipts.some((receipt) => receipt.status === "added" || receipt.status === "skipped");
-      if (ok) finished.push(draft.productId);
-      setRows((current) =>
-        current?.map((row) =>
-          row.id === draft.productId ? { ...row, state: error && !ok ? "failed" : "done", receipts, error: error || undefined } : row
-        ) || null
-      );
-    }
-    if (finished.length) setKnownListed((current) => [...new Set([...current, ...finished])]);
-    setSelected([]);
-    setPending(false);
-    router.refresh();
-  }
-
-  async function publishScope(scope: "category" | "catalog") {
-    const targets = chosenStores();
-    if (!canAdd || !ready) return;
-    if (targets.length === 0) {
-      setRows([{ id: 0, name: "Choose a store", state: "failed", receipts: [], error: "Choose which store to add to, above the list." }]);
-      return;
-    }
-    const count = scope === "catalog" ? catalogCount : matchCount;
-    const label = scope === "catalog" ? "the entire catalog" : "everything in this search";
-    if (!window.confirm(`Add ${count} products from ${label} at the retail price, with no SKU? To set a price or SKU, select products and use Add selected.`)) return;
-    setPending(true);
-    setTask("add");
-    setRows(null);
-    setView(null);
-    setJobCounts({ added: 0, skipped: 0, failed: 0, status: "RUNNING" });
-    setJobLabel(scope === "catalog" ? "Adding the catalog" : "Adding this search");
     try {
       const res = await fetch("/api/portal/shopify-channel/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          scope,
+          scope: "selection",
+          bcProductIds: queue.map((draft) => draft.productId),
           connectionIds: targets.map((store) => store.id),
-          keyword: scope === "catalog" ? undefined : keyword,
-          categoryId: scope === "catalog" || !categoryId ? undefined : Number(categoryId),
           push: { priceMode: "retail" },
+          pushes,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not add");
-      const jobIds = (data.jobIds || []) as string[];
-      const snapshots = new Map<string, { added: number; skipped: number; failed: number; status: string }>();
-      const totals = () => {
-        let added = 0;
-        let skipped = 0;
-        let failed = 0;
-        let stillRunning = false;
-        for (const snap of snapshots.values()) {
-          added += snap.added;
-          skipped += snap.skipped;
-          failed += snap.failed;
-          if (snap.status === "QUEUED" || snap.status === "RUNNING") stillRunning = true;
-        }
-        return { added, skipped, failed, status: stillRunning ? "RUNNING" : "COMPLETED" };
-      };
-      for (const jobId of jobIds) {
-        let status = "RUNNING";
-        while (status === "QUEUED" || status === "RUNNING") {
-          const tick = await fetch(`/api/portal/shopify-channel/listings/jobs/${jobId}`, { method: "POST" });
-          const body = await tick.json();
-          if (!tick.ok) throw new Error(body.error || "The add stopped");
-          status = body.status || "FAILED";
-          snapshots.set(jobId, {
-            added: body.addedCount || 0,
-            skipped: body.skippedCount || 0,
-            failed: body.failedCount || 0,
-            status,
-          });
-          setJobCounts(totals());
-        }
+      if (data.receipt) {
+        setRows([{ id: queue[0].productId, name: queue[0].name, state: data.receipt.status === "failed" ? "failed" : "done", receipts: [data.receipt] }]);
+        setKnownListed((current) => [...new Set([...current, queue[0].productId])]);
+        setSelected((current) => current.filter((id) => id !== queue[0].productId));
+      } else {
+        trackCatalogJobs((data.jobIds || []) as string[], queue.length);
+        setSelected([]);
+        setJobLabel("Adding to your Shopify store");
+        setRows(null);
       }
-      setJobCounts(totals());
     } catch (error) {
-      setRows([{ id: 0, name: label, state: "failed", receipts: [], error: error instanceof Error ? error.message : "Could not add" }]);
-      setJobLabel(null);
+      setRows([{ id: 0, name: "Add to Shopify", state: "failed", receipts: [], error: error instanceof Error ? error.message : "Could not add" }]);
     } finally {
       setPending(false);
       router.refresh();
@@ -532,21 +531,23 @@ export function CatalogBoard({
             <button type="button" disabled={blocked || pending || selected.length === 0} onClick={() => openDrafts(selected)} className={channelPrimaryBtn}>
               Add selected ({selected.length})
             </button>
-            <button type="button" disabled={blocked || pending || matchCount === 0} onClick={() => publishScope("category")} className={channelGhostBtn}>
-              Add this search ({matchCount})
-            </button>
-            <button type="button" disabled={blocked || pending || catalogCount === 0} onClick={() => publishScope("catalog")} className={channelGhostBtn}>
-              Add entire catalog ({catalogCount})
+            {Boolean(keyword || categoryId || inStock) && matchCount !== catalogCount && (
+              <button type="button" disabled={blocked || pending || selecting || matchCount === 0} onClick={() => selectScope("search")} className={channelGhostBtn}>
+                {selecting ? "Selecting…" : `Select this search (${matchCount})`}
+              </button>
+            )}
+            <button type="button" disabled={blocked || pending || selecting || catalogCount === 0} onClick={() => selectScope("catalog")} className={channelGhostBtn}>
+              {selecting ? "Selecting…" : `Select entire catalog (${catalogCount})`}
             </button>
           </div>
         </div>
       </div>
 
       <Dialog open={drafts !== null} onOpenChange={(open) => { if (!open) setDrafts(null); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent className={drafts && drafts.length > 1 ? "sm:max-w-5xl" : "sm:max-w-3xl"}>
           <DialogHeader>
             <DialogTitle>{drafts && drafts.length === 1 ? "Add to your Shopify store" : `Add ${drafts?.length || 0} products`}</DialogTitle>
-            <DialogDescription>Set the price your customer pays. We charge your cost.</DialogDescription>
+            <DialogDescription>Each product starts at the retail price with no SKU. Click a product if you want to change the price or add your SKU. You don't have to.</DialogDescription>
           </DialogHeader>
           {drafts && drafts.length === 1 && (
             <div className="space-y-4">
@@ -560,6 +561,18 @@ export function CatalogBoard({
           )}
           {drafts && drafts.length > 1 && (
             <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {(["retail", "20", "35", "50"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={channelGhostBtn}
+                    onClick={() => setDrafts(drafts.map((row) => applyDraftMode(row, mode)))}
+                  >
+                    {mode === "retail" ? "Set all to retail" : `Set all ${mode}% more`}
+                  </button>
+                ))}
+              </div>
               {drafts.map((draft, index) => (
                 <div key={draft.productId} className="rounded-xl border border-[#e7e1de]">
                   <button
@@ -569,10 +582,10 @@ export function CatalogBoard({
                   >
                     <span>
                       <span className="block font-medium text-[#1a1a1a]">{draft.name}</span>
-                      <span className="text-sm text-[#5c5654]">{draftSummary(draft)}</span>
+                      <span className="text-sm text-[#5c5654]">{draft.touched ? draftSummary(draft) : "Retail price · no SKU"}</span>
                     </span>
-                    <span className={cn("shrink-0 text-xs font-semibold", draft.saved && !draft.open ? "text-emerald-700" : "text-[#5c5654]")}>
-                      {draft.open ? "Close" : draft.saved ? "Saved" : "Edit"}
+                    <span className={cn("shrink-0 text-xs font-semibold", draft.touched && !draft.open ? "text-emerald-700" : "text-[#B8282E]")}>
+                      {draft.open ? "Close" : draft.touched ? "Price set" : "Click to set price or SKU"}
                     </span>
                   </button>
                   {draft.open && (
@@ -592,13 +605,8 @@ export function CatalogBoard({
                   )}
                 </div>
               ))}
-              <button
-                type="button"
-                disabled={drafts.some((draft) => draft.open || !draft.saved)}
-                onClick={() => publishDrafts()}
-                className={channelPrimaryBtn}
-              >
-                {drafts.some((draft) => draft.open || !draft.saved) ? "Save each open item first" : `Add all ${drafts.length} to Shopify`}
+              <button type="button" onClick={() => publishDrafts()} className={channelPrimaryBtn}>
+                Add {drafts.length} to Shopify
               </button>
             </div>
           )}
@@ -606,7 +614,7 @@ export function CatalogBoard({
       </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl" onPointerDownOutside={(event) => { if (running) event.preventDefault(); }} onEscapeKeyDown={(event) => { if (running) event.preventDefault(); }}>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {viewLoading ? "Opening the listing" : view ? viewTitle || "On your Shopify store" : task === "remove" ? (pending ? "Removing from your Shopify store" : "Removed from your Shopify store") : jobLabel ? jobLabel : rows?.some((row) => row.state === "adding" || row.state === "waiting") ? "Adding to your Shopify store" : "Added to your Shopify store"}
@@ -616,8 +624,8 @@ export function CatalogBoard({
                 ? "Loading the price, stock, and the link on your store."
                 : view
                   ? "This is the listing on your Shopify store."
-                  : running
-                    ? "Stay on this page. Each product is added before the next one starts."
+                  : jobLabel
+                    ? "You can close this window. We'll email you when it finishes, including any price or SKU you set."
                     : "The price is the retail price. Change it later in Shopify if you want a different sale price."}
             </DialogDescription>
           </DialogHeader>
@@ -629,19 +637,25 @@ export function CatalogBoard({
             </div>
           )}
 
-          {jobLabel && jobCounts && (
-            <div className="space-y-4">
+          {jobLabel && (
+            <div className="space-y-3">
               <div className="flex items-center gap-3 text-sm text-[#3f3a38]">
-                {jobCounts.status === "RUNNING" || jobCounts.status === "QUEUED" ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />
-                ) : null}
-                <p>{jobCounts.status === "COMPLETED" || jobCounts.status === "FAILED" ? "Finished." : "Working through the products."}</p>
+                {tracked.length > 0 && <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />}
+                <p>
+                  {tracked.length === 0
+                    ? "Finished. We emailed you what was added, including any price or SKU you set."
+                    : `${progress.done} of ${progress.total || "…"}${progress.minutesLeft ? ` · about ${progress.minutesLeft} min left` : ""}`}
+                </p>
               </div>
-              <dl className="grid grid-cols-3 gap-2 text-center text-sm">
-                <div className="rounded-xl bg-emerald-50 px-3 py-3"><dt className="text-[#5c5654]">Added</dt><dd className="text-lg font-semibold text-emerald-800">{jobCounts.added}</dd></div>
-                <div className="rounded-xl bg-[#f6f3f1] px-3 py-3"><dt className="text-[#5c5654]">Already there</dt><dd className="text-lg font-semibold">{jobCounts.skipped}</dd></div>
-                <div className="rounded-xl bg-red-50 px-3 py-3"><dt className="text-[#5c5654]">Not added</dt><dd className="text-lg font-semibold text-[#B8282E]">{jobCounts.failed}</dd></div>
-              </dl>
+              <div className="h-2 overflow-hidden rounded-full bg-[#f0ebe8]">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 8}%` }}
+                />
+              </div>
+              {progress.current && <p className="text-sm text-[#5c5654]">{progress.current}</p>}
+              <p className="text-sm text-[#5c5654]">You can close this window. We'll email you when it's finished.</p>
+              {tracked.length === 0 && <a className={channelPrimaryBtn} href="/catalog?view=added">See products on your store</a>}
             </div>
           )}
 

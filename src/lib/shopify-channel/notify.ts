@@ -7,16 +7,6 @@ function mailer() {
   return { resend: new Resend(RESEND_API_KEY), from: EMAIL_FROM };
 }
 
-export async function emailAccount(to: string, subject: string, text: string): Promise<void> {
-  const { resend, from } = mailer();
-  await resend.emails.send({
-    from,
-    to,
-    subject,
-    text,
-  });
-}
-
 export async function emailWholesaleDesk(subject: string, text: string): Promise<void> {
   const { resend, from } = mailer();
   await resend.emails.send({

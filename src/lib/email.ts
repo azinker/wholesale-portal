@@ -559,6 +559,280 @@ export async function sendChannelRefundEmail(input: {
   });
 }
 
+function detailBlock(rows: Array<{ label: string; html: string }>): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background-color:#f6f3f1;border-radius:12px;">
+    ${rows
+      .map(
+        (row, index) => `<tr><td style="padding:${index === 0 ? "16px" : "0"} 16px ${index === rows.length - 1 ? "16px" : "12px"} 16px;">
+      <p style="font-size:12px;font-weight:600;color:#71717a;margin:0 0 2px 0;text-transform:uppercase;letter-spacing:0.4px;">${escapeHtml(row.label)}</p>
+      <p style="font-size:15px;color:${BRAND_DARK};margin:0;line-height:1.5;">${row.html}</p>
+    </td></tr>`
+      )
+      .join("")}
+  </table>`;
+}
+
+export async function sendChannelChargedEmail(input: {
+  to: string;
+  orderName: string;
+  orderId: string;
+  lines: Array<{ title: string; quantity: number; unitCost: number }>;
+  shipping: number;
+  total: number;
+  last4: string;
+  shipTo: { name: string; street: string; street2?: string; city: string; province: string; zip: string; country: string };
+  warehouseId: number;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
+  const money = (value: number) => `$${value.toFixed(2)}`;
+  const products = input.lines
+    .map((line) => `${line.title} × ${line.quantity} — ${money(line.unitCost)}`)
+    .join("\n");
+  const address = [
+    input.shipTo.name,
+    input.shipTo.street,
+    input.shipTo.street2 || "",
+    [input.shipTo.city, input.shipTo.province, input.shipTo.zip].filter(Boolean).join(" "),
+    input.shipTo.country,
+  ].filter((line) => line.trim().length > 0);
+  const productHtml = input.lines
+    .map((line) => `${escapeHtml(line.title)} &times; ${line.quantity} &mdash; ${money(line.unitCost)}`)
+    .join("<br>");
+  const addressHtml = address.map((line) => escapeHtml(line)).join("<br>");
+
+  await sendBrandedEmail({
+    logLabel: "channel charged",
+    to: input.to,
+    subject: `We charged ${input.orderName} — The Perfect Part`,
+    throwOnError: false,
+    text: [
+      `${input.orderName} is charged and on its way to the warehouse.`,
+      "",
+      "Your customer paid you on Shopify. We charged your card and will ship the order.",
+      "",
+      "Products",
+      products,
+      `Shipping: ${money(input.shipping)}`,
+      `Total charged: ${money(input.total)}`,
+      `Card ending ${input.last4}. It shows on your statement as THE PERFECT PART.`,
+      "",
+      "Ship to",
+      address.join("\n"),
+      "",
+      `Warehouse order ${input.warehouseId}. We ship the same day or the next business day.`,
+      `See it in your portal: ${orderUrl}`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We charged your card</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(input.orderName)} is on its way</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your customer paid you on Shopify. We charged your card and sent the order to the warehouse. We ship the same day or the next business day.</p>
+      ${detailBlock([
+        { label: "Products", html: productHtml },
+        { label: "Shipping", html: money(input.shipping) },
+        { label: "Total charged", html: `<strong>${money(input.total)}</strong>` },
+        { label: "Card", html: `Ending ${escapeHtml(input.last4)}. It shows on your statement as <strong>THE PERFECT PART</strong>.` },
+        { label: "Ship to", html: addressHtml },
+        { label: "Warehouse", html: `Order ${input.warehouseId}` },
+      ])}
+      ${ctaButton(orderUrl, "See this order")}
+    `,
+  });
+}
+
+export async function sendChannelAttentionEmail(input: {
+  to: string;
+  orderName: string;
+  reason: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const copy = attentionCopy(input.reason, input.orderName);
+  await sendBrandedEmail({
+    logLabel: "channel attention",
+    to: input.to,
+    subject: `${copy.subject} — The Perfect Part`,
+    throwOnError: false,
+    text: [copy.headline, "", copy.body, "", copy.next, "", `Open your portal: ${appUrl}${copy.path}`].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">${escapeHtml(copy.headline)}</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(input.orderName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>${escapeHtml(copy.body)}</p>
+      ${infoBox(`<p style="margin:0;">${escapeHtml(copy.next)}</p>`)}
+      ${ctaButton(`${appUrl}${copy.path}`, copy.button)}
+    `,
+  });
+}
+
+function attentionCopy(reason: string, orderName: string): { subject: string; headline: string; body: string; next: string; button: string; path: string } {
+  if (reason === "store_paused") {
+    return {
+      subject: `${orderName} came in while the store is paused`,
+      headline: "We did not charge this one",
+      body: `${orderName} came in while this store is paused. Your customer paid you on Shopify. We saw the order, and we did not charge your card or ship it.`,
+      next: "You can refund them on Shopify, or handle the sale yourself. Turning the store back on later does not ship this one.",
+      button: "Open My stores",
+      path: "/my-shopify",
+    };
+  }
+  if (reason === "incomplete_address") {
+    return {
+      subject: `${orderName} needs an address`,
+      headline: "The address is missing a piece",
+      body: `${orderName} is missing a street or a country. We did not charge your card.`,
+      next: "Add the address on that Shopify order. Then we will charge your card and ship it.",
+      button: "Open orders",
+      path: "/my-shopify/orders",
+    };
+  }
+  if (reason === "missing_phone") {
+    return {
+      subject: `${orderName} needs a phone number`,
+      headline: "This shipment needs a phone number",
+      body: `${orderName} is outside the US and needs a phone number. We did not charge your card.`,
+      next: "Add a phone number on that Shopify order. Then we will charge your card and ship it.",
+      button: "Open orders",
+      path: "/my-shopify/orders",
+    };
+  }
+  if (reason === "out_of_stock") {
+    return {
+      subject: `${orderName} is out of stock`,
+      headline: "We don't have enough to ship",
+      body: `${orderName} doesn't have enough stock. We did not charge your card, and we will not ship it.`,
+      next: "You can refund your customer on Shopify.",
+      button: "Open orders",
+      path: "/my-shopify/orders",
+    };
+  }
+  if (reason === "needs_retest") {
+    return {
+      subject: `${orderName} is waiting on the store`,
+      headline: "We still need to confirm the store",
+      body: `${orderName} came in before we confirmed shipping for that store. We did not charge your card.`,
+      next: "Open My stores and we'll check the address.",
+      button: "Open My stores",
+      path: "/my-shopify",
+    };
+  }
+  if (reason === "card_declined") {
+    return {
+      subject: `${orderName} was not charged`,
+      headline: "The card did not go through",
+      body: `We could not charge the card on file for ${orderName}. Nothing shipped.`,
+      next: "Save a working card in Billing. We will retry the oldest unpaid order.",
+      button: "Update the card",
+      path: "/billing",
+    };
+  }
+  return {
+    subject: `${orderName} needs a card`,
+    headline: "A card is needed before we can ship",
+    body: `${orderName} needs a working card before we can ship. Nothing was charged.`,
+    next: "Save a card in Billing and we will pick this up.",
+    button: "Add a card",
+    path: "/billing",
+  };
+}
+
+export async function sendChannelCardReminderEmail(input: { to: string; orderName: string }): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "channel card reminder",
+    to: input.to,
+    subject: `${input.orderName} still needs a card — The Perfect Part`,
+    throwOnError: false,
+    text: [
+      `${input.orderName} is still unpaid on our side.`,
+      "",
+      "Save a working credit card in Billing and we will retry it. We do not close this for you.",
+      "",
+      `Billing: ${appUrl}/billing`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">This sale is still waiting</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(input.orderName)}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your customer paid you on Shopify. We still have not charged a card, so nothing has shipped.</p>
+      <p>Save a working card in Billing and we will retry it. We do not close this for you.</p>
+      ${ctaButton(`${appUrl}/billing`, "Update the card")}
+    `,
+  });
+}
+
+export async function sendChannelShippedEmail(input: {
+  to: string;
+  orderName: string;
+  orderId: string;
+  carrier: string;
+  trackingNumber: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
+  await sendBrandedEmail({
+    logLabel: "channel shipped",
+    to: input.to,
+    subject: `${input.orderName} shipped — The Perfect Part`,
+    throwOnError: false,
+    text: [
+      `${input.orderName} shipped.`,
+      `${input.carrier} ${input.trackingNumber}`,
+      "",
+      "Your Shopify store emails your customer. This note is for you.",
+      `See it: ${orderUrl}`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">It's on the way</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(input.orderName)} shipped</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>The warehouse handed this order to the carrier. Your Shopify store emails your customer. This note is for you.</p>
+      ${detailBlock([
+        { label: "Carrier", html: escapeHtml(input.carrier || "Carrier") },
+        { label: "Tracking", html: escapeHtml(input.trackingNumber) },
+      ])}
+      ${ctaButton(orderUrl, "See this order")}
+    `,
+  });
+}
+
+export async function sendListingsStoppedEmail(input: {
+  to: string;
+  shopDomain: string;
+  added: number;
+  skipped: number;
+  failed: number;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  await sendBrandedEmail({
+    logLabel: "listings stopped",
+    to: input.to,
+    subject: "Adding products stopped — The Perfect Part",
+    throwOnError: false,
+    text: [
+      `${input.shopDomain} was disconnected, so we stopped adding products.`,
+      `Added: ${input.added}`,
+      `Already on the store: ${input.skipped}`,
+      `Not added: ${input.failed}`,
+      "",
+      "Products already on the store stay there. Stock updates for that store have stopped.",
+      `My stores: ${appUrl}/my-shopify`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Adding products stopped</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(input.shopDomain)} was disconnected</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>We stopped the rest of that add. Products already on the store stay there. Stock updates for that store have stopped.</p>
+      ${detailBlock([
+        { label: "Added", html: String(input.added) },
+        { label: "Already there", html: String(input.skipped) },
+        { label: "Not added", html: String(input.failed) },
+      ])}
+      ${ctaButton(`${appUrl}/my-shopify`, "Open My stores")}
+    `,
+  });
+}
+
 export async function sendAdminChannelRefundEmail(input: {
   to: string;
   orderName: string;
@@ -624,7 +898,7 @@ export async function sendCatalogExportEmail(input: {
     text: [
       `Your export of ${countLabel} is ready.`,
       ``,
-      `The zip has listings.csv, how-to-use.csv, and an images folder.`,
+      `The zip has listings.csv, how-to-use.csv, and an images folder. Inside images, each product has its own folder named with the product title.`,
       `Your SKU column is blank on purpose. Fill in your own SKU. The file does not include our product codes.`,
       ``,
       `Download it after you sign in: ${downloadUrl}`,
@@ -633,10 +907,56 @@ export async function sendCatalogExportEmail(input: {
       <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Your product export is ready</h1>
       <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${countLabel}</p>
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
-      <p>The zip has three things: <strong>listings.csv</strong>, <strong>how-to-use.csv</strong>, and an <strong>images</strong> folder.</p>
+      <p>The zip has three things: <strong>listings.csv</strong>, <strong>how-to-use.csv</strong>, and an <strong>images</strong> folder. Open images and each product has its own folder, named with the product title. That product's pictures are inside.</p>
       ${infoBox(`<p style="margin:0;">Your SKU column is blank on purpose. Type your own SKU before you import the file. This export does not include our product codes.</p>`)}
       <p>Sign in with this same email, then download the file. The link stays on your Export listings page.</p>
       ${ctaButton(downloadUrl, "Download the export")}
+    `,
+  });
+}
+
+export async function sendListingAddedEmail(input: {
+  to: string;
+  added: number;
+  skipped: number;
+  failed: number;
+  edits: Array<{ title: string; sku: string; price: string }>;
+  errors: Array<{ title: string; message: string }>;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const listUrl = `${appUrl}/catalog?view=added`;
+  const untouched = Math.max(0, input.added - input.edits.length);
+  const editLines = input.edits.slice(0, 40).map((row) => `${row.title} — price ${row.price}${row.sku && row.sku !== "No SKU" ? `, SKU ${row.sku}` : ", no SKU"}`);
+  const errorLines = input.errors.slice(0, 15).map((row) => `${row.title}: ${row.message}`);
+  const subject = input.failed > 0 ? "Some products could not be added — The Perfect Part" : "Your products are on Shopify — The Perfect Part";
+  await sendBrandedEmail({
+    logLabel: "listing added",
+    to: input.to,
+    subject,
+    throwOnError: false,
+    text: [
+      input.failed > 0 ? "We finished adding your products. Some could not be added." : "Your products are on your Shopify store.",
+      "",
+      `Added: ${input.added}`,
+      `Already on your store: ${input.skipped}`,
+      `Could not add: ${input.failed}`,
+      "",
+      input.edits.length
+        ? `You set a price or SKU on ${input.edits.length} product${input.edits.length === 1 ? "" : "s"}:\n${editLines.join("\n")}`
+        : "You left the price at retail and the SKU blank on every product.",
+      untouched > 0 && input.edits.length ? `\nThe other ${untouched} added product${untouched === 1 ? "" : "s"} used the retail price and no SKU.` : "",
+      errorLines.length ? `\nCould not add:\n${errorLines.join("\n")}` : "",
+      "",
+      `See them: ${listUrl}`,
+    ].filter((line) => line !== undefined).join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Your products are on Shopify</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">Added ${input.added} · Already there ${input.skipped} · Not added ${input.failed}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      ${input.edits.length ? `<p>You set a price or SKU on <strong>${input.edits.length}</strong> product${input.edits.length === 1 ? "" : "s"}.</p><ul style="padding-left:18px;">${editLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` : `<p>You left the price at retail and the SKU blank on every product.</p>`}
+      ${untouched > 0 && input.edits.length ? `<p>The other <strong>${untouched}</strong> added product${untouched === 1 ? "" : "s"} used the retail price and no SKU.</p>` : ""}
+      ${errorLines.length ? `<p>These could not be added:</p><ul style="padding-left:18px;">${errorLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` : ""}
+      ${ctaButton(listUrl, "See products on your store")}
     `,
   });
 }

@@ -5,6 +5,7 @@ import { SidebarNav, type NavItem } from "@/components/sidebar-nav";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { getPortalNav, type PortalNavIcon } from "@/lib/portal-nav";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
+import { CatalogJobWatch } from "./catalog/catalog-job-watch";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -96,6 +97,7 @@ export default async function PortalLayout({
       />
       <main className="portal-shell flex-1 overflow-auto bg-[#f6f3f1] p-6 pt-20 md:p-8">
         {children}
+        <CatalogJobWatch />
       </main>
     </div>
   );

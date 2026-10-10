@@ -539,16 +539,17 @@ export function CatalogBoard({
       </div>
 
       <Dialog open={drafts !== null} onOpenChange={(open) => { if (!open) setDrafts(null); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{drafts && drafts.length === 1 ? "Add to your Shopify store" : `Add ${drafts?.length || 0} products`}</DialogTitle>
-            <DialogDescription>
-              List price starts at the retail price. Set your price and SKU, then add. We charge your cost when the customer pays.
-            </DialogDescription>
+            <DialogDescription>Set the price your customer pays. We charge your cost.</DialogDescription>
           </DialogHeader>
           {drafts && drafts.length === 1 && (
             <div className="space-y-4">
-              <p className="font-medium text-[#1a1a1a]">{drafts[0].name}</p>
+              <div className="flex items-center gap-3">
+                {drafts[0].image && <img src={drafts[0].image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />}
+                <p className="font-semibold leading-6 text-[#1a1a1a]">{drafts[0].name}</p>
+              </div>
               <DraftEditor draft={drafts[0]} onChange={(next) => setDrafts([next])} />
               <button type="button" onClick={() => publishDrafts()} className={channelPrimaryBtn}>Add to Shopify</button>
             </div>

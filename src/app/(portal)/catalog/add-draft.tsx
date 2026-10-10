@@ -44,11 +44,11 @@ export type ListingDraft = {
 };
 
 const modes: Array<{ id: PriceMode; label: string }> = [
-  { id: "retail", label: "Retail price" },
-  { id: "20", label: "20% above cost" },
-  { id: "35", label: "35% above cost" },
-  { id: "50", label: "50% above cost" },
-  { id: "custom", label: "Custom price" },
+  { id: "retail", label: "Retail" },
+  { id: "20", label: "20% more" },
+  { id: "35", label: "35% more" },
+  { id: "50", label: "50% more" },
+  { id: "custom", label: "Your price" },
 ];
 
 function amount(retail: number, cost: number, mode: PriceMode): string {
@@ -139,12 +139,29 @@ function shownPrice(draft: ListingDraft): string {
 function Field({ label, tip, children }: { label: string; tip: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm text-[#3f3a38]">
-      <span className="inline-flex items-center gap-1.5">
+      <span className="mb-1 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#5c5654]">
         {label}
         <Tip text={tip} />
       </span>
       {children}
     </label>
+  );
+}
+
+function MoneyInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8a8481]">$</span>
+      <input inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} className={cn(channelField, "pl-7")} />
+    </div>
+  );
+}
+
+function Keep({ amount: margin }: { amount: number }) {
+  return (
+    <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", margin < 0 ? "bg-red-50 text-[#B8282E]" : "bg-emerald-50 text-emerald-800")}>
+      You keep {money(margin)}
+    </span>
   );
 }
 
@@ -159,109 +176,121 @@ export function DraftEditor({
   const margin = list - draft.cost;
   return (
     <div className="space-y-4">
-      <div>
-        <p className="text-sm text-[#5c5654]">Your cost {money(draft.cost)} · Stock {draft.stock}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="rounded-xl bg-[#f6f3f1] px-3 py-2.5">
+          <p className="text-xs text-[#5c5654]">Your cost</p>
+          <p className="font-display text-lg font-semibold">{draft.variants.length ? "Per option" : money(draft.cost)}</p>
+        </div>
+        <div className="rounded-xl bg-[#f6f3f1] px-3 py-2.5">
+          <p className="text-xs text-[#5c5654]">In stock</p>
+          <p className="font-display text-lg font-semibold">{draft.stock}</p>
+        </div>
+        {draft.variants.length === 0 && (
+          <div className={cn("col-span-2 rounded-xl px-3 py-2.5 sm:col-span-1", margin < 0 ? "bg-red-50" : "bg-emerald-50")}>
+            <p className={cn("text-xs", margin < 0 ? "text-[#B8282E]" : "text-emerald-800")}>You keep</p>
+            <p className={cn("font-display text-lg font-semibold", margin < 0 ? "text-[#B8282E]" : "text-emerald-800")}>{money(margin)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="sticky top-0 z-10 -mx-1 bg-white/95 px-1 py-1 backdrop-blur">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#5c5654]">Price on your store</p>
+        <div className="mt-2 flex flex-wrap gap-2">
           {modes.map((mode) => (
             <button
               key={mode.id}
               type="button"
               onClick={() => onChange(applyMode(draft, mode.id))}
               className={cn(
-                "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-200",
-                draft.priceMode === mode.id ? "border-[#2d2d2d] bg-[#2d2d2d] text-white" : "border-[#e4ddd9] bg-white text-[#3f3a38] hover:border-[#2d2d2d]"
+                "cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200",
+                draft.priceMode === mode.id ? "bg-primary text-white" : "bg-[#f6f3f1] text-[#3f3a38] hover:bg-[#efeae7]"
               )}
             >
               {mode.label}
             </button>
           ))}
         </div>
+        <p className="mt-2 text-sm leading-5 text-[#5c5654]">
+          {draft.variants.length > 0
+            ? "These set every option. You can still change one row. We charge your cost when the customer pays."
+            : "Retail is the price on theperfectpart.net. We charge your cost when the customer pays."}
+        </p>
       </div>
+
       {draft.variants.length === 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Lists at" tip="The price on your Shopify store. It starts at the theperfectpart.net retail price. You can raise it, lower it, or type any price. You can also change it later in Shopify. We still charge your cost when the customer pays.">
-            <input
-              inputMode="decimal"
-              value={draft.listPrice}
-              onChange={(event) => onChange({ ...draft, priceMode: "custom", listPrice: event.target.value, saved: false })}
-              className={cn(channelField, "mt-1")}
-            />
+          <Field label="Your price" tip="What your customer pays on Shopify. It starts at the retail price. You can change it later in Shopify too.">
+            <MoneyInput value={draft.listPrice} onChange={(value) => onChange({ ...draft, priceMode: "custom", listPrice: value, saved: false })} />
           </Field>
-          <Field label="Your Shopify SKU" tip="Optional. This is your own SKU on Shopify. Leave it blank if you don't need one. We still know which product was sold.">
+          <Field label="Your SKU" tip="Optional. Your own code on Shopify. Leave it blank if you don't need one.">
             <input
               value={draft.sku}
               onChange={(event) => onChange({ ...draft, sku: event.target.value, saved: false })}
               placeholder="Optional"
-              className={cn(channelField, "mt-1")}
+              className={channelField}
             />
           </Field>
-          <p className={cn("text-sm font-semibold sm:col-span-2", margin < 0 ? "text-[#B8282E]" : "text-emerald-700")}>
-            Margin {money(margin)}
-          </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          <p className="text-sm text-[#5c5654]">Each option has its own price and SKU. The buttons above set every option. Retail is the starting price.</p>
+        <div className="space-y-2">
+          <div className="hidden grid-cols-[minmax(0,1.3fr)_9rem_9rem_auto] gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-[#5c5654] md:grid">
+            <span>Option</span>
+            <span>Your price</span>
+            <span>Your SKU</span>
+            <span>You keep</span>
+          </div>
           {draft.variants.map((variant, index) => {
             const variantList = Number(variant.listPrice) || variant.retail;
             const variantMargin = variantList - variant.cost;
             return (
-              <div key={variant.id} className="rounded-xl border border-[#f0ebe8] p-3">
-                <p className="font-medium text-[#1a1a1a]">{variant.label}</p>
-                <p className="text-xs text-[#5c5654]">Your cost {money(variant.cost)} · Stock {variant.stock}</p>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  <Field label="Lists at" tip="The Shopify price for this option. It starts at that option's retail price. Changing it does not change the cost we charge.">
-                    <input
-                      inputMode="decimal"
-                      value={variant.listPrice}
-                      onChange={(event) => {
-                        const variants = draft.variants.slice();
-                        variants[index] = { ...variant, listPrice: event.target.value };
-                        onChange({ ...draft, priceMode: "custom", variants, saved: false });
-                      }}
-                      className={cn(channelField, "mt-1")}
-                    />
-                  </Field>
-                  <Field label="Your SKU for this option" tip="Optional. Your own SKU for this option. Leave it blank if you don't need one. We still match the sale to this product.">
-                    <input
-                      value={variant.sku}
-                      onChange={(event) => {
-                        const variants = draft.variants.slice();
-                        variants[index] = { ...variant, sku: event.target.value };
-                        onChange({ ...draft, variants, saved: false });
-                      }}
-                      placeholder="Optional"
-                      className={cn(channelField, "mt-1")}
-                    />
-                  </Field>
+              <div key={variant.id} className="grid items-center gap-3 rounded-xl border border-[#efeae7] bg-[#fbfaf9] p-3 md:grid-cols-[minmax(0,1.3fr)_9rem_9rem_auto]">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-[#1a1a1a]">{variant.label}</p>
+                  <p className="text-xs text-[#5c5654]">Cost {money(variant.cost)} · {variant.stock} in stock</p>
                 </div>
-                <p className={cn("mt-2 text-sm font-semibold", variantMargin < 0 ? "text-[#B8282E]" : "text-emerald-700")}>
-                  Margin {money(variantMargin)}
-                </p>
+                <MoneyInput
+                  value={variant.listPrice}
+                  onChange={(value) => {
+                    const variants = draft.variants.slice();
+                    variants[index] = { ...variant, listPrice: value };
+                    onChange({ ...draft, priceMode: "custom", variants, saved: false });
+                  }}
+                />
+                <input
+                  value={variant.sku}
+                  onChange={(event) => {
+                    const variants = draft.variants.slice();
+                    variants[index] = { ...variant, sku: event.target.value };
+                    onChange({ ...draft, variants, saved: false });
+                  }}
+                  placeholder="Optional"
+                  aria-label={`SKU for ${variant.label}`}
+                  className={channelField}
+                />
+                <Keep amount={variantMargin} />
               </div>
             );
           })}
         </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Compare-at price" tip="Optional. A higher crossed-out price on your store, like a sale. We'll only use it when it's above your list price.">
-          <input
-            inputMode="decimal"
-            value={draft.compareAt}
-            onChange={(event) => onChange({ ...draft, compareAt: event.target.value, saved: false })}
-            placeholder="Optional"
-            className={cn(channelField, "mt-1")}
-          />
-        </Field>
-        <Field label="Product type" tip="Optional label in Shopify, such as Home or Tools. Leave blank to skip it.">
-          <input
-            value={draft.productType}
-            onChange={(event) => onChange({ ...draft, productType: event.target.value, saved: false })}
-            placeholder="Optional, such as Home"
-            className={cn(channelField, "mt-1")}
-          />
-        </Field>
-      </div>
+
+      <details className="rounded-xl bg-[#f6f3f1] px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-[#1a1a1a]">More options</summary>
+        <p className="mt-1 text-sm text-[#5c5654]">Optional. Most stores skip this.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Field label="Compare-at price" tip="A higher crossed-out price, like a sale. We only send it when it is above your price.">
+            <MoneyInput value={draft.compareAt} onChange={(value) => onChange({ ...draft, compareAt: value, saved: false })} />
+          </Field>
+          <Field label="Product type" tip="A label in Shopify, such as Home or Tools. Leave blank to skip it.">
+            <input
+              value={draft.productType}
+              onChange={(event) => onChange({ ...draft, productType: event.target.value, saved: false })}
+              placeholder="Home, Tools…"
+              className={channelField}
+            />
+          </Field>
+        </div>
+      </details>
     </div>
   );
 }

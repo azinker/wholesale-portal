@@ -16,20 +16,39 @@ export async function POST(req: NextRequest) {
   if (!body.orderId) return NextResponse.json({ error: "Missing order" }, { status: 400 });
   const order = await db.channelOrder.findUnique({
     where: { id: body.orderId },
-    include: { account: { select: { email: true, companyName: true } } },
+    include: { account: { select: { email: true, companyName: true, customerId: true } } },
   });
-  if (!order?.stripeChargeId) {
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  const creditOnOrder = roundMoney(Number(order.storeCreditApplied || 0));
+  if (!order.stripeChargeId && creditOnOrder <= 0) {
     return NextResponse.json({ error: "This order has no charge to refund" }, { status: 400 });
   }
   const remaining = roundMoney(Number(order.amountCharged) - Number(order.amountRefunded));
   const amount = body.amount == null ? remaining : roundMoney(body.amount);
-  if (amount <= 0 || amount > remaining) {
+  if (remaining > 0 && (amount <= 0 || amount > remaining)) {
     return NextResponse.json({ error: "Refund amount is outside what is left on this charge" }, { status: 400 });
   }
-  await refundCharge(order.stripeChargeId, Math.round(amount * 100));
-  const refunded = roundMoney(Number(order.amountRefunded) + amount);
+  if (remaining <= 0 && creditOnOrder <= 0) {
+    return NextResponse.json({ error: "This order has no charge to refund" }, { status: 400 });
+  }
+  const cardRefund = remaining > 0 ? amount : 0;
+  if (order.stripeChargeId && cardRefund > 0) {
+    await refundCharge(order.stripeChargeId, Math.round(cardRefund * 100));
+  }
+  const refunded = roundMoney(Number(order.amountRefunded) + cardRefund);
   const alreadyShipped = order.status === "SHIPPED";
   const fullyRefunded = refunded >= Number(order.amountCharged);
+  let creditRestored = 0;
+  if (fullyRefunded && creditOnOrder > 0 && order.account.customerId) {
+    try {
+      const customer = await bc().getCustomerById(order.account.customerId);
+      const current = roundMoney(Number(customer?.store_credit_amounts?.[0]?.amount || 0));
+      await bc().setStoreCredit(order.account.customerId, roundMoney(current + creditOnOrder));
+      creditRestored = creditOnOrder;
+    } catch (error) {
+      console.error("Store credit was not put back after refund:", error);
+    }
+  }
   const stopShipment = Boolean(body.cancelWarehouse) && !alreadyShipped;
   const statusId = stopShipment || (fullyRefunded && !alreadyShipped) ? 5 : fullyRefunded ? 4 : 14;
   let warehouseStatus: "cancelled" | "refunded" | "partial" | "unchanged" = "unchanged";
@@ -48,6 +67,7 @@ export async function POST(req: NextRequest) {
     where: { id: order.id },
     data: {
       amountRefunded: refunded,
+      storeCreditApplied: creditRestored > 0 ? 0 : undefined,
       status: fullyRefunded ? "REFUNDED" : order.status,
     },
   });

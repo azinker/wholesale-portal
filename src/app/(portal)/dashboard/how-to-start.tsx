@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
-import { CopyCouponButton } from "./copy-coupon-button";
 
 function PathCard({
   kicker,
@@ -38,13 +37,7 @@ function PathCard({
   );
 }
 
-export async function HowToStart({
-  email,
-  couponCode,
-}: {
-  email: string;
-  couponCode: string | null;
-}) {
+export async function HowToStart({ email }: { email: string }) {
   const channel = await channelVisibility(email);
 
   return (
@@ -71,7 +64,7 @@ export async function HowToStart({
             <PathCard
               kicker="Shopify"
               title="Sell on your store"
-              body="Your customer pays you on Shopify. We charge the card you save here and ship the order to them."
+              body="Your customer pays you on Shopify. We apply store credit automatically, then charge the card you save here, and ship the order to them."
               href="/my-shopify"
               action="Open Shopify"
             />
@@ -83,26 +76,6 @@ export async function HowToStart({
               action="Export products"
             />
           </>
-        )}
-      </div>
-      <div className="rounded-2xl border border-[#e7e1de] bg-white px-5 py-4 text-sm leading-6 text-[#3f3a38]">
-        <p>
-          On theperfectpart.net, sign in as <strong>{email}</strong>
-          {couponCode ? (
-            <>
-              {" "}and enter <span className="font-mono font-semibold">{couponCode}</span> at checkout.
-            </>
-          ) : (
-            ". Your discount code shows here once your account qualifies."
-          )}
-        </p>
-        <p className="mt-1 text-[#5c5654]">
-          The usual mix-up is a store window signed in with a different email. Sign out, sign back in with this email, then enter the code.
-        </p>
-        {couponCode && (
-          <div className="mt-3">
-            <CopyCouponButton code={couponCode} />
-          </div>
         )}
       </div>
     </section>

@@ -253,7 +253,8 @@ export default async function ChannelOrdersPage({
               {visible.map((order) => {
                 const lines = affiliatedLines(order.lines);
                 const net = netCharged(order);
-                const charged = wasCharged(order);
+                const credit = Number(order.storeCreditApplied || 0);
+                const charged = wasCharged(order) || credit > 0;
                 return (
                   <tr key={order.id} className="border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6]">
                     <td className="px-4 py-3">
@@ -271,7 +272,8 @@ export default async function ChannelOrdersPage({
                     <td className="px-3 py-3">
                       {charged ? (
                         <Link href={`/billing?order=${order.id}#charge`} className="font-semibold tabular-nums text-primary hover:underline">
-                          {money(net)}
+                          {credit > 0 && net <= 0 ? "Store credit" : money(net)}
+                          {credit > 0 && <span className="block text-xs font-semibold text-emerald-700">Store credit {money(credit)}</span>}
                         </Link>
                       ) : (
                         <span className="text-[#5c5654]">Not charged yet</span>

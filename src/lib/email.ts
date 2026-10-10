@@ -528,11 +528,17 @@ export async function sendChannelRefundEmail(input: {
   orderId: string;
   amount: number;
   reason: string;
+  storeCredit?: number;
 }): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
   const supportUrl = `${appUrl}/support?category=shopify_order_change&order=${encodeURIComponent(input.orderName)}`;
   const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
   const amount = `$${input.amount.toFixed(2)}`;
+  const credit = input.storeCredit || 0;
+  const creditBack = credit > 0 ? ` We put $${credit.toFixed(2)} of store credit back. Store credit is applied automatically to new orders.` : "";
+  const paidWith = input.amount > 0
+    ? `We charged your card ${amount} so we could ship the order. The warehouse could not start the shipment, so we refunded that charge right away.${creditBack}`
+    : `This order was paid with store credit. The warehouse could not start the shipment, so we put the credit back. Your card was not charged.`;
   const why = plainWarehouseFailure(input.reason);
   const safeOrder = escapeHtml(input.orderName);
   const safeWhy = escapeHtml(why);
@@ -545,7 +551,7 @@ export async function sendChannelRefundEmail(input: {
     text: [
       `We refunded ${input.orderName}. Nothing shipped.`,
       ``,
-      `Your customer paid you on Shopify. We charged your card ${amount} so we could ship the order. The warehouse could not start the shipment, so we refunded that charge right away.`,
+      `Your customer paid you on Shopify. ${paidWith}`,
       ``,
       `What went wrong`,
       why,
@@ -560,7 +566,7 @@ export async function sendChannelRefundEmail(input: {
       <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We refunded this order</h1>
       <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${safeOrder} &mdash; nothing shipped</p>
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
-      <p>Your customer paid you on Shopify. We charged your card <strong>${amount}</strong> so we could ship the order. The warehouse could not start the shipment, so we refunded that charge right away.</p>
+      <p>Your customer paid you on Shopify. ${escapeHtml(paidWith)}</p>
       ${infoBox(`
         <p style="font-weight:600;color:#991B1B;margin:0 0 8px 0;">What went wrong</p>
         <p style="margin:0;">${safeWhy}</p>
@@ -596,6 +602,8 @@ export async function sendChannelChargedEmail(input: {
   lines: Array<{ title: string; quantity: number; unitCost: number }>;
   shipping: number;
   total: number;
+  cardCharged?: number;
+  storeCredit?: number;
   last4: string;
   shipTo: { name: string; street: string; street2?: string; city: string; province: string; zip: string; country: string };
   warehouseId: number;
@@ -603,6 +611,14 @@ export async function sendChannelChargedEmail(input: {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
   const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
   const money = (value: number) => `$${value.toFixed(2)}`;
+  const credit = input.storeCredit || 0;
+  const cardCharged = input.cardCharged == null ? input.total : input.cardCharged;
+  const paidLine = credit > 0 && cardCharged <= 0
+    ? `Store credit paid for this order (${money(credit)}). Your card was not charged. Store credit is applied automatically to new orders.`
+    : credit > 0
+      ? `Store credit paid ${money(credit)}. We charged ${money(cardCharged)} on the card ending ${input.last4}. Store credit is applied automatically to new orders before the card.`
+      : `We charged ${money(cardCharged)} on the card ending ${input.last4}. It shows on your statement as THE PERFECT PART.`;
+  const headline = credit > 0 && cardCharged <= 0 ? "Store credit paid for this order" : "We charged your card";
   const products = input.lines
     .map((line) => `${line.title} × ${line.quantity} — ${money(line.unitCost)}`)
     .join("\n");
@@ -621,18 +637,18 @@ export async function sendChannelChargedEmail(input: {
   await sendBrandedEmail({
     logLabel: "channel charged",
     to: input.to,
-    subject: `We charged ${input.orderName} — The Perfect Part`,
+    subject: `${headline} — ${input.orderName}`,
     throwOnError: false,
     text: [
-      `${input.orderName} is charged and on its way to the warehouse.`,
+      `${input.orderName} is on its way to the warehouse.`,
       "",
-      "Your customer paid you on Shopify. We charged your card and will ship the order.",
+      "Your customer paid you on Shopify.",
+      paidLine,
       "",
       "Products",
       products,
       `Shipping: ${money(input.shipping)}`,
-      `Total charged: ${money(input.total)}`,
-      `Card ending ${input.last4}. It shows on your statement as THE PERFECT PART.`,
+      `Order total: ${money(input.total)}`,
       "",
       "Ship to",
       address.join("\n"),
@@ -641,15 +657,15 @@ export async function sendChannelChargedEmail(input: {
       `See it in your portal: ${orderUrl}`,
     ].join("\n"),
     bodyHtml: `
-      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We charged your card</h1>
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">${escapeHtml(headline)}</h1>
       <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${escapeHtml(input.orderName)} is on its way</p>
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
-      <p>Your customer paid you on Shopify. We charged your card and sent the order to the warehouse. We ship the same day or the next business day.</p>
+      <p>Your customer paid you on Shopify. ${escapeHtml(paidLine)} We ship the same day or the next business day.</p>
       ${detailBlock([
         { label: "Products", html: productHtml },
         { label: "Shipping", html: money(input.shipping) },
-        { label: "Total charged", html: `<strong>${money(input.total)}</strong>` },
-        { label: "Card", html: `Ending ${escapeHtml(input.last4)}. It shows on your statement as <strong>THE PERFECT PART</strong>.` },
+        { label: "Order total", html: `<strong>${money(input.total)}</strong>` },
+        { label: "How it was paid", html: escapeHtml(paidLine) },
         { label: "Ship to", html: addressHtml },
         { label: "Warehouse", html: `Order ${input.warehouseId}` },
       ])}

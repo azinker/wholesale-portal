@@ -240,6 +240,14 @@ class BigCommerceClient {
     return res.data[0];
   }
 
+  async setStoreCredit(customerId: number, amount: number): Promise<void> {
+    guardWrite("setStoreCredit");
+    const next = Math.round(Math.max(0, amount) * 100) / 100;
+    await this.put(`${this.baseV3}/customers`, [
+      { id: customerId, store_credit_amounts: [{ amount: next }] },
+    ]);
+  }
+
   async updateCustomerGroup(customerId: number, groupId: number): Promise<void> {
     await this.put(`${this.baseV3}/customers`, [
       { id: customerId, customer_group_id: groupId },

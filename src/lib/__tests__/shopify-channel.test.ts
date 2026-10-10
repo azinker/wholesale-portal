@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { atLeastOneBusinessDayLater, easternMonthKey, expectedShipLabel } from "../shopify-channel/calendar";
 import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
-import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
+import { quoteChannelCharge, shippingForCountry, storeCreditSplit, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
 import { csvCell, plainText } from "../shopify-channel/catalog-export";
 import { buildListingCsv, type ExportItem } from "../shopify-channel/export-formats";
 import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
@@ -74,6 +74,9 @@ describe("shopify channel money", () => {
     expect(quote.shipping).toBe(18.99);
     expect(quote.total).toBe(56.49);
     expect(quote.soldFor).toBe(92);
+    expect(storeCreditSplit(50, 2.79)).toEqual({ credit: 2.79, card: 0 });
+    expect(storeCreditSplit(2, 10)).toEqual({ credit: 2, card: 8 });
+    expect(storeCreditSplit(0, 10)).toEqual({ credit: 0, card: 10 });
   });
 });
 

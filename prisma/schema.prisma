@@ -481,6 +481,7 @@ model ChannelOrder {
   shippingCharged  Decimal            @default(0) @map("shipping_charged") @db.Decimal(10, 2)
   amountCharged    Decimal            @default(0) @map("amount_charged") @db.Decimal(10, 2)
   amountRefunded   Decimal            @default(0) @map("amount_refunded") @db.Decimal(10, 2)
+  storeCreditApplied Decimal          @default(0) @map("store_credit_applied") @db.Decimal(10, 2)
   shipTo           Json?              @map("ship_to")
   lines            Json?
   checkoutNote     String?            @map("checkout_note")

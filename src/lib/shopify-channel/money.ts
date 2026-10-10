@@ -85,6 +85,14 @@ export function quoteChannelCharge(
   };
 }
 
+/** Store credit is used first. The card pays only what the credit does not cover. */
+export function storeCreditSplit(available: number, total: number): { credit: number; card: number } {
+  const safeAvailable = roundMoney(Math.max(0, available));
+  const safeTotal = roundMoney(Math.max(0, total));
+  const credit = roundMoney(Math.min(safeAvailable, safeTotal));
+  return { credit, card: roundMoney(safeTotal - credit) };
+}
+
 export function addressIsComplete(input: {
   street?: string | null;
   country?: string | null;

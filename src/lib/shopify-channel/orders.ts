@@ -8,7 +8,7 @@ import {
 } from "@/lib/tier-engine";
 import { atLeastOneBusinessDayLater } from "./calendar";
 import { decidePaidOrder } from "./decide";
-import { quoteChannelCharge, roundMoney, warehouseCountry } from "./money";
+import { quoteChannelCharge, roundMoney, storeCreditSplit, warehouseCountry } from "./money";
 import { sendChannelAttentionEmail, sendChannelCardReminderEmail, sendChannelChargedEmail, sendChannelRefundEmail } from "@/lib/email";
 import { emailWholesaleDesk } from "./notify";
 import { isShopifyChannelEnabled } from "./settings";
@@ -186,6 +186,16 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
     destination.country
   );
 
+  let bcCustomerId: number | null = connection.account.customerId;
+  try {
+    bcCustomerId = await dropshipperCustomerId(connection.account);
+  } catch (error) {
+    console.error("Warehouse customer lookup failed:", error);
+  }
+  const availableCredit = await readStoreCredit(bcCustomerId);
+  const split = storeCreditSplit(availableCredit, quote.total);
+  const creditCoversOrder = quote.total > 0 && split.card === 0;
+
   const channelEnabled = await isShopifyChannelEnabled();
   const decision = decidePaidOrder({
     financialStatus: order.financial_status,
@@ -196,7 +206,7 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
     country: destination.country,
     phone: destination.phone,
     stockOk: stockOk && quotedLines.length === (order.line_items || []).length,
-    hasCard: Boolean(connection.account.sellerPaymentMethod),
+    hasCard: Boolean(connection.account.sellerPaymentMethod) || creditCoversOrder,
   });
 
   if (decision.action === "ignore") return;
@@ -271,18 +281,43 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
   }
 
   const card = connection.account.sellerPaymentMethod;
-  if (!card) return;
+  let creditApplied = roundMoney(Number(saved.storeCreditApplied || 0));
+  let cardDue = roundMoney(Math.max(0, quote.total - creditApplied));
+  if (creditApplied === 0 && split.credit > 0 && bcCustomerId && !saved.stripeChargeId && saved.status !== "CHARGED") {
+    try {
+      await bc().setStoreCredit(bcCustomerId, roundMoney(availableCredit - split.credit));
+      creditApplied = split.credit;
+      cardDue = split.card;
+      await db.channelOrder.update({
+        where: { id: saved.id },
+        data: { storeCreditApplied: creditApplied },
+      });
+    } catch (error) {
+      console.error("Store credit was not applied:", error);
+      creditApplied = 0;
+      cardDue = quote.total;
+    }
+  }
 
   const attempts = saved.chargeAttempts;
   let chargeId = saved.stripeChargeId;
-  if (!chargeId) {
+  if (cardDue > 0 && !chargeId) {
+    if (!card) {
+      await giveStoreCreditBack(bcCustomerId, creditApplied);
+      await db.channelOrder.update({
+        where: { id: saved.id },
+        data: { storeCreditApplied: 0, status: "NEEDS_ATTENTION", attentionNote: "card_missing" },
+      });
+      await sendChannelAttentionEmail({ to: accountEmail, orderName, reason: "card_missing" });
+      return;
+    }
     let lastError = "Card declined";
     for (let attempt = attempts + 1; attempt <= 2 && !chargeId; attempt++) {
       try {
         const charged = await chargeCard({
           customerId: card.stripeCustomerId,
           paymentMethodId: card.stripePaymentMethodId,
-          amountCents: Math.round(quote.total * 100),
+          amountCents: Math.round(cardDue * 100),
           idempotencyKey: `channel-${connection.id}-${shopifyOrderId}-${attempt}`,
           description: `Wholesale ${orderName}`,
         });
@@ -291,7 +326,8 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
           where: { id: saved.id },
           data: {
             stripeChargeId: chargeId,
-            amountCharged: quote.total,
+            amountCharged: cardDue,
+            storeCreditApplied: creditApplied,
             chargedAt: new Date(),
             chargeAttempts: attempt,
             status: "CHARGED",
@@ -307,9 +343,10 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       }
     }
     if (!chargeId) {
+      await giveStoreCreditBack(bcCustomerId, creditApplied);
       await db.channelOrder.update({
         where: { id: saved.id },
-        data: { status: "NEEDS_ATTENTION", attentionNote: "card_declined", error: lastError },
+        data: { storeCreditApplied: 0, status: "NEEDS_ATTENTION", attentionNote: "card_declined", error: lastError },
       });
       await sendChannelAttentionEmail({
         to: accountEmail,
@@ -318,14 +355,25 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       });
       await emailWholesaleDesk(
         `Credit card declined for ${orderName}`,
-        `${connection.account.companyName} ${orderName} amount ${quote.total.toFixed(2)} was not charged. ${lastError}`
+        `${connection.account.companyName} ${orderName} amount ${cardDue.toFixed(2)} was not charged. ${lastError}`
       );
       return;
     }
+  } else if (cardDue === 0 && !chargeId) {
+    await db.channelOrder.update({
+      where: { id: saved.id },
+      data: {
+        amountCharged: 0,
+        storeCreditApplied: creditApplied,
+        chargedAt: saved.chargedAt || new Date(),
+        status: "CHARGED",
+        error: null,
+      },
+    });
   }
 
   try {
-    const customerId = await dropshipperCustomerId(connection.account);
+    const customerId = bcCustomerId ?? await dropshipperCustomerId(connection.account);
     const warehouse = await bc().createOrder(
       warehouseOrder({
         customerId,
@@ -338,7 +386,9 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
         lines: quotedLines,
         shipping: quote.shipping,
         note: order.note || "",
-        staff: `${orderName}. Stripe ${chargeId}`,
+        staff: [orderName, creditApplied > 0 ? `Store credit ${creditApplied.toFixed(2)}` : "", chargeId ? `Stripe ${chargeId}` : ""]
+          .filter(Boolean)
+          .join(". "),
       })
     );
     await db.channelOrder.update({
@@ -352,25 +402,36 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       lines: quotedLines.map((line) => ({ title: line.title, quantity: line.quantity, unitCost: line.unitCost })),
       shipping: quote.shipping,
       total: quote.total,
-      last4: card.last4,
+      cardCharged: cardDue,
+      storeCredit: creditApplied,
+      last4: card?.last4 || "",
       shipTo: destination,
       warehouseId: warehouse.id,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Warehouse order failed";
     let refundNote = message;
+    let cardRefunded = 0;
     if (chargeId) {
       try {
         await refundCharge(chargeId);
+        cardRefunded = cardDue;
       } catch (refundError) {
         refundNote = `${message}. Refund also failed: ${refundError instanceof Error ? refundError.message : "unknown"}`;
       }
+    }
+    let creditRestored = 0;
+    if (creditApplied > 0 && (!chargeId || cardRefunded > 0)) {
+      const restored = await giveStoreCreditBack(bcCustomerId, creditApplied);
+      if (restored) creditRestored = creditApplied;
+      else refundNote = `${refundNote}. Store credit was not put back.`;
     }
     await db.channelOrder.update({
       where: { id: saved.id },
       data: {
         status: "FAILED",
-        amountRefunded: quote.total,
+        amountRefunded: cardRefunded,
+        storeCreditApplied: creditRestored > 0 ? 0 : creditApplied,
         error: refundNote,
         attentionNote: "warehouse_create_failed",
       },
@@ -379,13 +440,36 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
       to: accountEmail,
       orderName,
       orderId: saved.id,
-      amount: quote.total,
+      amount: cardRefunded,
+      storeCredit: creditRestored,
       reason: message,
     });
     await emailWholesaleDesk(
       `Warehouse order failed for ${orderName}`,
       `${connection.account.companyName} ${orderName} was refunded after the warehouse order failed. ${message}`
     );
+  }
+}
+
+async function readStoreCredit(customerId: number | null): Promise<number> {
+  if (!customerId) return 0;
+  try {
+    const customer = await bc().getCustomerById(customerId);
+    return roundMoney(Number(customer?.store_credit_amounts?.[0]?.amount || 0));
+  } catch {
+    return 0;
+  }
+}
+
+async function giveStoreCreditBack(customerId: number | null, amount: number): Promise<boolean> {
+  if (!customerId || amount <= 0) return false;
+  try {
+    const current = await readStoreCredit(customerId);
+    await bc().setStoreCredit(customerId, roundMoney(current + amount));
+    return true;
+  } catch (error) {
+    console.error("Store credit was not put back:", error);
+    return false;
   }
 }
 

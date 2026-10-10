@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { bc } from "@/lib/bigcommerce/client";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
@@ -64,6 +65,15 @@ export default async function BillingPage({
   }
 
   const card = await db.sellerPaymentMethod.findUnique({ where: { accountId: account.id } });
+  let storeCredit = 0;
+  if (account.customerId) {
+    try {
+      const customer = await bc().getCustomerById(account.customerId);
+      storeCredit = Number(customer?.store_credit_amounts?.[0]?.amount || 0);
+    } catch {
+      storeCredit = 0;
+    }
+  }
   const stored = await db.channelOrder.findMany({
     where: { accountId: account.id, shopifyOrderId: { not: "preview" } },
     orderBy: { createdAt: "desc" },
@@ -92,8 +102,16 @@ export default async function BillingPage({
       <ChannelHeading
         kicker="Shopify"
         title="Billing"
-        lede="When your customer pays, we charge the card saved here. You'll see THE PERFECT PART on your statement."
+        lede="When your customer pays, store credit is applied automatically to new orders, then the rest goes on the card saved here. US shipping is free. A shipment outside the US is $18.99, and your coupon still discounts the product price. You'll see THE PERFECT PART on your statement."
       />
+
+      <ChannelPanel className="px-5 py-4">
+        <p className="text-xs font-medium text-[#5c5654]">Store credit available</p>
+        <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-emerald-700">{money(storeCredit)}</p>
+        <p className="mt-1 text-sm leading-6 text-[#3f3a38]">
+          Store credit is applied automatically to new orders. We use it before your card. Orders that already happened stay as they are.
+        </p>
+      </ChannelPanel>
 
       <div className="grid gap-3 md:grid-cols-3">
         {stats.map((stat, index) => (
@@ -149,11 +167,12 @@ export default async function BillingPage({
                 </div>
                 <StatusPill tone={toneFor(focused.status)} tip={focused.status === "SUBMITTED" ? gettingReadyTip(focused.chargedAt || focused.createdAt) : undefined}>{statusLabel(focused.status)}</StatusPill>
               </div>
-              <dl className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-4">
+              <dl className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-5">
                 <div><dt className="text-[#5c5654]">Buyer paid</dt><dd className="font-semibold tabular-nums">{money(Number(focused.soldFor))}</dd></div>
                 <div><dt className="text-[#5c5654]">Product cost</dt><dd className="font-semibold tabular-nums">{money(Number(focused.goodsCharged))}</dd></div>
                 <div><dt className="text-[#5c5654]">Shipping</dt><dd className="font-semibold tabular-nums">{money(Number(focused.shippingCharged))}</dd></div>
-                <div><dt className="text-[#5c5654]">{wasCharged(focused) ? "Charged" : "Not charged yet"}</dt><dd className="font-semibold tabular-nums">{money(netCharged(focused))}</dd></div>
+                <div><dt className="text-[#5c5654]">Store credit</dt><dd className="font-semibold tabular-nums text-emerald-700">{money(Number(focused.storeCreditApplied || 0))}</dd></div>
+                <div><dt className="text-[#5c5654]">{wasCharged(focused) ? "Card charged" : Number(focused.storeCreditApplied || 0) > 0 ? "Card charged" : "Not charged yet"}</dt><dd className="font-semibold tabular-nums">{Number(focused.storeCreditApplied || 0) > 0 && netCharged(focused) <= 0 ? "None" : money(netCharged(focused))}</dd></div>
               </dl>
               <div className="px-5 pb-4">
                 <Link href={`/my-shopify/orders/${focused.id}`} className="text-sm font-semibold text-primary hover:underline">Back to this order</Link>
@@ -186,13 +205,14 @@ export default async function BillingPage({
             const monthOrders = orders.filter((order) => easternMonthKey(order.createdAt) === month && order.status !== "NEEDS_ATTENTION");
             const monthSold = monthOrders.reduce((sum, order) => sum + Number(order.soldFor), 0);
             const monthCharged = monthOrders.reduce((sum, order) => sum + Number(order.amountCharged) - Number(order.amountRefunded), 0);
+            const monthCredit = monthOrders.reduce((sum, order) => sum + Number(order.storeCreditApplied || 0), 0);
             return (
               <ChannelPanel key={month} className="overflow-hidden">
                 <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#f0ebe8] px-5 py-4">
                   <div>
                     <h2 className="font-display text-xl font-semibold">{month}</h2>
                     <p className="text-sm text-[#5c5654]">
-                      {monthOrders.length} orders · buyers paid {money(monthSold)} · charged {money(monthCharged)} · margin {money(monthSold - monthCharged)}
+                      {monthOrders.length} orders · buyers paid {money(monthSold)} · card {money(monthCharged)}{monthCredit > 0 ? ` · store credit ${money(monthCredit)}` : ""} · margin {money(monthSold - monthCharged - monthCredit)}
                     </p>
                   </div>
                   <a className="cursor-pointer text-sm font-semibold text-primary hover:underline" href={`/api/portal/shopify-channel/invoice?month=${month}`}>
@@ -214,6 +234,7 @@ export default async function BillingPage({
                     <tbody>
                       {monthOrders.map((order) => {
                         const net = Number(order.amountCharged) - Number(order.amountRefunded);
+                        const credit = Number(order.storeCreditApplied || 0);
                         return (
                           <tr key={order.id} id={order.id === focused?.id ? "charge-row" : undefined} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${order.id === focused?.id ? "bg-[#fdf6f6]" : ""}`}>
                             <td className="px-4 py-3">
@@ -221,13 +242,21 @@ export default async function BillingPage({
                             </td>
                             <td className="px-3 py-3 tabular-nums">{money(Number(order.soldFor))}</td>
                             <td className="px-3 py-3 tabular-nums">
-                              {money(net)}
+                              {credit > 0 && net <= 0 ? "Store credit" : money(net)}
+                              {credit > 0 && (
+                                <span className="block text-xs font-semibold text-emerald-700">Store credit {money(credit)}</span>
+                              )}
                               {Number(order.amountRefunded) > 0 && (
                                 <span className="block text-xs text-[#5c5654]">Refunded {money(Number(order.amountRefunded))}</span>
                               )}
                             </td>
-                            <td className="px-3 py-3 tabular-nums">{money(Number(order.shippingCharged))}</td>
-                            <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(Number(order.soldFor) - net)}</td>
+                            <td className="px-3 py-3 tabular-nums">
+                              {money(Number(order.shippingCharged))}
+                              <span className="block text-xs text-[#5c5654]">
+                                {Number(order.shippingCharged) > 0 ? "Outside the US, $18.99" : "US, free"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(Number(order.soldFor) - net - credit)}</td>
                             <td className="px-4 py-3"><StatusPill tone={toneFor(order.status)} tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}>{statusLabel(order.status)}</StatusPill></td>
                           </tr>
                         );

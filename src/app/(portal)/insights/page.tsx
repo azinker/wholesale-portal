@@ -355,7 +355,7 @@ export default async function InsightsPage() {
                 <li>Qualifying orders must be <strong>shipped or completed</strong> within a rolling {tierWindowLabel} window.</li>
                 <li>Consolidate purchases early in the week to hit tier thresholds faster.</li>
                 {nextTier && <li>At your current pace, focus on {ordersToNext} more orders to unlock {nextTier.discount}% off.</li>}
-                <li>Your promo code stacks with free Flat Rate shipping on US orders.</li>
+                <li>Your coupon discounts the product price everywhere. Shipping is free in the US and $18.99 per shipment outside the US.</li>
                 <li>Tiers recalculate daily — consistent ordering keeps your discount active.</li>
               </ul>
             </div>

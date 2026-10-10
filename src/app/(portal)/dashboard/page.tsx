@@ -4,13 +4,13 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Ticket, Lock, Gift, DollarSign } from "lucide-react";
+import { ArrowRight, TrendingUp, Package, AlertCircle, Clock, XCircle, ShoppingCart, Megaphone, Lock, Gift } from "lucide-react";
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { loadTierWindowDays, loadTiers, loadWelcomeConfig, isWelcomeActive, tierFromCount, type TierDef } from "@/lib/tier-engine";
 import { formatTierWindowLabel } from "@/lib/tier-window";
 import { DashboardOnboarding } from "./dashboard-onboarding";
-import { CopyCouponButton } from "./copy-coupon-button";
+import { WholesaleWallet } from "./wholesale-wallet";
 import { WelcomeCountdown } from "./welcome-countdown";
 import { TierActivatesCountdown } from "./tier-activates-countdown";
 import { DashboardRecalcTrigger } from "./dashboard-recalc-trigger";
@@ -143,6 +143,15 @@ export default async function DashboardPage() {
         </Card>
       )}
 
+      {status === "APPROVED" && (
+        <WholesaleWallet
+          email={user.email}
+          code={activePromo?.code ?? null}
+          discountLabel={await couponDiscountLabel(activePromo)}
+          storeCredit={storeCredit}
+        />
+      )}
+
       {/* Onboarding Checklist */}
       {onboardingData && (
         <DashboardOnboarding
@@ -153,7 +162,7 @@ export default async function DashboardPage() {
       )}
 
       {status === "APPROVED" && (
-        <HowToStart email={user.email} couponCode={activePromo?.code ?? null} />
+        <HowToStart email={user.email} />
       )}
 
       {/* Announcements Widget - above progress for all statuses */}
@@ -208,22 +217,29 @@ export default async function DashboardPage() {
       {status === "APPROVED" && (
         <ApprovedDashboardWrapper
           account={account!}
-          activePromo={activePromo}
           pausedUpgrades={account!.pausedUpgrades}
           welcomeExpiresAt={account!.welcomeExpiresAt?.toISOString() ?? null}
-          storeCredit={storeCredit}
         />
       )}
     </div>
   );
 }
 
+async function couponDiscountLabel(promo: { tier: string } | null): Promise<string | null> {
+  if (!promo) return null;
+  if (promo.tier === "WELCOME") {
+    const welcome = await loadWelcomeConfig();
+    return `${welcome.discount}% off`;
+  }
+  const tiers = await loadTiers();
+  const match = tiers.find((tier) => tier.id === promo.tier);
+  return match ? `${match.discount}% off` : null;
+}
+
 async function ApprovedDashboardWrapper({
   account,
-  activePromo,
   pausedUpgrades,
   welcomeExpiresAt,
-  storeCredit,
 }: {
   account: {
     lastTier: string;
@@ -231,10 +247,8 @@ async function ApprovedDashboardWrapper({
     companyName: string;
     alias: string;
   };
-  activePromo: { code: string; tier: string } | null;
   pausedUpgrades: boolean;
   welcomeExpiresAt: string | null;
-  storeCredit: number;
 }) {
   const tierDefs = await loadTiers();
   const welcomeConfig = await loadWelcomeConfig();
@@ -251,28 +265,24 @@ async function ApprovedDashboardWrapper({
   return (
     <ApprovedDashboard
       account={account}
-      activePromo={activePromo}
       pausedUpgrades={pausedUpgrades}
       tierDefs={tierDefs}
       welcomeExpiresAt={welcomeActive ? welcomeExpiresAt : null}
       welcomeDiscount={welcomeConfig.discount}
       earnedTierIdWhenWelcome={earnedTierIdWhenWelcome}
       tierWindowDays={tierWindowDays}
-      storeCredit={storeCredit}
     />
   );
 }
 
 function ApprovedDashboard({
   account,
-  activePromo,
   pausedUpgrades,
   tierDefs,
   welcomeExpiresAt,
   welcomeDiscount,
   earnedTierIdWhenWelcome,
   tierWindowDays,
-  storeCredit,
 }: {
   account: {
     lastTier: string;
@@ -280,11 +290,9 @@ function ApprovedDashboard({
     companyName: string;
     alias: string;
   };
-  activePromo: { code: string; tier: string } | null;
   pausedUpgrades: boolean;
   tierDefs: TierDef[];
   welcomeExpiresAt: string | null;
-  storeCredit: number;
   welcomeDiscount: number;
   earnedTierIdWhenWelcome: string | null;
   tierWindowDays: number;
@@ -324,11 +332,6 @@ function ApprovedDashboard({
   const progress = nextTier ? Math.min((count / nextTier.min) * 100, 100) : 100;
 
   const isWelcomeTier = account.lastTier === "WELCOME";
-  const promoTierConfig = activePromo
-    ? isWelcomeTier
-      ? { id: "WELCOME", label: `Welcome ${welcomeDiscount}% Off`, min: 0, max: 0, discount: welcomeDiscount }
-      : tiers.find((t) => t.id === activePromo.tier) ?? null
-    : null;
 
   return (
     <>
@@ -353,82 +356,6 @@ function ApprovedDashboard({
                 <div className="mt-3">
                   <WelcomeCountdown expiresAt={welcomeExpiresAt} />
                 </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Coupon Code Section */}
-      {activePromo && promoTierConfig ? (
-        <Card className="border-success/40 bg-success/5">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-start gap-4">
-              <div className="bg-success/10 rounded-full p-2.5 flex-shrink-0">
-                <Ticket className="h-5 w-5 text-success" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-semibold">Your Wholesale Coupon</h3>
-                  <Badge className="bg-success text-white text-[10px]">
-                    {promoTierConfig.discount}% Off
-                  </Badge>
-                  {isWelcomeTier && (
-                    <Badge className="bg-purple-600 text-white text-[10px]">
-                      Welcome
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mt-2">
-                  <code className="text-lg font-bold font-mono tracking-wider bg-white border border-success/30 rounded-lg px-4 py-2 text-success select-all">
-                    {activePromo.code}
-                  </code>
-                  <CopyCouponButton code={activePromo.code} />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  <strong className="text-foreground">Sign in to theperfectpart.net with your registered email</strong> and enter this code at checkout to receive your discount, free shipping, and tax-free pricing. This code cannot be combined with other promotions and is tracked &mdash; sharing will result in termination.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-muted">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-start gap-4">
-              <div className="bg-muted rounded-full p-2.5 flex-shrink-0">
-                <Ticket className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold">No Active Coupon</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Reach {tiers[0]?.min ?? 5} qualifying orders in {tierWindowLabel} to unlock your first coupon code ({tiers[0]?.label ?? "10% Off"}).
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Store Credit */}
-      {storeCredit > 0 && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-start gap-4">
-              <div className="bg-primary/10 rounded-full p-2.5 flex-shrink-0">
-                <DollarSign className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold mb-1">Store Credit Available</h3>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold text-primary font-mono">
-                    ${storeCredit.toFixed(2)}
-                  </span>
-                  <span className="text-sm text-muted-foreground">available to use</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Your store credit will automatically apply at checkout on theperfectpart.net.
-                </p>
               </div>
             </div>
           </CardContent>
@@ -586,7 +513,7 @@ function ApprovedDashboard({
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">
-                  + Free Flat Rate Shipping (US only)
+                  Product discount everywhere. Free shipping in the US. $18.99 outside the US.
                 </p>
               </CardContent>
             </Card>
@@ -600,9 +527,9 @@ function ApprovedDashboard({
           <CardContent className="pt-4 pb-4 flex items-start gap-3">
             <AlertCircle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-warning">US Orders Only</p>
+              <p className="text-sm font-medium text-warning">Your discount</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Discounts and free shipping apply only to US orders.
+                Your coupon discounts the product price on every order, in the US and outside the US. It does not discount the shipping fee.
               </p>
             </div>
           </CardContent>
@@ -611,9 +538,9 @@ function ApprovedDashboard({
           <CardContent className="pt-4 pb-4 flex items-start gap-3">
             <Package className="h-4 w-4 text-info flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-info">Flat Rate Shipping Only</p>
+              <p className="text-sm font-medium text-info">Shipping</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Free shipping applies to &quot;Flat Rate&quot; method only.
+                US addresses are free, including PO Boxes, Alaska, and Hawaii. A shipment outside the US is $18.99. Shopify orders work the same way, and Billing shows that fee.
               </p>
             </div>
           </CardContent>

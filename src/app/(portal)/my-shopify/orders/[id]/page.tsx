@@ -58,6 +58,7 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
   const charged = Number(order.amountCharged);
   const refunded = Number(order.amountRefunded);
   const net = charged - refunded;
+  const credit = Number(order.storeCreditApplied || 0);
   const goods = lines.reduce((sum, line) => sum + Number(line.lineCost || 0), 0);
   const preview = order.shopifyOrderId === "preview";
   const adminUrl = preview
@@ -193,9 +194,10 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
               <div className="flex justify-between gap-3"><dt className="inline-flex items-center gap-1.5 text-white/70">Buyer paid <Tip tone="dark" text="What your customer paid you on Shopify." /></dt><dd className="tabular-nums">{money(sold)}</dd></div>
               <div className="flex justify-between gap-3"><dt className="inline-flex items-center gap-1.5 text-white/70">Our product cost <Tip tone="dark" text="The wholesale cost for the products. This is what the product portion of the charge is based on." /></dt><dd className="tabular-nums">{money(goods || Number(order.goodsCharged))}</dd></div>
               <div className="flex justify-between gap-3"><dt className="inline-flex items-center gap-1.5 text-white/70">Shipping we charged <Tip tone="dark" text="US addresses are $0. Every other country is $18.99 once for the order." /></dt><dd className="tabular-nums">{money(Number(order.shippingCharged))}</dd></div>
-              <div className="flex justify-between gap-3 border-t border-white/15 pt-2"><dt className="inline-flex items-center gap-1.5">Total we charged <Tip tone="dark" text="Taken from your card when the customer paid, before we ship." /></dt><dd className="tabular-nums font-semibold">{money(net)}</dd></div>
+              {credit > 0 && <div className="flex justify-between gap-3 text-emerald-300"><dt className="inline-flex items-center gap-1.5">Store credit <Tip tone="dark" text="Applied automatically to this order before the card. Your card was not charged for this part." /></dt><dd className="tabular-nums font-semibold">{money(credit)}</dd></div>}
+              <div className="flex justify-between gap-3 border-t border-white/15 pt-2"><dt className="inline-flex items-center gap-1.5">Card charged <Tip tone="dark" text="Taken from your card when the customer paid, after store credit. Store credit is applied automatically to new orders." /></dt><dd className="tabular-nums font-semibold">{credit > 0 && net <= 0 ? "None" : money(net)}</dd></div>
               {refunded > 0 && <div className="flex justify-between gap-3"><dt className="text-white/70">Refunded</dt><dd className="tabular-nums">{money(refunded)}</dd></div>}
-              <div className="flex justify-between gap-3 text-emerald-300"><dt>Margin</dt><dd className="tabular-nums font-semibold">{money(sold - net)}</dd></div>
+              <div className="flex justify-between gap-3 text-emerald-300"><dt>Margin</dt><dd className="tabular-nums font-semibold">{money(sold - net - credit)}</dd></div>
             </dl>
             <p className="mt-3 text-xs text-white/60">Before Shopify fees, which we do not know.</p>
           </ChannelPanel>

@@ -4,7 +4,7 @@ import { getPortalNav } from "../portal-nav";
 describe("getPortalNav", () => {
   it("preserves every reseller navigation route", () => {
     expect(getPortalNav("DROPSHIPPER", "APPROVED").map((item) => item.href)).toEqual([
-      "/dashboard", "/hot-sellers", "/orders", "/tracking", "/insights",
+      "/dashboard", "/export", "/hot-sellers", "/orders", "/tracking", "/insights",
       "/margin-calculator", "/documents", "/profile", "/team", "/support", "/terms",
     ]);
   });
@@ -28,10 +28,13 @@ describe("getPortalNav", () => {
     const nav = getPortalNav("DROPSHIPPER", "APPROVED", true);
     const shopify = nav.find((item) => item.label === "Shopify");
     const hrefs = shopify?.children?.map((item) => item.href) ?? [];
-    expect(hrefs).toEqual(["/catalog", "/export", "/my-shopify/orders", "/billing", "/my-shopify"]);
+    expect(hrefs).toEqual(["/catalog", "/my-shopify/orders", "/billing", "/my-shopify"]);
+    expect(nav.map((item) => item.href)).toContain("/export");
+    expect(nav.findIndex((item) => item.href === "/export")).toBeLessThan(nav.findIndex((item) => item.label === "Shopify"));
     expect(nav.map((item) => item.href)).not.toContain("/hot-sellers");
     expect(nav.find((item) => item.href === "/orders")?.label).toBe("Purchases");
     expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED", true).some((item) => item.label === "Shopify")).toBe(false);
+    expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED").some((item) => item.href === "/export")).toBe(false);
     expect(getPortalNav("DROPSHIPPER", "PENDING", true).some((item) => item.label === "Shopify")).toBe(false);
   });
 });

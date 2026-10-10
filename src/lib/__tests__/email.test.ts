@@ -45,6 +45,9 @@ describe("sendApplicantApprovalEmail", () => {
     expect(payload.html).toContain("Acme Corp");
     expect(payload.html).toContain("wholesale.example.com/login");
     expect(payload.html).toContain("You&rsquo;re Approved");
+    expect(payload.html).toContain("Have a problem?");
+    expect(payload.html).toContain("wholesale.example.com/support");
+    expect(payload.text).toContain("Contact Support");
   });
 
   it("sends a denial email with the reason and reapply link", async () => {

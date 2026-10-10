@@ -31,6 +31,7 @@ export interface BCOrder {
   items_total: number;
   billing_address: { country: string; country_iso2: string };
   external_source?: string;
+  staff_notes?: string;
   products?: { url: string };
   shipping_addresses?: { url: string };
   coupons?: { url: string };
@@ -307,6 +308,15 @@ class BigCommerceClient {
 
   async cancelOrder(orderId: number): Promise<void> {
     await this.put(`${this.baseV2}/orders/${orderId}`, { status_id: 5 });
+  }
+
+  async updateOrderStatus(orderId: number, statusId: number, note: string): Promise<void> {
+    const existing = await this.getOrderById(orderId);
+    const prior = existing?.staff_notes?.trim() || "";
+    await this.put(`${this.baseV2}/orders/${orderId}`, {
+      status_id: statusId,
+      staff_notes: prior ? `${prior}\n${note}` : note,
+    });
   }
 
   async getOrderById(orderId: number): Promise<BCOrder | null> {

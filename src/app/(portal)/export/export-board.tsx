@@ -5,8 +5,17 @@ import { channelField, channelGhostBtn, channelPrimaryBtn } from "../channel-ui"
 
 type Product = { id: number; name: string; price: number; image: string | null };
 type Job = { id: string; status: string; total: number; done: number; error: string | null };
+type Format = "manual" | "shopify" | "bigcommerce" | "woocommerce";
+
+const FORMATS: Array<{ id: Format; label: string; hint: string }> = [
+  { id: "manual", label: "Manual", hint: "Simple spreadsheet" },
+  { id: "shopify", label: "Shopify", hint: "Shopify import" },
+  { id: "bigcommerce", label: "BigCommerce", hint: "BigCommerce import" },
+  { id: "woocommerce", label: "WooCommerce", hint: "WooCommerce import" },
+];
 
 export function ExportBoard({ readyId }: { readyId?: string }) {
+  const [format, setFormat] = useState<Format>("manual");
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -57,7 +66,7 @@ export function ExportBoard({ readyId }: { readyId?: string }) {
     const res = await fetch("/api/portal/catalog-export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productIds: ids }),
+      body: JSON.stringify({ productIds: ids, format }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -88,6 +97,25 @@ export function ExportBoard({ readyId }: { readyId?: string }) {
         />
         <button className={channelGhostBtn} type="submit">Search</button>
       </form>
+
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Export format">
+        {FORMATS.map((choice) => {
+          const selectedFormat = format === choice.id;
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              role="radio"
+              aria-checked={selectedFormat}
+              className={selectedFormat ? channelPrimaryBtn : channelGhostBtn}
+              onClick={() => setFormat(choice.id)}
+            >
+              {choice.label}
+              <span className={"ml-2 text-xs font-normal " + (selectedFormat ? "text-white/80" : "text-[#5c5654]")}>{choice.hint}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <button className={channelPrimaryBtn} type="button" disabled={selected.length === 0 || job?.status === "RUNNING" || job?.status === "QUEUED"} onClick={() => start(selected)}>

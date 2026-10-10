@@ -29,16 +29,21 @@ export async function POST(req: NextRequest) {
   await refundCharge(order.stripeChargeId, Math.round(amount * 100));
   const refunded = roundMoney(Number(order.amountRefunded) + amount);
   const alreadyShipped = order.status === "SHIPPED";
-  let shipmentStopped = false;
-  if (body.cancelWarehouse && order.bcOrderId && !alreadyShipped) {
+  const fullyRefunded = refunded >= Number(order.amountCharged);
+  const stopShipment = Boolean(body.cancelWarehouse) && !alreadyShipped;
+  const statusId = stopShipment || (fullyRefunded && !alreadyShipped) ? 5 : fullyRefunded ? 4 : 14;
+  let warehouseStatus: "cancelled" | "refunded" | "partial" | "unchanged" = "unchanged";
+  if (order.bcOrderId) {
+    const note = fullyRefunded
+      ? "The Perfect Part refunded the dropshipper's card for this Shopify order. This does not refund the customer who bought it on their store."
+      : "The Perfect Part refunded part of the dropshipper's card for this Shopify order. This does not refund the customer who bought it on their store.";
     try {
-      await bc().cancelOrder(order.bcOrderId);
-      shipmentStopped = true;
+      await bc().updateOrderStatus(order.bcOrderId, statusId, note);
+      warehouseStatus = statusId === 5 ? "cancelled" : statusId === 4 ? "refunded" : "partial";
     } catch (error) {
-      console.error("Warehouse cancel after refund failed:", error);
+      console.error("Warehouse status after refund failed:", error);
     }
   }
-  const fullyRefunded = refunded >= Number(order.amountCharged);
   await db.channelOrder.update({
     where: { id: order.id },
     data: {
@@ -56,7 +61,7 @@ export async function POST(req: NextRequest) {
         shopifyOrderName: order.shopifyOrderName,
         accountEmail: order.account.email,
         amount,
-        shipmentStopped,
+        warehouseStatus,
         alreadyShipped,
       },
     },
@@ -66,8 +71,7 @@ export async function POST(req: NextRequest) {
     orderName: order.shopifyOrderName,
     orderId: order.id,
     amount,
-    shipmentStopped,
-    alreadyShipped,
+    warehouseStatus,
   });
-  return NextResponse.json({ ok: true, refunded, shipmentStopped });
+  return NextResponse.json({ ok: true, refunded, shipmentStopped: warehouseStatus === "cancelled" });
 }

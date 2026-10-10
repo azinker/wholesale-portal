@@ -214,7 +214,8 @@ function orderStory(status: string, enabled: boolean, attention: string | null):
     return attentionLabel(attention) || "This order needs a look before we can charge your card and ship it.";
   }
   if (status === "CHARGED") return "Your card was charged when the customer paid. We're sending this to the warehouse next.";
-  if (status === "SUBMITTED" || status === "PICKING") return "We received this order and it's waiting to ship. It usually goes out within 1 business day.";
+  if (status === "SUBMITTED") return "We received this order and it's waiting to ship. It usually goes out within 1 business day. Weekends and USPS holidays are not shipping days. Hover Getting ready for the expected ship date.";
+  if (status === "PICKING") return "We received this order and it's being packed. It usually goes out within 1 business day. Weekends and USPS holidays are not shipping days.";
   if (status === "SHIPPED") return "We shipped this and put the tracking on your Shopify order.";
   if (status === "REFUNDED") return "This charge was refunded. Nothing is shipping.";
   return "We charge your card when the customer pays, then we ship.";

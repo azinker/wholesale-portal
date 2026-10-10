@@ -97,6 +97,7 @@ function brandedEmail(bodyHtml: string): string {
                 <tr>
                   <td style="padding:32px 32px 28px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.6;color:#3f3f46;">
                     ${bodyHtml}
+                    ${supportBlock()}
                   </td>
                 </tr>
               </table>
@@ -126,6 +127,22 @@ function brandedEmail(bodyHtml: string): string {
   </table>
 </body>
 </html>`;
+}
+
+function supportPageUrl(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  return `${appUrl.replace(/\/$/, "")}/support`;
+}
+
+function withSupportText(text: string): string {
+  return `${text}\n\nHave a problem? Contact Support. We reply the same business day, or within 1 business day.\n${supportPageUrl()}`;
+}
+
+function supportBlock(): string {
+  return `<hr style="border:none;border-top:1px solid #e4e4e7;margin:28px 0 16px 0;" />
+<p style="margin:0 0 4px 0;font-size:14px;font-weight:700;color:${BRAND_DARK};">Have a problem?</p>
+<p style="margin:0 0 12px 0;font-size:14px;color:#3f3f46;">Contact Support. We reply the same business day, or within 1 business day.</p>
+${ctaButton(supportPageUrl(), "Contact Support")}`;
 }
 
 /** Reusable CTA button */
@@ -188,7 +205,7 @@ async function sendBrandedEmail({
       replyTo: replyTo || getEmailReplyTo(),
       subject,
       html: brandedEmail(bodyHtml),
-      text,
+      text: withSupportText(text),
     });
 
     if (error) {
@@ -245,7 +262,7 @@ export async function sendMagicLink(email: string, token: string): Promise<void>
     replyTo: getEmailReplyTo(),
     subject: "Sign in to your partner dashboard — The Perfect Part",
     html,
-    text,
+    text: withSupportText(text),
   });
 
   if (error) {
@@ -301,7 +318,7 @@ export async function sendApplicantApprovalEmail(to: string, companyName: string
       replyTo: getEmailReplyTo(),
       subject: "Your wholesale account has been approved — The Perfect Part",
       html,
-      text,
+      text: withSupportText(text),
     });
     if (error) {
       console.error("Failed to send applicant approval email:", error);
@@ -355,7 +372,7 @@ export async function sendApplicantDenialEmail(to: string, companyName: string, 
       replyTo: getEmailReplyTo(),
       subject: "Wholesale application update - The Perfect Part",
       html,
-      text,
+      text: withSupportText(text),
     });
 
     if (error) {
@@ -838,18 +855,19 @@ export async function sendAdminChannelRefundEmail(input: {
   orderName: string;
   orderId: string;
   amount: number;
-  shipmentStopped: boolean;
-  alreadyShipped: boolean;
+  warehouseStatus: "cancelled" | "refunded" | "partial" | "unchanged";
 }): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
   const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
-  const supportUrl = `${appUrl}/support?category=shopify_order_change&order=${encodeURIComponent(input.orderName)}`;
   const amount = `$${input.amount.toFixed(2)}`;
-  const shipment = input.alreadyShipped
-    ? "This order already shipped. The package can still be on the way. This refund is only the wholesale charge on your card."
-    : input.shipmentStopped
-      ? "We also stopped the warehouse shipment, so this one will not go out."
-      : "The warehouse shipment was left as it is. If it has not shipped yet and you need it stopped, contact Support.";
+  const shipment = input.warehouseStatus === "cancelled"
+    ? "We marked the warehouse order Cancelled, so this one will not go out."
+    : input.warehouseStatus === "refunded"
+      ? "We marked the warehouse order Refunded. It had already shipped, so the package can still be on the way. This refund is only the wholesale charge on your card."
+      : input.warehouseStatus === "partial"
+        ? "We marked the warehouse order Partially Refunded."
+        : "We refunded your card. The warehouse order status could not be updated. If it has not shipped and you need it stopped, contact Support.";
+  const customer = "This does not refund the customer who placed the order on your Shopify store. Their payment stays with you until you refund them in Shopify.";
   const safeOrder = escapeHtml(input.orderName);
   await sendBrandedEmail({
     logLabel: "admin channel refund",
@@ -863,21 +881,18 @@ export async function sendAdminChannelRefundEmail(input: {
       ``,
       shipment,
       ``,
-      `This does not refund your customer. If you are canceling their order, refund them on Shopify.`,
+      customer,
       ``,
       `Open the order: ${orderUrl}`,
-      `Contact Support: ${supportUrl}`,
     ].join("\n"),
     bodyHtml: `
       <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We refunded your card</h1>
       <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${safeOrder} &mdash; ${amount} is going back to your card</p>
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
       <p>Your customer paid you on Shopify. We had charged your card so we could ship the order. Our team refunded that wholesale charge.</p>
-      ${infoBox(`<p style="margin:0;">${escapeHtml(shipment)}</p>`)}
-      <p>This refund goes to <strong>your</strong> card. It does not refund your customer. If you are canceling their order, refund them on Shopify.</p>
+      ${infoBox(`<p style="margin:0 0 8px 0;">${escapeHtml(shipment)}</p><p style="margin:0;"><strong>${escapeHtml(customer)}</strong></p>`)}
       <p>On your statement you should see the refund for <strong>${amount}</strong>. It may say Pending for a little while.</p>
       ${ctaButton(orderUrl, "Open this order")}
-      <p style="font-size:13px;color:#a1a1aa;margin:0;">Questions go to Support in your dashboard. <a href="${escapeHtml(supportUrl)}" style="color:#71717a;text-decoration:underline;">Contact Support</a></p>
     `,
   });
 }
@@ -887,10 +902,21 @@ export async function sendCatalogExportEmail(input: {
   count: number;
   exportId: string;
   couponCode?: string | null;
+  format?: string | null;
 }): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
   const downloadUrl = `${appUrl}/export?ready=${encodeURIComponent(input.exportId)}`;
   const countLabel = `${input.count} product${input.count === 1 ? "" : "s"}`;
+  const formatName = input.format === "shopify"
+    ? "Shopify"
+    : input.format === "bigcommerce"
+      ? "BigCommerce"
+      : input.format === "woocommerce"
+        ? "WooCommerce"
+        : "Manual";
+  const formatText = formatName === "Manual"
+    ? "The spreadsheet is the Manual format. It is a simple file, not tied to one website."
+    : `The spreadsheet uses ${formatName} product import columns. Import it from that site's product import page.`;
   const code = input.couponCode?.trim() || "";
   const couponText = code
     ? `Your coupon right now is ${code}. Enter that code at checkout.`
@@ -907,6 +933,7 @@ export async function sendCatalogExportEmail(input: {
       `Your export of ${countLabel} is ready.`,
       ``,
       `This file is for putting the catalog on your own site. It does not connect orders. A sale on your site does not order from us by itself.`,
+      formatText,
       ``,
       `When a customer buys from you, place that order on www.theperfectpart.net. Sign in with ${input.to}, the same email as your wholesale dashboard, then enter your coupon.`,
       couponText,
@@ -921,6 +948,7 @@ export async function sendCatalogExportEmail(input: {
       <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${countLabel}</p>
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
       <p>This file is for putting the catalog on your own site. It does not connect orders. A sale on your site does not order from us by itself.</p>
+      <p>${escapeHtml(formatText)}</p>
       <p>When a customer buys from you, place that order on <strong>www.theperfectpart.net</strong>. Sign in with <strong>${escapeHtml(input.to)}</strong>, the same email as your wholesale dashboard, then enter your coupon.</p>
       ${infoBox(couponHtml)}
       <p>The zip has three things: <strong>listings.csv</strong>, <strong>how-to-use.csv</strong>, and an <strong>images</strong> folder. Open images and each product has its own folder, named with the product title. That product's pictures are inside.</p>
@@ -1007,7 +1035,7 @@ export async function sendSupportConfirmation(to: string, subject: string): Prom
     replyTo: getEmailReplyTo(),
     subject: "We received your support request — The Perfect Part",
     html,
-    text,
+    text: withSupportText(text),
   });
   if (error) {
     console.error("Failed to send support confirmation email:", error);
@@ -1507,7 +1535,7 @@ export function buildTeamInviteHtml(
     </p>
   `);
 
-  const text = `${inviterEmail} has invited you to join ${companyName}'s wholesale team on The Perfect Part.\n\nYour role: ${role}\n\nAccept the invitation: ${loginUrl}\n\nThis link expires in 15 minutes.`;
+  const text = withSupportText(`${inviterEmail} has invited you to join ${companyName}'s wholesale team on The Perfect Part.\n\nYour role: ${role}\n\nAccept the invitation: ${loginUrl}\n\nThis link expires in 15 minutes.`);
 
   return { html, text };
 }

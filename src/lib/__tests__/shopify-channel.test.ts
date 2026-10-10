@@ -4,17 +4,53 @@ import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
 import { csvCell, plainText } from "../shopify-channel/catalog-export";
+import { buildListingCsv, type ExportItem } from "../shopify-channel/export-formats";
 import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
 import { zipStore } from "../shopify-channel/zip-store";
 import { scrubListingText } from "../shopify-channel/scrub";
 
 describe("expected ship date", () => {
-  it("ships a weekend order on the next weekday", () => {
-    expect(expectedShipLabel(new Date("2026-10-10T06:58:00Z"))).toBe("Monday, October 12");
+  it("skips the weekend and Columbus Day for a Saturday order", () => {
+    expect(expectedShipLabel(new Date("2026-10-10T06:58:00Z"))).toBe("Tuesday, October 13");
   });
 
   it("ships a morning weekday order that same day", () => {
     expect(expectedShipLabel(new Date("2026-10-09T14:00:00Z"))).toBe("Friday, October 9");
+  });
+
+  it("skips an afternoon cutoff when the next weekday is a USPS holiday", () => {
+    expect(expectedShipLabel(new Date("2026-10-09T18:00:00Z"))).toBe("Tuesday, October 13");
+  });
+
+  it("skips Independence Day when it is observed on Friday", () => {
+    expect(expectedShipLabel(new Date("2026-07-02T18:00:00Z"))).toBe("Monday, July 6");
+  });
+});
+
+describe("listing export formats", () => {
+  const item: ExportItem = {
+    name: "Sample Hat",
+    handle: "sample-hat",
+    descriptionHtml: "<p>A hat</p>",
+    descriptionText: "A hat",
+    page: "https://www.theperfectpart.net/sample-hat",
+    images: [{ file: "images/Sample Hat/1.jpg", url: "https://cdn.example.com/hat.jpg" }],
+    variants: [{ options: [{ name: "Size", value: "M" }], retail: 20, cost: 14, qty: 3 }],
+  };
+
+  it("keeps the manual file free of a selling price and a sku", () => {
+    const csv = buildListingCsv("manual", [item]);
+    expect(csv.split("\n")[0]).toContain("Your SKU");
+    expect(csv).toContain("Sample Hat — M");
+    expect(csv).not.toContain("TPP-SECRET");
+  });
+
+  it("uses each site's import columns", () => {
+    expect(buildListingCsv("shopify", [item]).split("\n")[0]).toContain("Handle,Title");
+    expect(buildListingCsv("bigcommerce", [item])).toContain("Item,ID,Name");
+    expect(buildListingCsv("woocommerce", [item])).toContain("Type,SKU,Name");
+    expect(buildListingCsv("shopify", [item])).toContain("https://cdn.example.com/hat.jpg");
+    expect(buildListingCsv("shopify", [item])).not.toContain("TPP-SECRET");
   });
 });
 

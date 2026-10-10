@@ -3,28 +3,12 @@ import { db } from "@/lib/db";
 import { sendCatalogExportEmail } from "@/lib/email";
 import { uploadToClean } from "@/lib/storage";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
+import { buildListingCsv, howToCsv, parseExportFormat, type ExportFormat, type ExportItem } from "./export-formats";
 import { wholesaleUnitCost } from "./money";
 import { zipStore } from "./zip-store";
 
 export const EXPORT_LIMIT = 80;
-
-const COLUMNS = [
-  "Title",
-  "Description",
-  "Your SKU",
-  "Your selling price",
-  "Wholesale cost",
-  "Retail price",
-  "Quantity available",
-  "Image files",
-  "Product page",
-] as const;
-
-export function csvCell(value: string): string {
-  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
-  if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
-  return safe;
-}
+export { csvCell } from "./export-formats";
 
 export function plainText(html: string): string {
   return html
@@ -41,30 +25,6 @@ export function plainText(html: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
-}
-
-function howToCsv(email: string, couponCode: string | null): string {
-  const coupon = couponCode
-    ? `Your coupon right now is ${couponCode}. Enter it at checkout.`
-    : "Your coupon shows on your wholesale dashboard once your account qualifies. Enter it at checkout.";
-  const rows = [
-    ["Column", "What it is", "What you do"],
-    ["Title", "The product name shoppers see.", "You can keep it or rewrite it for your store."],
-    ["Description", "The product description, without website formatting.", "You can keep it or rewrite it."],
-    ["Your SKU", "Your own product code.", "This starts blank on purpose. Type the SKU you want on your site."],
-    ["Your selling price", "The price your customer pays you.", "This starts blank. Type the price you want to charge."],
-    ["Wholesale cost", "What you pay us for one item, at your discount today.", "This is your cost. It is not the price you charge your customer."],
-    ["Retail price", "The price on www.theperfectpart.net before your discount.", "Use this to compare. Your coupon takes your discount off this price."],
-    ["Quantity available", "How many we can ship right now.", "Stock changes. Check again before a big promotion."],
-    ["Image files", "The picture files for this product.", "Open the images folder, then the folder with this product's title. The file names in this column match the pictures inside."],
-    ["Product page", "The page on www.theperfectpart.net.", "When a customer buys from you, place the order on this site."],
-    ["", "", ""],
-    ["About this file", "This puts the catalog on your own site.", "It does not connect orders. A sale on your site does not order from us by itself."],
-    ["How you order", "Purchases are made on www.theperfectpart.net.", `Sign in with ${email}, the same email as your wholesale dashboard. ${coupon}`],
-    ["Images", "The images folder holds one folder per product.", "Each folder is named with the product title. That product's pictures are inside it."],
-    ["Your SKU", "The SKU column starts blank.", "Type your own SKU before you import the file."],
-  ];
-  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
 function folderTitle(title: string): string {
@@ -106,26 +66,42 @@ async function downloadImage(url: string): Promise<{ data: Buffer; type: string 
   }
 }
 
-function productRows(product: BCProduct): Array<{ title: string; description: string; retail: number; qty: number }> {
-  const description = plainText(product.description || "");
+function productHandle(name: string, used: Map<string, number>): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "product";
+  const count = used.get(base) || 0;
+  used.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count + 1}`;
+}
+
+function exportItem(product: BCProduct, percent: number, images: ExportItem["images"], handle: string): ExportItem {
+  const html = (product.description || "").replace(/<script[\s\S]*?<\/script>/gi, " ").trim();
   const variants = (product.variants || []).filter((variant) => (variant.option_values || []).length > 0);
-  if (variants.length === 0) {
-    return [{
-      title: product.name,
-      description,
-      retail: Number(product.calculated_price || product.price || 0),
-      qty: product.inventory_level || 0,
-    }];
-  }
-  return variants.map((variant) => {
-    const options = (variant.option_values || []).map((option) => option.label).filter(Boolean).join(" / ");
+  const mapped = (variants.length ? variants : [null]).map((variant) => {
+    const retail = variant
+      ? Number(variant.calculated_price || variant.price || product.price || 0)
+      : Number(product.calculated_price || product.price || 0);
     return {
-      title: options ? `${product.name} — ${options}` : product.name,
-      description,
-      retail: Number(variant.calculated_price || variant.price || product.price || 0),
-      qty: variant.inventory_level || 0,
+      options: (variant?.option_values || [])
+        .map((option) => ({ name: option.option_display_name || "Option", value: option.label || "" }))
+        .filter((option) => option.value)
+        .slice(0, 3),
+      retail,
+      cost: wholesaleUnitCost(retail, percent),
+      qty: variant ? variant.inventory_level || 0 : product.inventory_level || 0,
     };
   });
+  const page = product.custom_url?.url
+    ? `https://www.theperfectpart.net${product.custom_url.url.startsWith("/") ? "" : "/"}${product.custom_url.url}`
+    : "https://www.theperfectpart.net";
+  return {
+    name: product.name,
+    handle,
+    descriptionHtml: html,
+    descriptionText: plainText(html),
+    page,
+    images,
+    variants: mapped,
+  };
 }
 
 export async function runCatalogExport(exportId: string): Promise<void> {
@@ -141,6 +117,7 @@ export async function runCatalogExport(exportId: string): Promise<void> {
   });
   if (!job) return;
   const ids = Array.isArray(job.productIds) ? job.productIds.map((id) => Number(id)).filter((id) => id > 0).slice(0, EXPORT_LIMIT) : [];
+  const format: ExportFormat = parseExportFormat(job.format);
 
   try {
     const welcome = await loadWelcomeConfig();
@@ -152,8 +129,9 @@ export async function runCatalogExport(exportId: string): Promise<void> {
     const products = await bc().getProductsByIds(ids);
     const byId = new Map(products.map((product) => [product.id, product]));
     const files: Array<{ name: string; data: Buffer }> = [];
-    const listingRows = [COLUMNS.join(",")];
+    const items: ExportItem[] = [];
     const usedFolders = new Map<string, number>();
+    const usedHandles = new Map<string, number>();
     let done = 0;
 
     for (const id of ids) {
@@ -163,37 +141,20 @@ export async function runCatalogExport(exportId: string): Promise<void> {
         await db.catalogExport.update({ where: { id: job.id }, data: { done } });
         continue;
       }
-      const names: string[] = [];
+      const savedImages: ExportItem["images"] = [];
       const folder = uniqueFolder(product.name, usedFolders);
-      const images = (product.images || []).slice(0, 6);
-      for (let index = 0; index < images.length; index++) {
-        const image = images[index];
+      const pictures = (product.images || []).slice(0, 6);
+      for (let index = 0; index < pictures.length; index++) {
+        const image = pictures[index];
         const url = image.url_zoom || image.url_standard;
         if (!url) continue;
         const downloaded = await downloadImage(url);
         if (!downloaded) continue;
-        const name = `images/${folder}/${index + 1}.${extensionFor(url, downloaded.type)}`;
-        names.push(name);
+        const name = `images/${folder}/${savedImages.length + 1}.${extensionFor(url, downloaded.type)}`;
+        savedImages.push({ file: name, url });
         files.push({ name, data: downloaded.data });
       }
-      const page = product.custom_url?.url
-        ? `https://theperfectpart.net${product.custom_url.url.startsWith("/") ? "" : "/"}${product.custom_url.url}`
-        : "https://theperfectpart.net";
-      for (const row of productRows(product)) {
-        listingRows.push(
-          [
-            row.title,
-            row.description,
-            "",
-            "",
-            wholesaleUnitCost(row.retail, percent).toFixed(2),
-            row.retail.toFixed(2),
-            String(row.qty),
-            names.join("; "),
-            page,
-          ].map(csvCell).join(",")
-        );
-      }
+      items.push(exportItem(product, percent, savedImages, productHandle(product.name, usedHandles)));
       await db.catalogExport.update({ where: { id: job.id }, data: { done } });
     }
 
@@ -202,8 +163,8 @@ export async function runCatalogExport(exportId: string): Promise<void> {
       select: { code: true },
     });
     files.unshift(
-      { name: "listings.csv", data: Buffer.from(listingRows.join("\n"), "utf8") },
-      { name: "how-to-use.csv", data: Buffer.from(howToCsv(job.account.email, promo?.code || null), "utf8") }
+      { name: "listings.csv", data: Buffer.from(buildListingCsv(format, items), "utf8") },
+      { name: "how-to-use.csv", data: Buffer.from(howToCsv(format, job.account.email, promo?.code || null), "utf8") }
     );
     const zip = zipStore(files);
     const key = `catalog-exports/${job.accountId}/${job.id}.zip`;
@@ -217,6 +178,7 @@ export async function runCatalogExport(exportId: string): Promise<void> {
       count: ids.length,
       exportId: job.id,
       couponCode: promo?.code || null,
+      format,
     });
     await db.catalogExport.update({ where: { id: job.id }, data: { emailSentAt: new Date() } });
   } catch (error) {

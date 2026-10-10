@@ -58,6 +58,11 @@ export function getPortalNav(
   const publisher = partnerType === "AFFILIATE_PUBLISHER";
   const items = (publisher ? PUBLISHER_NAV : RESELLER_NAV).map((item) => ({ ...item }));
 
+  if (!publisher && status === "APPROVED") {
+    const dashIndex = items.findIndex((item) => item.href === "/dashboard");
+    items.splice(dashIndex + 1, 0, { href: "/export", label: "Export listings", icon: "export" });
+  }
+
   if (channelEnabled && !publisher && status === "APPROVED") {
     const hotIndex = items.findIndex((item) => item.href === "/hot-sellers");
     const shopifyMenu: PortalNavDefinition = {
@@ -66,7 +71,6 @@ export function getPortalNav(
       icon: "shopify",
       children: [
         { href: "/catalog", label: "Catalog", icon: "catalog" },
-        { href: "/export", label: "Export listings", icon: "export" },
         { href: "/my-shopify/orders", label: "Orders", icon: "orders" },
         { href: "/billing", label: "Billing", icon: "billing" },
         { href: "/my-shopify", label: "My stores", icon: "shopify", exact: true },

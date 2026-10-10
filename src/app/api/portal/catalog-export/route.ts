@@ -1,23 +1,14 @@
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requirePortalAccount } from "@/lib/portal-auth";
 import { EXPORT_LIMIT, runCatalogExport } from "@/lib/shopify-channel/catalog-export";
-import { loadChannelSetup } from "@/lib/shopify-channel/setup";
-import { channelVisibility } from "@/lib/shopify-channel/visibility";
+import { requireExportAccount } from "@/lib/shopify-channel/export-access";
+import { parseExportFormat } from "@/lib/shopify-channel/export-formats";
 
 export async function POST(req: NextRequest) {
-  const auth = await requirePortalAccount("view_channel");
-  if (!auth.user?.wholesaleAccount) {
-    return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status });
-  }
-  if (!(await channelVisibility(auth.user.email)).visible) {
-    return NextResponse.json({ error: "Not available" }, { status: 404 });
-  }
-  if (!(await loadChannelSetup(auth.user.wholesaleAccount.id)).ready) {
-    return NextResponse.json({ error: "Agree to the terms, save a card, and connect your store first" }, { status: 403 });
-  }
-  const body = (await req.json().catch(() => null)) as { productIds?: number[] } | null;
+  const access = await requireExportAccount();
+  if (!access.account) return access.response;
+  const body = (await req.json().catch(() => null)) as { productIds?: number[]; format?: string } | null;
   const productIds = [...new Set((body?.productIds || []).map((id) => Number(id)))]
     .filter((id) => Number.isInteger(id) && id > 0)
     .slice(0, EXPORT_LIMIT);
@@ -25,7 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Choose at least one product" }, { status: 400 });
   }
   const running = await db.catalogExport.findFirst({
-    where: { accountId: auth.user.wholesaleAccount.id, status: { in: ["QUEUED", "RUNNING"] } },
+    where: { accountId: access.account.id, status: { in: ["QUEUED", "RUNNING"] } },
     select: { id: true },
   });
   if (running) {
@@ -33,10 +24,11 @@ export async function POST(req: NextRequest) {
   }
   const job = await db.catalogExport.create({
     data: {
-      accountId: auth.user.wholesaleAccount.id,
+      accountId: access.account.id,
       status: "QUEUED",
       total: productIds.length,
       productIds,
+      format: parseExportFormat(body?.format),
     },
   });
   after(() => runCatalogExport(job.id));

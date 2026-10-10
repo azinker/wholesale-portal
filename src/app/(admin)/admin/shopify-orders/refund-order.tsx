@@ -57,7 +57,10 @@ export function RefundOrder({
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
             <h2 className="font-display text-xl font-semibold">Refund {orderName}</h2>
             <p className="mt-2 text-sm leading-6 text-[#5c5654]">
-              This sends money back to the dropshipper&apos;s card. It does not refund their customer. They refund the buyer on Shopify.
+              This sends money back to the dropshipper&apos;s card. It does not refund the customer who bought on their Shopify store. They refund that customer in Shopify.
+              {shipped
+                ? " The warehouse order will be marked Refunded."
+                : " A full refund marks the warehouse order Cancelled."}
             </p>
             <label className="mt-4 block text-sm font-medium">
               Amount
@@ -70,7 +73,7 @@ export function RefundOrder({
             </label>
             <label className="mt-3 flex items-start gap-2 text-sm">
               <input type="checkbox" checked={stopShipment} onChange={(event) => setStopShipment(event.target.checked)} disabled={shipped} />
-              <span>{shipped ? "Already shipped, so the warehouse order stays as it is." : "Stop the warehouse shipment if it has not shipped."}</span>
+              <span>{shipped ? "Already shipped, so the package can still be on the way." : "Also stop the shipment if this is only a partial refund."}</span>
             </label>
             {error && <p className="mt-3 text-sm text-[#9c2126]">{error}</p>}
             <div className="mt-5 flex justify-end gap-2">

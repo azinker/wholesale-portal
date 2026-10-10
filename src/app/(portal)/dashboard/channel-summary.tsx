@@ -47,11 +47,12 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
     return null;
   }
 
+  const margin = sold - charged;
   const stats = [
-    { label: "Stores", value: String(stores) },
-    { label: "Listings", value: String(listings) },
-    { label: "Orders this month", value: String(ordersThisMonth) },
-    { label: "Margin", value: money(sold - charged) },
+    { label: "Your stores", value: String(stores), hint: "Shopify stores connected" },
+    { label: "Products listed", value: String(listings), hint: "Added from our catalog" },
+    { label: "Orders this month", value: String(ordersThisMonth), hint: "Customers who paid you" },
+    { label: "You kept", value: money(margin), hint: "Before Shopify's own fees" },
   ];
 
   return (
@@ -59,7 +60,7 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#f0ebe8] px-5 py-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Shopify</p>
-          <h2 className="font-display text-xl font-semibold">This month</h2>
+          <h2 className="font-display text-xl font-semibold">Your Shopify sales</h2>
           {access.preview && <p className="text-xs text-[#5c5654]">Only you can see this while we finish testing.</p>}
         </div>
         <Link href="/my-shopify/orders" className="cursor-pointer text-sm font-semibold text-primary hover:underline">
@@ -70,12 +71,25 @@ export async function ChannelSummary({ accountId, email }: { accountId: string; 
         {stats.map((stat) => (
           <div key={stat.label} className="border-t border-[#f0ebe8] px-5 py-4 md:border-t-0 md:border-l md:first:border-l-0">
             <p className="text-xs text-[#5c5654]">{stat.label}</p>
-            <p className="font-display text-2xl font-semibold tabular-nums">{stat.value}</p>
+            <p className={`font-display text-2xl font-semibold tabular-nums ${stat.label === "You kept" ? (margin < 0 ? "text-[#9c2126]" : "text-emerald-700") : ""}`}>{stat.value}</p>
+            <p className="mt-1 text-[11px] text-[#8a8481]">{stat.hint}</p>
           </div>
         ))}
       </div>
+      <div className="flex flex-wrap gap-2 px-5 pb-4">
+        {[
+          ["/catalog", "Add products"],
+          ["/my-shopify/orders", "See orders"],
+          ["/billing", "Card and charges"],
+          ["/export", "Export a spreadsheet"],
+        ].map(([href, label]) => (
+          <Link key={href} href={href} className="rounded-full border border-[#e7e1de] px-3 py-1.5 text-xs font-semibold text-[#1a1a1a] hover:border-[#2d2d2d]">
+            {label}
+          </Link>
+        ))}
+      </div>
       <p className="px-5 pb-2 text-xs text-[#5c5654]">
-        Buyers paid {money(sold)}. We charged {money(charged)}. Your margin is before Shopify's own fees.
+        Customers paid you {money(sold)}. We charged your card {money(charged)}. You kept is the difference, before Shopify's own fees.
       </p>
       {latest.length > 0 && (
         <div className="border-t border-[#f0ebe8]">

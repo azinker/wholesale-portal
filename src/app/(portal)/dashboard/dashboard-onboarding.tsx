@@ -6,14 +6,12 @@ import { toast } from "sonner";
 interface DashboardOnboardingProps {
   profileComplete: boolean;
   hasResaleCert: boolean;
-  browsedHotSellers: boolean;
   hasOrders: boolean;
 }
 
 export function DashboardOnboarding({
   profileComplete,
   hasResaleCert,
-  browsedHotSellers,
   hasOrders,
 }: DashboardOnboardingProps) {
   const steps = [
@@ -34,12 +32,6 @@ export function DashboardOnboarding({
       label: "Upload a resale certificate",
       href: "/documents",
       completed: hasResaleCert,
-    },
-    {
-      id: "hot_sellers",
-      label: "Browse hot sellers",
-      href: "/hot-sellers",
-      completed: browsedHotSellers,
     },
     {
       id: "first_order",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { drainQueuedChannelOrders, remindStaleCardAttention } from "@/lib/shopify-channel/orders";
+import { runNextCatalogExport } from "@/lib/shopify-channel/catalog-export";
 import { runNextPublishJob, syncListingInventory } from "@/lib/shopify-channel/publish";
 
 function authorizeCron(req: NextRequest): NextResponse | null {
@@ -20,5 +21,6 @@ export async function GET(req: NextRequest) {
   const inventory = await syncListingInventory();
   const queued = await drainQueuedChannelOrders();
   const reminded = await remindStaleCardAttention();
-  return NextResponse.json({ published, inventory, queued, reminded });
+  const exported = await runNextCatalogExport();
+  return NextResponse.json({ published, inventory, queued, reminded, exported });
 }

@@ -101,12 +101,12 @@ export default async function OrdersPage() {
       <div>
         <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <ShoppingCart className="h-6 w-6 text-primary" />
-          Orders
+          {channel.visible ? "Purchases" : "Orders"}
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 max-w-3xl">
           {channel.visible
-            ? "Your orders from theperfectpart.net are here. Shopify sales are marked Shopify, so you can tell them apart."
-            : "View your recent orders from The Perfect Part."}
+            ? "Orders you placed on theperfectpart.net, plus Shopify sales we shipped for you. Shopify rows are marked. Both can count toward your discount. Customer orders you have not asked us to ship stay on Shopify."
+            : "Orders you placed on theperfectpart.net. Tracking and your discount progress use this list."}
         </p>
       </div>
 

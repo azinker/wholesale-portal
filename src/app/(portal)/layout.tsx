@@ -22,6 +22,7 @@ import {
   BookOpen,
   CreditCard,
   Store,
+  FileSpreadsheet,
 } from "lucide-react";
 
 const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
@@ -42,7 +43,18 @@ const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
   catalog: <BookOpen size={18} />,
   billing: <CreditCard size={18} />,
   shopify: <Store size={18} />,
+  export: <FileSpreadsheet size={18} />,
 };
+
+function toNavItem(item: ReturnType<typeof getPortalNav>[number]): NavItem {
+  return {
+    href: item.href,
+    label: item.label,
+    icon: NAV_ICONS[item.icon],
+    exact: item.exact,
+    children: item.children?.map(toNavItem),
+  };
+}
 
 export default async function PortalLayout({
   children,
@@ -59,12 +71,7 @@ export default async function PortalLayout({
   const status = user.wholesaleAccount?.status || "RETAIL";
   const partnerType = user.wholesaleAccount?.partnerType ?? "DROPSHIPPER";
   const channelNav = (await channelVisibility(user.email)).visible;
-  const navItems: NavItem[] = getPortalNav(partnerType, status, channelNav).map((item) => ({
-    href: item.href,
-    label: item.label,
-    icon: NAV_ICONS[item.icon],
-    exact: item.exact,
-  }));
+  const navItems: NavItem[] = getPortalNav(partnerType, status, channelNav).map(toNavItem);
 
   const badgeVariant =
     status === "APPROVED"

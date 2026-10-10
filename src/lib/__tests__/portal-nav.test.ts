@@ -25,14 +25,13 @@ describe("getPortalNav", () => {
   });
 
   it("shows the shopify channel only for approved dropshippers when enabled", () => {
-    const hrefs = getPortalNav("DROPSHIPPER", "APPROVED", true).map((item) => item.href);
-    expect(hrefs).toContain("/catalog");
-    expect(hrefs).toContain("/my-shopify/orders");
-    expect(hrefs).toContain("/billing");
-    expect(hrefs).toContain("/my-shopify");
-    expect(hrefs).not.toContain("/hot-sellers");
-    expect(getPortalNav("DROPSHIPPER", "APPROVED", true).find((item) => item.href === "/orders")?.label).toBe("Purchases");
-    expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED", true).some((item) => item.href === "/catalog")).toBe(false);
-    expect(getPortalNav("DROPSHIPPER", "PENDING", true).some((item) => item.href === "/catalog")).toBe(false);
+    const nav = getPortalNav("DROPSHIPPER", "APPROVED", true);
+    const shopify = nav.find((item) => item.label === "Shopify");
+    const hrefs = shopify?.children?.map((item) => item.href) ?? [];
+    expect(hrefs).toEqual(["/catalog", "/export", "/my-shopify/orders", "/billing", "/my-shopify"]);
+    expect(nav.map((item) => item.href)).not.toContain("/hot-sellers");
+    expect(nav.find((item) => item.href === "/orders")?.label).toBe("Purchases");
+    expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED", true).some((item) => item.label === "Shopify")).toBe(false);
+    expect(getPortalNav("DROPSHIPPER", "PENDING", true).some((item) => item.label === "Shopify")).toBe(false);
   });
 });

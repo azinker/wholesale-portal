@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { refundCharge } from "@/lib/shopify-channel/stripe";
 import { roundMoney } from "@/lib/shopify-channel/money";
+import { sendAdminChannelRefundEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const user = await getUser();
@@ -13,7 +14,10 @@ export async function POST(req: NextRequest) {
   }
   const body = (await req.json()) as { orderId?: string; amount?: number; cancelWarehouse?: boolean };
   if (!body.orderId) return NextResponse.json({ error: "Missing order" }, { status: 400 });
-  const order = await db.channelOrder.findUnique({ where: { id: body.orderId } });
+  const order = await db.channelOrder.findUnique({
+    where: { id: body.orderId },
+    include: { account: { select: { email: true, companyName: true } } },
+  });
   if (!order?.stripeChargeId) {
     return NextResponse.json({ error: "This order has no charge to refund" }, { status: 400 });
   }
@@ -24,15 +28,46 @@ export async function POST(req: NextRequest) {
   }
   await refundCharge(order.stripeChargeId, Math.round(amount * 100));
   const refunded = roundMoney(Number(order.amountRefunded) + amount);
-  if (body.cancelWarehouse && order.bcOrderId && order.status !== "SHIPPED") {
-    await bc().cancelOrder(order.bcOrderId);
+  const alreadyShipped = order.status === "SHIPPED";
+  let shipmentStopped = false;
+  if (body.cancelWarehouse && order.bcOrderId && !alreadyShipped) {
+    try {
+      await bc().cancelOrder(order.bcOrderId);
+      shipmentStopped = true;
+    } catch (error) {
+      console.error("Warehouse cancel after refund failed:", error);
+    }
   }
+  const fullyRefunded = refunded >= Number(order.amountCharged);
   await db.channelOrder.update({
     where: { id: order.id },
     data: {
       amountRefunded: refunded,
-      status: refunded >= Number(order.amountCharged) ? "REFUNDED" : order.status,
+      status: fullyRefunded ? "REFUNDED" : order.status,
     },
   });
-  return NextResponse.json({ ok: true, refunded });
+  await db.auditLog.create({
+    data: {
+      actorEmail: user.email,
+      action: "admin_channel_refund",
+      targetAccountId: order.accountId,
+      details: {
+        orderId: order.id,
+        shopifyOrderName: order.shopifyOrderName,
+        accountEmail: order.account.email,
+        amount,
+        shipmentStopped,
+        alreadyShipped,
+      },
+    },
+  });
+  await sendAdminChannelRefundEmail({
+    to: order.account.email,
+    orderName: order.shopifyOrderName,
+    orderId: order.id,
+    amount,
+    shipmentStopped,
+    alreadyShipped,
+  });
+  return NextResponse.json({ ok: true, refunded, shipmentStopped });
 }

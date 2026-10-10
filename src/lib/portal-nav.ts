@@ -15,13 +15,15 @@ export type PortalNavIcon =
   | "apply"
   | "catalog"
   | "billing"
-  | "shopify";
+  | "shopify"
+  | "export";
 
 export interface PortalNavDefinition {
   href: string;
   label: string;
   icon: PortalNavIcon;
   exact?: boolean;
+  children?: PortalNavDefinition[];
 }
 
 const RESELLER_NAV: PortalNavDefinition[] = [
@@ -58,14 +60,20 @@ export function getPortalNav(
 
   if (channelEnabled && !publisher && status === "APPROVED") {
     const hotIndex = items.findIndex((item) => item.href === "/hot-sellers");
-    const channelItems: PortalNavDefinition[] = [
-      { href: "/catalog", label: "Catalog", icon: "catalog" },
-      { href: "/my-shopify/orders", label: "Orders", icon: "orders" },
-      { href: "/billing", label: "Billing", icon: "billing" },
-      { href: "/my-shopify", label: "My Shopify", icon: "shopify", exact: true },
-    ];
-    if (hotIndex >= 0) items.splice(hotIndex, 1, ...channelItems);
-    else items.splice(1, 0, ...channelItems);
+    const shopifyMenu: PortalNavDefinition = {
+      href: "/my-shopify",
+      label: "Shopify",
+      icon: "shopify",
+      children: [
+        { href: "/catalog", label: "Catalog", icon: "catalog" },
+        { href: "/export", label: "Export listings", icon: "export" },
+        { href: "/my-shopify/orders", label: "Orders", icon: "orders" },
+        { href: "/billing", label: "Billing", icon: "billing" },
+        { href: "/my-shopify", label: "My stores", icon: "shopify", exact: true },
+      ],
+    };
+    if (hotIndex >= 0) items.splice(hotIndex, 1, shopifyMenu);
+    else items.splice(1, 0, shopifyMenu);
     const purchases = items.find((item) => item.href === "/orders");
     if (purchases) purchases.label = "Purchases";
   }

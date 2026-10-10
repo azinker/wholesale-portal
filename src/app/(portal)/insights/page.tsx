@@ -159,8 +159,8 @@ export default async function InsightsPage() {
           <BarChart3 className="h-6 w-6 text-primary" />
           Insights
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Your wholesale account statistics and performance metrics.
+        <p className="text-muted-foreground mt-1 max-w-3xl">
+          How your orders and discount are trending. Qualifying orders are the ones that count toward your tier. The window rolls, so older orders drop off.
         </p>
       </div>
 

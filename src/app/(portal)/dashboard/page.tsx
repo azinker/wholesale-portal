@@ -50,12 +50,9 @@ export default async function DashboardPage() {
     const hasUploadedDocument = await db.document.count({
       where: { accountId: account.id },
     });
-    const flags = (account.onboardingFlags as Record<string, boolean>) || {};
-
     onboardingData = {
       profileComplete: !!(account.companyName && account.phone),
       hasResaleCert: hasUploadedDocument > 0,
-      browsedHotSellers: !!flags.browsedHotSellers,
       hasOrders: (account.lastCount7d ?? 0) > 0,
     };
   }
@@ -151,7 +148,6 @@ export default async function DashboardPage() {
         <DashboardOnboarding
           profileComplete={onboardingData.profileComplete}
           hasResaleCert={onboardingData.hasResaleCert}
-          browsedHotSellers={onboardingData.browsedHotSellers}
           hasOrders={onboardingData.hasOrders}
         />
       )}

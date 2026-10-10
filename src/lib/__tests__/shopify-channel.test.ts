@@ -3,7 +3,9 @@ import { atLeastOneBusinessDayLater, easternMonthKey } from "../shopify-channel/
 import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
+import { csvCell, plainText } from "../shopify-channel/catalog-export";
 import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
+import { zipStore } from "../shopify-channel/zip-store";
 import { scrubListingText } from "../shopify-channel/scrub";
 
 describe("shopify channel money", () => {
@@ -58,6 +60,16 @@ describe("dropshipper customer match", () => {
         null
       )
     ).toThrow(/not linked/);
+  });
+});
+
+describe("listing export file", () => {
+  it("keeps spreadsheet cells from breaking and leaves markup out of descriptions", () => {
+    expect(csvCell('He said "hi"')).toBe('"He said ""hi"""');
+    expect(csvCell("=SUM(1)")).toBe("'=SUM(1)");
+    expect(plainText("<p>Soft&nbsp;brace</p>")).toBe("Soft brace");
+    const zip = zipStore([{ name: "listings.csv", data: Buffer.from("a") }]);
+    expect(zip.subarray(0, 2).toString()).toBe("PK");
   });
 });
 

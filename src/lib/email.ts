@@ -559,6 +559,88 @@ export async function sendChannelRefundEmail(input: {
   });
 }
 
+export async function sendAdminChannelRefundEmail(input: {
+  to: string;
+  orderName: string;
+  orderId: string;
+  amount: number;
+  shipmentStopped: boolean;
+  alreadyShipped: boolean;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const orderUrl = `${appUrl}/my-shopify/orders/${input.orderId}`;
+  const supportUrl = `${appUrl}/support?category=shopify_order_change&order=${encodeURIComponent(input.orderName)}`;
+  const amount = `$${input.amount.toFixed(2)}`;
+  const shipment = input.alreadyShipped
+    ? "This order already shipped. The package can still be on the way. This refund is only the wholesale charge on your card."
+    : input.shipmentStopped
+      ? "We also stopped the warehouse shipment, so this one will not go out."
+      : "The warehouse shipment was left as it is. If it has not shipped yet and you need it stopped, contact Support.";
+  const safeOrder = escapeHtml(input.orderName);
+  await sendBrandedEmail({
+    logLabel: "admin channel refund",
+    to: input.to,
+    subject: `We refunded ${input.orderName} — The Perfect Part`,
+    throwOnError: false,
+    text: [
+      `We refunded ${amount} on ${input.orderName}.`,
+      ``,
+      `Your customer paid you on Shopify. We had charged your card so we could ship the order. Our team refunded that wholesale charge back to your card.`,
+      ``,
+      shipment,
+      ``,
+      `This does not refund your customer. If you are canceling their order, refund them on Shopify.`,
+      ``,
+      `Open the order: ${orderUrl}`,
+      `Contact Support: ${supportUrl}`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">We refunded your card</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${safeOrder} &mdash; ${amount} is going back to your card</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>Your customer paid you on Shopify. We had charged your card so we could ship the order. Our team refunded that wholesale charge.</p>
+      ${infoBox(`<p style="margin:0;">${escapeHtml(shipment)}</p>`)}
+      <p>This refund goes to <strong>your</strong> card. It does not refund your customer. If you are canceling their order, refund them on Shopify.</p>
+      <p>On your statement you should see the refund for <strong>${amount}</strong>. It may say Pending for a little while.</p>
+      ${ctaButton(orderUrl, "Open this order")}
+      <p style="font-size:13px;color:#a1a1aa;margin:0;">Questions go to Support in your dashboard. <a href="${escapeHtml(supportUrl)}" style="color:#71717a;text-decoration:underline;">Contact Support</a></p>
+    `,
+  });
+}
+
+export async function sendCatalogExportEmail(input: {
+  to: string;
+  count: number;
+  exportId: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
+  const downloadUrl = `${appUrl}/export?ready=${encodeURIComponent(input.exportId)}`;
+  const countLabel = `${input.count} product${input.count === 1 ? "" : "s"}`;
+  await sendBrandedEmail({
+    logLabel: "catalog export",
+    to: input.to,
+    subject: "Your product export is ready — The Perfect Part",
+    throwOnError: false,
+    text: [
+      `Your export of ${countLabel} is ready.`,
+      ``,
+      `The zip has listings.csv, how-to-use.csv, and an images folder.`,
+      `Your SKU column is blank on purpose. Fill in your own SKU. The file does not include our product codes.`,
+      ``,
+      `Download it after you sign in: ${downloadUrl}`,
+    ].join("\n"),
+    bodyHtml: `
+      <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Your product export is ready</h1>
+      <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${countLabel}</p>
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>The zip has three things: <strong>listings.csv</strong>, <strong>how-to-use.csv</strong>, and an <strong>images</strong> folder.</p>
+      ${infoBox(`<p style="margin:0;">Your SKU column is blank on purpose. Type your own SKU before you import the file. This export does not include our product codes.</p>`)}
+      <p>Sign in with this same email, then download the file. The link stays on your Export listings page.</p>
+      ${ctaButton(downloadUrl, "Download the export")}
+    `,
+  });
+}
+
 export async function sendSupportConfirmation(to: string, subject: string): Promise<void> {
   const from = getEmailFrom();
 

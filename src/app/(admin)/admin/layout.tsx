@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   FileEdit,
   Megaphone,
+  Store,
 } from "lucide-react";
 
 const navItems: NavItem[] = [
@@ -24,6 +25,7 @@ const navItems: NavItem[] = [
   { href: "/admin/risk-flags", label: "Risk Flags", icon: <AlertTriangle size={18} /> },
   { href: "/admin/promo-audit", label: "Promo Audit", icon: <Shield size={18} /> },
   { href: "/admin/audit-log", label: "Audit Log", icon: <ScrollText size={18} /> },
+  { href: "/admin/shopify-orders", label: "Shopify orders", icon: <Store size={18} /> },
   { href: "/admin/settings", label: "Settings", icon: <Settings size={18} /> },
 ];
 

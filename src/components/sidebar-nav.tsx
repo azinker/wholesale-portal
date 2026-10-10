@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Menu, LogOut } from "lucide-react";
+import { ChevronDown, Menu, LogOut } from "lucide-react";
 import { useState } from "react";
 import { NotificationBell } from "./notification-bell";
 
@@ -17,6 +17,7 @@ export interface NavItem {
   label: string;
   icon: React.ReactNode;
   exact?: boolean;
+  children?: NavItem[];
 }
 
 interface SidebarNavProps {
@@ -52,6 +53,7 @@ export function SidebarNav({
 }: SidebarNavProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<Record<string, boolean>>({});
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href;
@@ -88,6 +90,52 @@ export function SidebarNav({
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         {items.map((item) => {
+          if (item.children && item.children.length > 0) {
+            const childActive = item.children.some((child) => isActive(child.href, child.exact));
+            const expanded = groups[item.label] ?? childActive;
+            return (
+              <div key={item.label}>
+                <button
+                  type="button"
+                  onClick={() => setGroups((current) => ({ ...current, [item.label]: !expanded }))}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
+                    childActive
+                      ? "text-sidebar-foreground"
+                      : "text-sidebar-muted-foreground hover:bg-sidebar-muted hover:text-sidebar-foreground"
+                  )}
+                  aria-expanded={expanded}
+                >
+                  {item.icon}
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <ChevronDown size={16} className={cn("transition-transform duration-200", expanded && "rotate-180")} />
+                </button>
+                {expanded && (
+                  <div className="ml-4 space-y-0.5 border-l border-sidebar-border py-1 pl-2">
+                    {item.children.map((child) => {
+                      const active = isActive(child.href, child.exact);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                            active
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                              : "text-sidebar-muted-foreground hover:bg-sidebar-muted hover:text-sidebar-foreground"
+                          )}
+                        >
+                          {child.icon}
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
           const active = isActive(item.href, item.exact);
           return (
             <Link

@@ -147,10 +147,10 @@ export default async function TrackingPage() {
       <div>
         <h1 className="font-display text-3xl font-semibold tracking-tight flex items-center gap-2">
           <Truck className="h-6 w-6 text-primary" />
-          Order Tracking
+          Tracking
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Track all your shipments in one place. Copy tracking numbers to your clipboard.
+        <p className="text-muted-foreground mt-1 max-w-3xl">
+          Packages we have shipped for you. Copy a tracking number or open the carrier. Shopify orders show here after we ship them.
         </p>
       </div>
 

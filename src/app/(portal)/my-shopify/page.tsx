@@ -56,7 +56,7 @@ export default async function MyShopifyPage({
       <ChannelHeading
         kicker="Shopify"
         title="My Shopify"
-        lede="Connect your Shopify store and start selling. You can connect up to 5 stores."
+        lede="Connect a Shopify store, up to 5. Your customer pays you there. We charge your card and ship to them. For a spreadsheet instead, use Export listings."
       />
 
       {preview && (

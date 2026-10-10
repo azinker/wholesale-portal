@@ -420,6 +420,19 @@ class BigCommerceClient {
     );
   }
 
+  async getProductsByIds(ids: number[]): Promise<BCProduct[]> {
+    const unique = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+    const products: BCProduct[] = [];
+    for (let i = 0; i < unique.length; i += 10) {
+      const batch = unique.slice(i, i + 10);
+      const res = await this.get<{ data: BCProduct[] }>(
+        `${this.baseV3}/catalog/products?id:in=${batch.join(",")}&include=images,variants&limit=10`
+      );
+      products.push(...(res.data || []));
+    }
+    return products;
+  }
+
   async getVisibleCategoryCounts(): Promise<Record<number, number>> {
     const counts: Record<number, number> = {};
     let page = 1;

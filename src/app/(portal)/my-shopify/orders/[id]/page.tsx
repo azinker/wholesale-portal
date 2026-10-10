@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
@@ -30,7 +31,7 @@ type Ship = {
 };
 
 export default async function ChannelOrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const { account, schemaReady } = await requireChannelAccount();
+  const { account, schemaReady, enabled } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
   const { id } = await params;
   const order = await db.channelOrder.findFirst({
@@ -50,6 +51,8 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
     ? null
     : `https://${order.connection.shopDomain}/admin/orders/${order.shopifyOrderId}`;
   const address = [ship.street, ship.street2, ship.city, ship.province, ship.zip, ship.country].filter(Boolean).join(", ");
+  const chargedYet = charged > 0;
+  const story = orderStory(order.status, enabled, order.attentionNote);
 
   return (
     <ChannelPage>
@@ -62,12 +65,30 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
           <StatusPill tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" ? "good" : "wait"}>
             {statusLabel(order.status)}
           </StatusPill>
-          <Link href={`/billing?order=${order.id}#charge`} className={channelPrimaryBtn}>
-            {Number(order.amountCharged) > 0 ? "See this charge" : "Charge record"}
+          {chargedYet ? (
+            <>
+              <Link href={`/billing?order=${order.id}#charge`} className={channelPrimaryBtn} title="Opens Billing and shows what we took from your card for this order.">
+                See this charge on Billing
+              </Link>
+              <Tip text="Opens Billing and shows what we took from your card for this order. We charge when the customer pays, before we ship." />
+            </>
+          ) : null}
+          <Link href="/my-shopify/orders" className={channelGhostBtn}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to all orders
           </Link>
-          <Link href="/my-shopify/orders" className={channelGhostBtn}>All orders</Link>
         </div>
       </ChannelHeading>
+
+      <ChannelPanel className="px-5 py-4 text-sm leading-6 text-[#3f3a38]">
+        <p>{story}</p>
+        {!chargedYet && (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-[#5c5654]">
+            <Tip text="We charge your card when the customer pays, before we ship. Nothing has come off your card for this order yet, so there is no charge to open on Billing." />
+            Nothing has been charged yet.
+          </p>
+        )}
+      </ChannelPanel>
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
@@ -138,9 +159,16 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
             {adminUrl && (
               <a className={channelGhostBtn} href={adminUrl} target="_blank" rel="noreferrer">Open in Shopify admin</a>
             )}
-            <Link className={channelPrimaryBtn} href={`/support?category=shopify_order_change&order=${encodeURIComponent(order.shopifyOrderName)}`}>
-              Request a change
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                className={channelPrimaryBtn}
+                href={`/support?category=shopify_order_change&order=${encodeURIComponent(order.shopifyOrderName)}`}
+                title="Opens Support so you can ask us to change the address or anything else on this order. This does not charge your card. Editing the order in Shopify does not change our shipment."
+              >
+                Ask us to change this order
+              </Link>
+              <Tip text="Opens Support. Use it for an address change or anything else after the sale. It does not charge your card. Changing the order in Shopify does not change what we ship." />
+            </div>
           </ChannelPanel>
 
           <ChannelPanel className="bg-[#2d2d2d] p-5 text-sm text-white">
@@ -159,4 +187,19 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
       </div>
     </ChannelPage>
   );
+}
+
+function orderStory(status: string, enabled: boolean, attention: string | null): string {
+  if (status === "QUEUED" && !enabled) {
+    return "Your customer already paid you on Shopify. We saved this order. Your card is not charged, and we do not ship it, until Shopify selling is turned on.";
+  }
+  if (status === "QUEUED") return "Your customer paid. We charge your card next, then we ship. We do not wait until the package goes out.";
+  if (status === "HELD" || status === "NEEDS_ATTENTION" || status === "FAILED") {
+    return attentionLabel(attention) || "This order needs a look before we can charge your card and ship it.";
+  }
+  if (status === "CHARGED") return "Your card was charged when the customer paid. We're sending this to the warehouse next.";
+  if (status === "SUBMITTED" || status === "PICKING") return "Your card was charged. We're packing this now, then we ship it.";
+  if (status === "SHIPPED") return "We shipped this and put the tracking on your Shopify order.";
+  if (status === "REFUNDED") return "This charge was refunded. Nothing is shipping.";
+  return "We charge your card when the customer pays, then we ship.";
 }

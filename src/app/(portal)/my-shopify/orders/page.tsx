@@ -12,6 +12,8 @@ import {
 } from "@/lib/shopify-channel/order-view";
 import { ChannelSchemaNotice } from "../../channel-schema-notice";
 import { Tip, TipLabel } from "../../tip";
+import { ProductMenu, type ProductLink } from "./product-menu";
+import { RefreshOrdersButton } from "./refresh-orders";
 import {
   ChannelHeading,
   ChannelPage,
@@ -41,7 +43,7 @@ function productLabel(lines: OrderLine[]): string {
 export default async function ChannelOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; product?: string; q?: string }>;
+  searchParams: Promise<{ view?: string; product?: string; q?: string; refresh?: string }>;
 }) {
   const { account, schemaReady } = await requireChannelAccount();
   if (!schemaReady) return <ChannelSchemaNotice />;
@@ -77,6 +79,58 @@ export default async function ChannelOrdersPage({
     return orderView(order.status) === view;
   });
 
+  const connections = await db.shopifyConnection.findMany({
+    where: { accountId: account.id, disconnectedAt: null },
+    select: { ordersCheckedAt: true },
+  });
+  const lastChecked = connections.reduce<Date | null>((latest, row) => {
+    if (!row.ordersCheckedAt) return latest;
+    if (!latest || row.ordersCheckedAt > latest) return row.ordersCheckedAt;
+    return latest;
+  }, null);
+  const refreshNote =
+    params.refresh === "error"
+      ? "Couldn't reach Shopify just now. Try again in a minute."
+      : params.refresh === "new"
+        ? "Checked just now. New orders are in the list."
+        : null;
+
+  const productIds = [
+    ...new Set(
+      orders.flatMap((order) => affiliatedLines(order.lines).map((line) => line.bcProductId).filter((id): id is number => Boolean(id)))
+    ),
+  ];
+  const listings = productIds.length
+    ? await db.channelListing.findMany({
+        where: { accountId: account.id, removedAt: null, bcProductId: { in: productIds } },
+        select: { connectionId: true, bcProductId: true, shopifyProductId: true },
+      })
+    : [];
+  const listingByProduct = new Map(listings.map((row) => [`${row.connectionId}:${row.bcProductId}`, row]));
+
+  function productLinks(order: (typeof orders)[number], lines: OrderLine[]): ProductLink[] {
+    const seen = new Set<number>();
+    const links: ProductLink[] = [];
+    for (const line of lines) {
+      if (!line.bcProductId || seen.has(line.bcProductId)) continue;
+      seen.add(line.bcProductId);
+      const title = line.title || "Product";
+      const listing = listingByProduct.get(`${order.connectionId}:${line.bcProductId}`);
+      links.push({
+        title,
+        catalogHref: `/catalog?q=${encodeURIComponent(title)}`,
+        ordersHref: `/my-shopify/orders?product=${line.bcProductId}`,
+        storeHref: listing
+          ? `/api/portal/shopify-channel/product-link?connectionId=${order.connectionId}&bcProductId=${line.bcProductId}`
+          : null,
+        adminHref: listing
+          ? `https://${order.connection.shopDomain}/admin/products/${listing.shopifyProductId}`
+          : null,
+      });
+    }
+    return links;
+  }
+
   const awaiting = orders.filter((order) => orderView(order.status) === "awaiting").length;
   const shipped = orders.filter((order) => orderView(order.status) === "shipped").length;
   const attention = orders.filter((order) => orderView(order.status) === "attention").length;
@@ -102,11 +156,27 @@ export default async function ChannelOrdersPage({
 
   return (
     <ChannelPage>
+      <Link href="/my-shopify" className="inline-flex items-center text-sm font-semibold text-primary hover:underline">
+        Back to My Shopify
+      </Link>
       <ChannelHeading
         kicker="Shopify"
         title="Orders"
         lede="These are sales of products you added from the catalog. Your other Shopify products stay on Shopify and don't show up here."
-      />
+      >
+        <form action="/api/portal/shopify-channel/orders/refresh" method="post" className="flex flex-col items-start gap-2 sm:items-end">
+          {view !== "all" && <input type="hidden" name="view" value={view} />}
+          {productId > 0 && <input type="hidden" name="product" value={String(productId)} />}
+          {params.q && <input type="hidden" name="q" value={params.q} />}
+          <RefreshOrdersButton />
+          <p className="max-w-xs text-xs leading-5 text-[#5c5654] sm:text-right">
+            New orders show up on their own, usually right after the customer pays.
+            {" "}
+            {lastChecked ? `Last checked ${whenEastern(lastChecked)}.` : "Not checked yet."}
+          </p>
+          {refreshNote && <p className="max-w-xs text-xs font-medium text-[#1a1a1a] sm:text-right">{refreshNote}</p>}
+        </form>
+      </ChannelHeading>
 
       <div className="grid gap-3 md:grid-cols-3">
         <ChannelPanel className="px-5 py-4">
@@ -159,8 +229,8 @@ export default async function ChannelOrdersPage({
             <thead className="bg-[#2d2d2d] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
               <tr>
                 <th className="px-4 py-3"><TipLabel tone="dark" tip="Your Shopify order number. Open it for the address, products, and tracking.">Order</TipLabel></th>
-                <th className="px-3 py-3"><TipLabel tone="dark" tip="A product you added from the catalog. Other products on your Shopify store are not listed here.">Product</TipLabel></th>
-                <th className="px-3 py-3"><TipLabel tone="dark" tip="What your customer paid you on Shopify.">Buyer paid</TipLabel></th>
+                <th className="px-3 py-3"><TipLabel tone="dark" tip="Click the name to view it on your Shopify store, edit it in Shopify, or open it in the catalog.">Product</TipLabel></th>
+                <th className="px-3 py-3"><TipLabel tone="dark" tip="What your customer paid you on Shopify. Click the amount to open this order.">Buyer paid</TipLabel></th>
                 <th className="px-3 py-3"><TipLabel tone="dark" tip="What we charged your card when the order was paid. Open it to see that charge on Billing.">Charge</TipLabel></th>
                 <th className="px-3 py-3"><TipLabel tone="dark" tip="Tracking after we ship. US shipping is $0. We ship after the card charge.">Shipment</TipLabel></th>
                 <th className="px-4 py-3"><TipLabel tone="dark" tip="Awaiting shipment, shipped, or needs a look.">Status</TipLabel></th>
@@ -178,11 +248,13 @@ export default async function ChannelOrdersPage({
                       <p className="text-xs text-[#5c5654]">{whenEastern(order.createdAt)} · {order.connection.shopDomain}</p>
                     </td>
                     <td className="px-3 py-3">
-                      <Link href={href({ product: String(lines[0]?.bcProductId || ""), view: "all" })} className="hover:underline">
-                        {productLabel(lines)}
+                      <ProductMenu label={productLabel(lines)} products={productLinks(order, lines)} />
+                    </td>
+                    <td className="px-3 py-3 tabular-nums">
+                      <Link href={`/my-shopify/orders/${order.id}`} className="font-semibold hover:underline">
+                        {money(Number(order.soldFor))}
                       </Link>
                     </td>
-                    <td className="px-3 py-3 tabular-nums">{money(Number(order.soldFor))}</td>
                     <td className="px-3 py-3">
                       {charged ? (
                         <Link href={`/billing?order=${order.id}#charge`} className="font-semibold tabular-nums text-primary hover:underline">

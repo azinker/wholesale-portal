@@ -32,6 +32,10 @@ export async function POST(
   }
   if (!test && (payload.financial_status || "").toLowerCase() === "paid") {
     await ingestShopifyOrder(connection.id, payload);
+    await db.shopifyConnection.update({
+      where: { id: connection.id },
+      data: { ordersCheckedAt: new Date() },
+    });
   }
   return NextResponse.json({ ok: true });
 }

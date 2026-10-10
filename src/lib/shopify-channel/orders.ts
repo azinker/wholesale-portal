@@ -11,6 +11,7 @@ import { decidePaidOrder } from "./decide";
 import { quoteChannelCharge, roundMoney } from "./money";
 import { emailAccount, emailWholesaleDesk } from "./notify";
 import { isShopifyChannelEnabled } from "./settings";
+import { listRecentPaidOrders } from "./shopify-admin";
 import { chargeCard, refundCharge } from "./stripe";
 
 const LOCKED = new Set(["SUBMITTED", "PICKING", "SHIPPED", "REFUNDED", "FAILED"]);
@@ -467,6 +468,42 @@ function warehouseOrder(input: {
     shipping_cost_ex_tax: input.shipping.toFixed(2),
     shipping_cost_inc_tax: input.shipping.toFixed(2),
   };
+}
+
+/** Look up recent paid Shopify orders and save any we have not seen yet. Does not charge a second time. */
+export async function refreshAccountOrders(accountId: string): Promise<{ found: number; ok: boolean }> {
+  const connections = await db.shopifyConnection.findMany({
+    where: { accountId, disconnectedAt: null, accessTokenEnc: { not: null } },
+  });
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  let found = 0;
+  let ok = true;
+  for (const connection of connections) {
+    if (!connection.accessTokenEnc) continue;
+    try {
+      const token = decrypt(connection.accessTokenEnc);
+      const recent = (await listRecentPaidOrders(connection.shopDomain, token, since)) as ShopifyOrderPayload[];
+      const known = await db.channelOrder.findMany({
+        where: { connectionId: connection.id },
+        select: { shopifyOrderId: true },
+      });
+      const seen = new Set(known.map((row) => row.shopifyOrderId));
+      for (const order of recent) {
+        const id = String(order.id || "");
+        if (!id || seen.has(id)) continue;
+        await ingestShopifyOrder(connection.id, order);
+        seen.add(id);
+        found += 1;
+      }
+      await db.shopifyConnection.update({
+        where: { id: connection.id },
+        data: { ordersCheckedAt: new Date() },
+      });
+    } catch {
+      ok = false;
+    }
+  }
+  return { found, ok };
 }
 
 export async function drainQueuedChannelOrders(limit = 10): Promise<number> {

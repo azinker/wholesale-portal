@@ -386,6 +386,18 @@ export async function productExists(shop: string, token: string, productId: stri
   }
 }
 
+/** Recent paid orders, so a manual refresh can catch a sale the notice missed. */
+export async function listRecentPaidOrders(shop: string, token: string, since: Date): Promise<unknown[]> {
+  const params = new URLSearchParams({
+    status: "any",
+    financial_status: "paid",
+    limit: "50",
+    created_at_min: since.toISOString(),
+  });
+  const json = await shopify<{ orders?: unknown[] }>(shop, token, `orders.json?${params.toString()}`);
+  return json.orders || [];
+}
+
 export async function readOrderAddress(
   shop: string,
   token: string,

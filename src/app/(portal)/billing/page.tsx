@@ -156,7 +156,7 @@ export default async function BillingPage({
                 <div><dt className="text-[#5c5654]">{wasCharged(focused) ? "Charged" : "Not charged yet"}</dt><dd className="font-semibold tabular-nums">{money(netCharged(focused))}</dd></div>
               </dl>
               <div className="px-5 pb-4">
-                <Link href={`/my-shopify/orders/${focused.id}`} className="text-sm font-semibold text-primary hover:underline">Open this order</Link>
+                <Link href={`/my-shopify/orders/${focused.id}`} className="text-sm font-semibold text-primary hover:underline">Back to this order</Link>
               </div>
             </ChannelPanel>
             </div>

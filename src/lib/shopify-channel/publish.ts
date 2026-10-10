@@ -322,7 +322,7 @@ export async function publishBigCommerceProduct(
     return emptyReceipt("", "failed", "That store is not connected.");
   }
   if (connection.addressTestStatus !== "PASSED") {
-    return emptyReceipt(connection.shopDomain, "failed", "This store has not passed the address test.");
+    return emptyReceipt(connection.shopDomain, "failed", "Connect this store on My Shopify first. It needs to show Ready.");
   }
   const product = await bc().getProductById(bcProductId);
   const title = scrubListingText(product?.name || "") || "Product";

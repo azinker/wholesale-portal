@@ -129,6 +129,24 @@ export async function readPrimaryLocationId(shop: string, token: string): Promis
   return active ? String(active.id) : null;
 }
 
+/** Create the two order notices after connect. Returns false when Shopify will not allow it yet. */
+export async function ensureOrderWebhooks(shop: string, token: string, address: string): Promise<boolean> {
+  const topics = ["orders/paid", "orders/updated"];
+  try {
+    const existing = await shopify<{ webhooks: Array<{ topic: string; address: string }> }>(shop, token, "webhooks.json");
+    for (const topic of topics) {
+      if (existing.webhooks.some((hook) => hook.topic === topic && hook.address === address)) continue;
+      await shopify(shop, token, "webhooks.json", {
+        method: "POST",
+        body: JSON.stringify({ webhook: { topic, address, format: "json" } }),
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type ShopifyCreatedProduct = {
   productId: string;
   handle: string;

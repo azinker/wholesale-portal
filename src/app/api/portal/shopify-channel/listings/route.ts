@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   const setup = await readyStores(account.id);
   if (!setup.ready) {
-    return NextResponse.json({ error: "Finish the terms, save a credit card, and pass the address test first" }, { status: 400 });
+    return NextResponse.json({ error: "Accept the terms, save a card, and connect your store first" }, { status: 400 });
   }
   const chosen = body.connectionIds?.length
     ? setup.stores.filter((store) => body.connectionIds?.includes(store.id))

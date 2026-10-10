@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appUrl } from "@/lib/app-url";
+import { appOrigin, appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/bigcommerce/encryption";
 import { SHOPIFY_OAUTH_SCOPES } from "@/lib/shopify-channel/constants";
 import {
   exchangeOauthCode,
+  ensureOrderWebhooks,
   newWebhookToken,
   readOauthState,
   readPrimaryLocationId,
@@ -35,16 +36,31 @@ export async function GET(req: NextRequest) {
     primaryLocationId: locationId,
     disconnectedAt: null,
   };
+  let connectionId = existing?.id || "";
+  let webhookToken = existing?.webhookToken || "";
   if (existing) {
     await db.shopifyConnection.update({ where: { id: existing.id }, data });
   } else {
-    await db.shopifyConnection.create({
+    const created = await db.shopifyConnection.create({
       data: {
         accountId: state.accountId,
         shopDomain: shop,
         webhookToken: newWebhookToken(),
         ...data,
       },
+    });
+    connectionId = created.id;
+    webhookToken = created.webhookToken;
+  }
+  const ready = await ensureOrderWebhooks(
+    shop,
+    token,
+    `${appOrigin()}/api/shopify/channel/webhook/${connectionId}/${webhookToken}`
+  );
+  if (ready) {
+    await db.shopifyConnection.update({
+      where: { id: connectionId },
+      data: { addressTestStatus: "PASSED", addressSource: "WEBHOOK" },
     });
   }
   return NextResponse.redirect(home);

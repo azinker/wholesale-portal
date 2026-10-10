@@ -78,7 +78,7 @@ export async function HowToStart({
             <PathCard
               kicker="Spreadsheet"
               title="Export listings"
-              body="Download titles, descriptions, pictures, and your cost. Your SKU column is blank so you can add your own."
+              body="Download the catalog for your own site. Orders still go through theperfectpart.net with your wholesale email and coupon."
               href="/export"
               action="Export products"
             />

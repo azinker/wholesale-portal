@@ -886,10 +886,18 @@ export async function sendCatalogExportEmail(input: {
   to: string;
   count: number;
   exportId: string;
+  couponCode?: string | null;
 }): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://wholesale.theperfectpart.net";
   const downloadUrl = `${appUrl}/export?ready=${encodeURIComponent(input.exportId)}`;
   const countLabel = `${input.count} product${input.count === 1 ? "" : "s"}`;
+  const code = input.couponCode?.trim() || "";
+  const couponText = code
+    ? `Your coupon right now is ${code}. Enter that code at checkout.`
+    : `Your coupon shows on your wholesale dashboard once your account qualifies. Enter that code at checkout.`;
+  const couponHtml = code
+    ? `<p style="margin:0;">Your coupon right now is <strong style="font-family:ui-monospace,monospace;">${escapeHtml(code)}</strong>. Enter that code at checkout.</p>`
+    : `<p style="margin:0;">Your coupon shows on your wholesale dashboard once your account qualifies. Enter that code at checkout.</p>`;
   await sendBrandedEmail({
     logLabel: "catalog export",
     to: input.to,
@@ -898,8 +906,13 @@ export async function sendCatalogExportEmail(input: {
     text: [
       `Your export of ${countLabel} is ready.`,
       ``,
+      `This file is for putting the catalog on your own site. It does not connect orders. A sale on your site does not order from us by itself.`,
+      ``,
+      `When a customer buys from you, place that order on www.theperfectpart.net. Sign in with ${input.to}, the same email as your wholesale dashboard, then enter your coupon.`,
+      couponText,
+      ``,
       `The zip has listings.csv, how-to-use.csv, and an images folder. Inside images, each product has its own folder named with the product title.`,
-      `Your SKU column is blank on purpose. Fill in your own SKU. The file does not include our product codes.`,
+      `Your SKU column is blank on purpose. Type your own SKU before you import the file.`,
       ``,
       `Download it after you sign in: ${downloadUrl}`,
     ].join("\n"),
@@ -907,8 +920,11 @@ export async function sendCatalogExportEmail(input: {
       <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:${BRAND_DARK};">Your product export is ready</h1>
       <p style="margin:0 0 4px 0;color:#71717a;font-size:14px;">${countLabel}</p>
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;" />
+      <p>This file is for putting the catalog on your own site. It does not connect orders. A sale on your site does not order from us by itself.</p>
+      <p>When a customer buys from you, place that order on <strong>www.theperfectpart.net</strong>. Sign in with <strong>${escapeHtml(input.to)}</strong>, the same email as your wholesale dashboard, then enter your coupon.</p>
+      ${infoBox(couponHtml)}
       <p>The zip has three things: <strong>listings.csv</strong>, <strong>how-to-use.csv</strong>, and an <strong>images</strong> folder. Open images and each product has its own folder, named with the product title. That product's pictures are inside.</p>
-      ${infoBox(`<p style="margin:0;">Your SKU column is blank on purpose. Type your own SKU before you import the file. This export does not include our product codes.</p>`)}
+      <p>Your SKU column is blank on purpose. Type your own SKU before you import the file.</p>
       <p>Sign in with this same email, then download the file. The link stays on your Export listings page.</p>
       ${ctaButton(downloadUrl, "Download the export")}
     `,

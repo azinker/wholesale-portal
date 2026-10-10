@@ -43,22 +43,26 @@ export function plainText(html: string): string {
     .trim();
 }
 
-function howToCsv(): string {
+function howToCsv(email: string, couponCode: string | null): string {
+  const coupon = couponCode
+    ? `Your coupon right now is ${couponCode}. Enter it at checkout.`
+    : "Your coupon shows on your wholesale dashboard once your account qualifies. Enter it at checkout.";
   const rows = [
     ["Column", "What it is", "What you do"],
     ["Title", "The product name shoppers see.", "You can keep it or rewrite it for your store."],
     ["Description", "The product description, without website formatting.", "You can keep it or rewrite it."],
-    ["Your SKU", "Your own product code.", "This starts blank on purpose. Type your SKU. Do not use a code from The Perfect Part."],
+    ["Your SKU", "Your own product code.", "This starts blank on purpose. Type the SKU you want on your site."],
     ["Your selling price", "The price your customer pays you.", "This starts blank. Type the price you want to charge."],
-    ["Wholesale cost", "What we charge your card for one item, at your discount today.", "This is your cost. It is not the price you charge your customer."],
-    ["Retail price", "The price on theperfectpart.net before your discount.", "Use this to compare. Your customer does not have to pay this."],
+    ["Wholesale cost", "What you pay us for one item, at your discount today.", "This is your cost. It is not the price you charge your customer."],
+    ["Retail price", "The price on www.theperfectpart.net before your discount.", "Use this to compare. Your coupon takes your discount off this price."],
     ["Quantity available", "How many we can ship right now.", "Stock changes. Check again before a big promotion."],
     ["Image files", "The picture files for this product.", "Open the images folder, then the folder with this product's title. The file names in this column match the pictures inside."],
-    ["Product page", "The page on theperfectpart.net.", "For your reference. Your customer buys on your store, not on ours."],
+    ["Product page", "The page on www.theperfectpart.net.", "When a customer buys from you, place the order on this site."],
     ["", "", ""],
-    ["About this file", "One row is one product.", "Your SKU and your selling price are blank so you can fill in your own. This file never includes our internal product codes."],
+    ["About this file", "This puts the catalog on your own site.", "It does not connect orders. A sale on your site does not order from us by itself."],
+    ["How you order", "Purchases are made on www.theperfectpart.net.", `Sign in with ${email}, the same email as your wholesale dashboard. ${coupon}`],
     ["Images", "The images folder holds one folder per product.", "Each folder is named with the product title. That product's pictures are inside it."],
-    ["Shopify", "You can also add products from Catalog inside this portal.", "Catalog sends the product to your Shopify store for you. This export is for any other sales channel."],
+    ["Your SKU", "The SKU column starts blank.", "Type your own SKU before you import the file."],
   ];
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
@@ -193,9 +197,13 @@ export async function runCatalogExport(exportId: string): Promise<void> {
       await db.catalogExport.update({ where: { id: job.id }, data: { done } });
     }
 
+    const promo = await db.promotionRecord.findFirst({
+      where: { accountId: job.accountId, enabled: true },
+      select: { code: true },
+    });
     files.unshift(
       { name: "listings.csv", data: Buffer.from(listingRows.join("\n"), "utf8") },
-      { name: "how-to-use.csv", data: Buffer.from(howToCsv(), "utf8") }
+      { name: "how-to-use.csv", data: Buffer.from(howToCsv(job.account.email, promo?.code || null), "utf8") }
     );
     const zip = zipStore(files);
     const key = `catalog-exports/${job.accountId}/${job.id}.zip`;
@@ -208,6 +216,7 @@ export async function runCatalogExport(exportId: string): Promise<void> {
       to: job.account.email,
       count: ids.length,
       exportId: job.id,
+      couponCode: promo?.code || null,
     });
     await db.catalogExport.update({ where: { id: job.id }, data: { emailSentAt: new Date() } });
   } catch (error) {

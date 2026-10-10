@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { atLeastOneBusinessDayLater, easternMonthKey } from "../shopify-channel/calendar";
 import { decidePaidOrder } from "../shopify-channel/decide";
-import { quoteChannelCharge, shippingForCountry, wholesaleUnitCost } from "../shopify-channel/money";
+import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
 import { scrubListingText } from "../shopify-channel/scrub";
 
 describe("shopify channel money", () => {
   it("charges tier cost plus one international shipping amount", () => {
     expect(wholesaleUnitCost(20, 25)).toBe(15);
     expect(shippingForCountry("US")).toBe(0);
+    expect(warehouseCountry("US")).toEqual({ country: "United States", countryIso2: "US" });
+    expect(warehouseCountry("United States").country).toBe("United States");
     expect(shippingForCountry("CA")).toBe(18.99);
     const quote = quoteChannelCharge(
       [

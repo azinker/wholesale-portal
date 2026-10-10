@@ -4,6 +4,25 @@ export function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
 
+/** BigCommerce wants the country name, not the 2-letter code Shopify sends. */
+export function warehouseCountry(value: string | null | undefined): { country: string; countryIso2: string } {
+  const raw = (value || "").trim();
+  if (!raw) return { country: "", countryIso2: "" };
+  if (isUnitedStates(raw)) return { country: "United States", countryIso2: "US" };
+  if (/^[a-z]{2}$/i.test(raw)) {
+    const countryIso2 = raw.toUpperCase();
+    let country = raw;
+    try {
+      const name = new Intl.DisplayNames(["en"], { type: "region" }).of(countryIso2);
+      if (name && name.toUpperCase() !== countryIso2) country = name;
+    } catch {
+      country = raw;
+    }
+    return { country, countryIso2 };
+  }
+  return { country: raw, countryIso2: "" };
+}
+
 export function isUnitedStates(country: string | null | undefined): boolean {
   const value = (country || "").trim().toLowerCase();
   return (

@@ -8,7 +8,7 @@ import {
 } from "@/lib/tier-engine";
 import { atLeastOneBusinessDayLater } from "./calendar";
 import { decidePaidOrder } from "./decide";
-import { quoteChannelCharge, roundMoney } from "./money";
+import { quoteChannelCharge, roundMoney, warehouseCountry } from "./money";
 import { emailAccount, emailWholesaleDesk } from "./notify";
 import { isShopifyChannelEnabled } from "./settings";
 import { listRecentPaidOrders } from "./shopify-admin";
@@ -422,6 +422,7 @@ function warehouseOrder(input: {
   staff: string;
 }): Record<string, unknown> {
   const ship = input.destination;
+  const place = warehouseCountry(ship.country);
   return {
     status_id: 11,
     customer_id: input.customerId || 0,
@@ -450,8 +451,8 @@ function warehouseOrder(input: {
         city: ship.city,
         state: ship.province,
         zip: ship.zip,
-        country: ship.country,
-        country_iso2: ship.country.length === 2 ? ship.country : undefined,
+        country: place.country,
+        country_iso2: place.countryIso2 || undefined,
         phone: ship.phone,
         email: input.email,
         shipping_method: input.shipping > 0 ? "International flat" : "US free shipping",

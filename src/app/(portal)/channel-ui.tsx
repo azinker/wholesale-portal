@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { HoverTip } from "./tip";
 
 export const channelPrimaryBtn =
   "inline-flex cursor-pointer items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-[#9c2126] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8282E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45";
@@ -100,16 +101,26 @@ export function ChannelPanel({
   );
 }
 
-export function StatusPill({ tone, children }: { tone: "good" | "wait" | "bad" | "neutral"; children: React.ReactNode }) {
+export function StatusPill({
+  tone,
+  tip,
+  children,
+}: {
+  tone: "good" | "wait" | "bad" | "neutral";
+  tip?: string;
+  children: React.ReactNode;
+}) {
   const tones = {
     good: "bg-emerald-50 text-emerald-800",
     wait: "bg-amber-50 text-amber-800",
     bad: "bg-red-50 text-red-800",
     neutral: "bg-[#f3eeeb] text-[#3f3a38]",
   };
-  return (
+  const pill = (
     <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", tones[tone])}>
       {children}
     </span>
   );
+  if (!tip) return pill;
+  return <HoverTip text={tip}>{pill}</HoverTip>;
 }

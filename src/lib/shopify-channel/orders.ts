@@ -512,6 +512,8 @@ export async function refreshAccountOrders(accountId: string): Promise<{ found: 
       ok = false;
     }
   }
+  const { syncPendingShipments } = await import("./tracking");
+  await syncPendingShipments(accountId);
   return { found, ok };
 }
 

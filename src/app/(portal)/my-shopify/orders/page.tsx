@@ -12,6 +12,7 @@ import {
   whenEastern,
   type OrderLine,
 } from "@/lib/shopify-channel/order-view";
+import { gettingReadyTip } from "@/lib/shopify-channel/calendar";
 import { ChannelSchemaNotice } from "../../channel-schema-notice";
 import { Tip, TipLabel } from "../../tip";
 import { ProductMenu, type ProductLink } from "./product-menu";
@@ -182,7 +183,7 @@ export default async function ChannelOrdersPage({
           {params.q && <input type="hidden" name="q" value={params.q} />}
           <RefreshOrdersButton />
           <p className="max-w-xs text-xs leading-5 text-[#5c5654] sm:text-right">
-            New orders show up on their own, usually right after the customer pays.
+            New orders show up on their own. Tracking shows here after the warehouse adds it. Refresh checks for that.
             {" "}
             {lastChecked ? `Last checked ${whenEastern(lastChecked)}.` : "Not checked yet."}
           </p>
@@ -293,7 +294,12 @@ export default async function ChannelOrdersPage({
                       {order.carrier && <p className="text-xs text-[#5c5654]">{order.carrier}</p>}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill tone={toneFor(order.status)}>{statusLabel(order.status)}</StatusPill>
+                      <StatusPill
+                        tone={toneFor(order.status)}
+                        tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}
+                      >
+                        {statusLabel(order.status)}
+                      </StatusPill>
                     </td>
                   </tr>
                 );

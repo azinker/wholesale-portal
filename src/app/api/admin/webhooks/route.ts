@@ -9,6 +9,8 @@ const WEBHOOK_SCOPES = [
   "store/customer/updated",
   "store/order/created",
   "store/order/statusUpdated",
+  "store/shipment/created",
+  "store/shipment/updated",
 ];
 
 /** List current webhooks (admin only) */

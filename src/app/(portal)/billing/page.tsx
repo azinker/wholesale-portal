@@ -2,7 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
-import { easternMonthKey } from "@/lib/shopify-channel/calendar";
+import { easternMonthKey, gettingReadyTip } from "@/lib/shopify-channel/calendar";
 import { isAffiliatedOrder, netCharged, wasCharged, whenEastern } from "@/lib/shopify-channel/order-view";
 import { stripeConfigured, readCheckoutSession, readSetupIntent, readCard } from "@/lib/shopify-channel/stripe";
 import { retryCardAttention } from "@/lib/shopify-channel/orders";
@@ -147,7 +147,7 @@ export default async function BillingPage({
                   <h2 className="font-display text-xl font-semibold">{focused.shopifyOrderName}</h2>
                   <p className="text-sm text-[#5c5654]">{whenEastern(focused.createdAt)}</p>
                 </div>
-                <StatusPill tone={toneFor(focused.status)}>{statusLabel(focused.status)}</StatusPill>
+                <StatusPill tone={toneFor(focused.status)} tip={focused.status === "SUBMITTED" ? gettingReadyTip(focused.chargedAt || focused.createdAt) : undefined}>{statusLabel(focused.status)}</StatusPill>
               </div>
               <dl className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-4">
                 <div><dt className="text-[#5c5654]">Buyer paid</dt><dd className="font-semibold tabular-nums">{money(Number(focused.soldFor))}</dd></div>
@@ -228,7 +228,7 @@ export default async function BillingPage({
                             </td>
                             <td className="px-3 py-3 tabular-nums">{money(Number(order.shippingCharged))}</td>
                             <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(Number(order.soldFor) - net)}</td>
-                            <td className="px-4 py-3"><StatusPill tone={toneFor(order.status)}>{statusLabel(order.status)}</StatusPill></td>
+                            <td className="px-4 py-3"><StatusPill tone={toneFor(order.status)} tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}>{statusLabel(order.status)}</StatusPill></td>
                           </tr>
                         );
                       })}

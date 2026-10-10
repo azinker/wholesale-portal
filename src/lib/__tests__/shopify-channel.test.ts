@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { atLeastOneBusinessDayLater, easternMonthKey } from "../shopify-channel/calendar";
+import { atLeastOneBusinessDayLater, easternMonthKey, expectedShipLabel } from "../shopify-channel/calendar";
 import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
@@ -7,6 +7,16 @@ import { csvCell, plainText } from "../shopify-channel/catalog-export";
 import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
 import { zipStore } from "../shopify-channel/zip-store";
 import { scrubListingText } from "../shopify-channel/scrub";
+
+describe("expected ship date", () => {
+  it("ships a weekend order on the next weekday", () => {
+    expect(expectedShipLabel(new Date("2026-10-10T06:58:00Z"))).toBe("Monday, October 12");
+  });
+
+  it("ships a morning weekday order that same day", () => {
+    expect(expectedShipLabel(new Date("2026-10-09T14:00:00Z"))).toBe("Friday, October 9");
+  });
+});
 
 describe("shopify channel money", () => {
   it("charges tier cost plus one international shipping amount", () => {

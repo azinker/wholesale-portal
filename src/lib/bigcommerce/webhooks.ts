@@ -173,6 +173,10 @@ export async function handleOrderEvent(data: Record<string, unknown>): Promise<v
     const order = await fetchOrderById(orderId);
     if (!order) return;
 
+    await pushChannelTracking(orderId).catch((err) => {
+      console.error(`Tracking sync failed for order ${orderId}:`, err);
+    });
+
     if (order.customer_id) {
       // Existing reseller path remains customer-ID based and Wholesale-only.
       const account = await db.wholesaleAccount.findFirst({

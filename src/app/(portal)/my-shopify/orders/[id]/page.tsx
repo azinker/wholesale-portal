@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { gettingReadyTip } from "@/lib/shopify-channel/calendar";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { ChannelSetupGate } from "../../../channel-setup-gate";
@@ -74,7 +75,10 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
         lede={order.createdAt.toLocaleString()}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <StatusPill tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" ? "good" : "wait"}>
+          <StatusPill
+            tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" ? "good" : "wait"}
+            tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}
+          >
             {statusLabel(order.status)}
           </StatusPill>
           {chargedYet ? (
@@ -210,7 +214,7 @@ function orderStory(status: string, enabled: boolean, attention: string | null):
     return attentionLabel(attention) || "This order needs a look before we can charge your card and ship it.";
   }
   if (status === "CHARGED") return "Your card was charged when the customer paid. We're sending this to the warehouse next.";
-  if (status === "SUBMITTED" || status === "PICKING") return "Your card was charged. We're packing this now, then we ship it.";
+  if (status === "SUBMITTED" || status === "PICKING") return "We received this order and it's waiting to ship. It usually goes out within 1 business day.";
   if (status === "SHIPPED") return "We shipped this and put the tracking on your Shopify order.";
   if (status === "REFUNDED") return "This charge was refunded. Nothing is shipping.";
   return "We charge your card when the customer pays, then we ship.";

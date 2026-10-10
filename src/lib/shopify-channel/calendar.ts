@@ -20,6 +20,50 @@ function utcNoon(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day, 16, 0, 0));
 }
 
+function easternHour(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  return Number(parts.find((part) => part.type === "hour")?.value || 0);
+}
+
+function isWeekend(year: number, month: number, day: number): boolean {
+  const weekday = utcNoon(year, month, day).getUTCDay();
+  return weekday === 0 || weekday === 6;
+}
+
+function nextBusinessDay(year: number, month: number, day: number): { year: number; month: number; day: number } {
+  const cursor = utcNoon(year, month, day);
+  do {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
+  return { year: cursor.getUTCFullYear(), month: cursor.getUTCMonth() + 1, day: cursor.getUTCDate() };
+}
+
+/** Same weekday before 2 PM Eastern. After that, or on a weekend, the next weekday. */
+export function expectedShipDate(from: Date): Date {
+  const parts = easternParts(from);
+  const target = isWeekend(parts.year, parts.month, parts.day) || easternHour(from) >= 14
+    ? nextBusinessDay(parts.year, parts.month, parts.day)
+    : parts;
+  return utcNoon(target.year, target.month, target.day);
+}
+
+export function expectedShipLabel(from: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(expectedShipDate(from));
+}
+
+export function gettingReadyTip(from: Date): string {
+  return `We received this order and it's waiting to ship. It usually goes out within 1 business day. Expected ship date: ${expectedShipLabel(from)}.`;
+}
+
 /** True once the Eastern calendar date is at least one weekday later. */
 export function atLeastOneBusinessDayLater(from: Date, now: Date): boolean {
   const start = easternParts(from);

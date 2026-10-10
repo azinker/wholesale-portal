@@ -12,4 +12,5 @@ export const SHOPIFY_OAUTH_SCOPES = [
   "read_inventory",
   "write_inventory",
   "read_locations",
+  "read_orders",
 ].join(",");

@@ -237,7 +237,7 @@ export default async function MyShopifyPage() {
         {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
             <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Use your store's myshopify.com address. You can connect up to 5 stores. Products already on the store stay as they are." /></h2>
-            <p className="mt-1 text-sm leading-6 text-[#5c5654]">Type your store address, like north-auto.myshopify.com. Shopify will ask you to approve it, then you come back here. USD stores only. Up to 5 stores.</p>
+            <p className="mt-1 text-sm leading-6 text-[#5c5654]">Type your store address, like north-auto.myshopify.com. Shopify will ask you to approve it, including orders, so a sale shows up here on its own. Then you come back here. USD stores only. Up to 5 stores.</p>
             <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="shop">Store domain</label>
               <input id="shop" name="shop" placeholder="your-store.myshopify.com" className={channelField} />

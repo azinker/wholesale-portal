@@ -129,9 +129,35 @@ export async function readPrimaryLocationId(shop: string, token: string): Promis
   return active ? String(active.id) : null;
 }
 
+function webhookAlreadyThere(message: string): boolean {
+  return /already been taken|already exists/i.test(message);
+}
+
+async function createOrderWebhookGraphql(shop: string, token: string, topic: "ORDERS_PAID" | "ORDERS_UPDATED", address: string): Promise<boolean> {
+  const query = `mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+    webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+      userErrors { message }
+      webhookSubscription { id }
+    }
+  }`;
+  const json = await shopify<{
+    data?: { webhookSubscriptionCreate?: { userErrors: Array<{ message: string }>; webhookSubscription: { id: string } | null } };
+  }>(shop, token, "graphql.json", {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      variables: { topic, webhookSubscription: { callbackUrl: address, format: "JSON" } },
+    }),
+  });
+  const result = json.data?.webhookSubscriptionCreate;
+  if (!result) return false;
+  if (result.webhookSubscription) return true;
+  return result.userErrors.every((error) => webhookAlreadyThere(error.message));
+}
+
 /** Create the two order notices after connect. Returns false when Shopify will not allow it yet. */
 export async function ensureOrderWebhooks(shop: string, token: string, address: string): Promise<boolean> {
-  const topics = ["orders/paid", "orders/updated"];
+  const topics = ["orders/paid", "orders/updated"] as const;
   try {
     const existing = await shopify<{ webhooks: Array<{ topic: string; address: string }> }>(shop, token, "webhooks.json");
     for (const topic of topics) {
@@ -143,7 +169,13 @@ export async function ensureOrderWebhooks(shop: string, token: string, address: 
     }
     return true;
   } catch {
-    return false;
+    try {
+      const paid = await createOrderWebhookGraphql(shop, token, "ORDERS_PAID", address);
+      const updated = await createOrderWebhookGraphql(shop, token, "ORDERS_UPDATED", address);
+      return paid && updated;
+    } catch {
+      return false;
+    }
   }
 }
 

@@ -14,36 +14,6 @@ export function normalizeShopDomain(input: string): string | null {
   return domain;
 }
 
-function publicStoreHost(input: string): string | null {
-  const host = input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
-  if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return null;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null;
-  if (!/^[a-z0-9.-]+$/.test(host)) return null;
-  return host.includes(".") ? host : `${host}.myshopify.com`;
-}
-
-/** Accept a .myshopify.com address or the store's public website, like www.mystore.com. */
-export async function resolveShopDomain(input: string): Promise<string | null> {
-  const host = publicStoreHost(input);
-  if (!host) return null;
-  const direct = normalizeShopDomain(host);
-  if (direct) return direct;
-  try {
-    const res = await fetch(`https://${host}`, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(8000),
-      headers: { Accept: "text/html", "User-Agent": "ThePerfectPart/1.0" },
-    });
-    const finalHost = new URL(res.url).hostname.toLowerCase();
-    if (finalHost === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(finalHost)) return null;
-    const html = (await res.text()).slice(0, 300000);
-    const match = html.match(/Shopify\.shop\s*=\s*["']([a-z0-9][a-z0-9-]*\.myshopify\.com)["']/i);
-    return match ? normalizeShopDomain(match[1]) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function newWebhookToken(): string {
   return randomBytes(24).toString("hex");
 }

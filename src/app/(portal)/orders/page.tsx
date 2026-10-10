@@ -190,7 +190,7 @@ export default async function OrdersPage() {
             status: o.status,
             items_total: o.items_total,
             total_inc_tax: o.total_inc_tax,
-            tierStatus: o.external_source === "Shopify Channel" ? "excluded" : getTierStatusForOrder(o.date_created, o.status_id, tierWindowDays),
+            tierStatus: getTierStatusForOrder(o.date_created, o.status_id, tierWindowDays),
             channel: o.external_source === "Shopify Channel",
           }))}
           windowDays={tierWindowDays}

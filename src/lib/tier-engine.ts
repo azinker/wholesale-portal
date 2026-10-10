@@ -209,6 +209,33 @@ export async function getTierDiscountPercent(tierId: TierId): Promise<number> {
   return config?.discount ?? 0;
 }
 
+/** Paid, shipped, or awaiting-fulfillment orders in the rolling window, including Shopify sales. */
+async function qualifyingOrdersInWindow(customerId: number, windowDays: number): Promise<number> {
+  const minDate = getTierWindowStartDate(windowDays)
+    .toISOString()
+    .replace("T", " ")
+    .replace("Z", "");
+
+  let allOrders: BCOrder[] = [];
+  let page = 1;
+  const limit = 250;
+
+  while (true) {
+    const orders = await bc().getOrders({
+      customer_id: customerId,
+      min_date_created: minDate,
+      limit,
+      page,
+    });
+    if (!orders || orders.length === 0) break;
+    allOrders = allOrders.concat(orders);
+    if (orders.length < limit) break;
+    page++;
+  }
+
+  return allOrders.filter((order) => QUALIFYING_TIER_STATUS_IDS.includes(order.status_id)).length;
+}
+
 /**
  * Recalculate tier for a single wholesale account.
  *
@@ -255,49 +282,27 @@ export async function recalcTier(
     };
   }
 
+  const previousTier = account.lastTier as TierId;
+  const qualifyingCount = await qualifyingOrdersInWindow(account.customerId, windowDays);
+
   if (account.pausedUpgrades && !options.ignorePausedUpgrades) {
-    // Tier is locked by admin — don't change it, but still ensure the
-    // promotion exists (retries BC API if a previous attempt failed).
+    // The discount stays where an admin locked it. The progress count still
+    // follows real qualifying orders, including Shopify sales.
+    if (qualifyingCount !== account.lastCount7d) {
+      await db.wholesaleAccount.update({
+        where: { id: account.id },
+        data: { lastCount7d: qualifyingCount },
+      });
+    }
     await ensurePromoForTier(account.id, account.alias, account.lastTier as TierId);
     return {
-      previousTier: account.lastTier as TierId,
-      newTier: account.lastTier as TierId,
-      count7d: account.lastCount7d,
+      previousTier,
+      newTier: previousTier,
+      count7d: qualifyingCount,
       changed: false,
       windowDays,
     };
   }
-
-  const previousTier = account.lastTier as TierId;
-
-  // Fetch orders from the configured rolling window
-  const minDate = getTierWindowStartDate(windowDays)
-    .toISOString()
-    .replace("T", " ")
-    .replace("Z", "");
-
-  let allOrders: BCOrder[] = [];
-  let page = 1;
-  const limit = 250;
-
-  while (true) {
-    const orders = await bc().getOrders({
-      customer_id: account.customerId,
-      min_date_created: minDate,
-      limit,
-      page,
-    });
-
-    if (!orders || orders.length === 0) break;
-    allOrders = allOrders.concat(orders);
-    if (orders.length < limit) break;
-    page++;
-  }
-
-  // Qualifying orders: paid orders that are shipped or awaiting fulfillment (see QUALIFYING_TIER_STATUS_IDS).
-  const qualifyingCount = allOrders.filter((o) =>
-    QUALIFYING_TIER_STATUS_IDS.includes(o.status_id) && o.external_source !== "Shopify Channel"
-  ).length;
 
   let newTier = await tierFromCount(qualifyingCount);
 

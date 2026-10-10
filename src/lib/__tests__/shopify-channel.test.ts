@@ -3,6 +3,7 @@ import { atLeastOneBusinessDayLater, easternMonthKey } from "../shopify-channel/
 import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
+import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
 import { scrubListingText } from "../shopify-channel/scrub";
 
 describe("shopify channel money", () => {
@@ -25,6 +26,38 @@ describe("shopify channel money", () => {
     expect(quote.shipping).toBe(18.99);
     expect(quote.total).toBe(56.49);
     expect(quote.soldFor).toBe(92);
+  });
+});
+
+describe("dropshipper customer match", () => {
+  it("keeps a stored customer only when the email is the wholesale account", () => {
+    expect(
+      chooseDropshipperCustomerId(
+        "azforcefed@gmail.com",
+        { id: 8, email: "Azforcefed@gmail.com" },
+        { id: 2, email: "viswanathan.n@gmail.com" }
+      )
+    ).toBe(8);
+  });
+
+  it("replaces a mismatched stored customer with the email match", () => {
+    expect(
+      chooseDropshipperCustomerId(
+        "azforcefed@gmail.com",
+        { id: 2, email: "viswanathan.n@gmail.com" },
+        { id: 8, email: "azforcefed@gmail.com" }
+      )
+    ).toBe(8);
+  });
+
+  it("refuses to file an order under a customer with a different email", () => {
+    expect(() =>
+      chooseDropshipperCustomerId(
+        "azforcefed@gmail.com",
+        { id: 2, email: "viswanathan.n@gmail.com" },
+        null
+      )
+    ).toThrow(/not linked/);
   });
 });
 

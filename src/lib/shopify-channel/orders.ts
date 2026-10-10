@@ -13,6 +13,7 @@ import { sendChannelRefundEmail } from "@/lib/email";
 import { emailAccount, emailWholesaleDesk } from "./notify";
 import { isShopifyChannelEnabled } from "./settings";
 import { listRecentPaidOrders } from "./shopify-admin";
+import { chooseDropshipperCustomerId } from "./customer";
 import { chargeCard, refundCharge } from "./stripe";
 
 const LOCKED = new Set(["SUBMITTED", "PICKING", "SHIPPED", "REFUNDED", "FAILED"]);
@@ -324,12 +325,10 @@ export async function ingestShopifyOrder(connectionId: string, order: ShopifyOrd
   }
 
   try {
-    if (!connection.account.customerId) {
-      throw new Error("This wholesale account is not linked to a warehouse customer");
-    }
+    const customerId = await dropshipperCustomerId(connection.account);
     const warehouse = await bc().createOrder(
       warehouseOrder({
-        customerId: connection.account.customerId,
+        customerId,
         email: accountEmail,
         companyName: connection.account.companyName,
         businessAddress: connection.account.businessAddress,
@@ -409,6 +408,33 @@ function holdMessage(orderName: string, reason: string): string {
     return `${orderName} came in before we confirmed the shipping address for that store. We didn't charge you. Open My Shopify and we'll check the address.`;
   }
   return `${orderName} needs a working card before we can ship. Nothing was charged. You can update the card on Billing.`;
+}
+
+async function dropshipperCustomerId(account: {
+  id: string;
+  userId: string;
+  email: string;
+  customerId: number | null;
+}): Promise<number> {
+  const stored = account.customerId ? await bc().getCustomerById(account.customerId) : null;
+  const storedMatches = stored && stored.email.trim().toLowerCase() === account.email.trim().toLowerCase();
+  const byEmail = storedMatches ? null : await bc().getCustomerByEmail(account.email);
+  const customerId = chooseDropshipperCustomerId(
+    account.email,
+    stored ? { id: stored.id, email: stored.email } : null,
+    byEmail ? { id: byEmail.id, email: byEmail.email } : null
+  );
+  if (customerId !== account.customerId) {
+    await db.wholesaleAccount.update({
+      where: { id: account.id },
+      data: { customerId },
+    });
+    await db.portalUser.update({
+      where: { id: account.userId },
+      data: { linkedCustomerId: customerId },
+    });
+  }
+  return customerId;
 }
 
 function warehouseOrder(input: {

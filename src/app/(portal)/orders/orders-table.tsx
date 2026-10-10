@@ -136,7 +136,7 @@ export function OrdersTable({
                       {order.channel && (
                         <span className="inline-flex items-center gap-1">
                           <Badge className="bg-[#2d2d2d] text-[10px] text-white hover:bg-[#2d2d2d]">Shopify</Badge>
-                          <Tip text="Your customer paid you on Shopify. We charged your card and shipped it. This is separate from an order you placed on theperfectpart.net, and it doesn't count toward your discount tier." />
+                          <Tip text="Your customer paid you on Shopify. We charged your card and shipped it. This order counts toward your discount tier the same way an order on theperfectpart.net does." />
                         </span>
                       )}
                     </span>
@@ -148,11 +148,7 @@ export function OrdersTable({
                     <OrderBadge status={order.status} />
                   </td>
                   <td className="px-4 py-3">
-                    {order.channel ? (
-                      <Badge variant="secondary" className="text-[10px] text-muted-foreground">Not for tier</Badge>
-                    ) : (
-                      <TierStatusBadge status={order.tierStatus} />
-                    )}
+                    <TierStatusBadge status={order.tierStatus} />
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {order.items_total} item{order.items_total !== 1 ? "s" : ""}

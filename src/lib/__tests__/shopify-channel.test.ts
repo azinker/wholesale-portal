@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { atLeastOneBusinessDayLater, easternMonthKey, expectedShipLabel } from "../shopify-channel/calendar";
+import { atLeastOneBusinessDayLater, easternMonthKey, easternMonthLabel, expectedShipLabel, previousEasternMonthKey } from "../shopify-channel/calendar";
+import { periodChange } from "../shopify-channel/order-view";
 import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, storeCreditSplit, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
@@ -158,6 +159,11 @@ describe("eastern billing calendar", () => {
     expect(atLeastOneBusinessDayLater(friday, saturday)).toBe(false);
     expect(atLeastOneBusinessDayLater(friday, monday)).toBe(true);
     expect(atLeastOneBusinessDayLater(monday, monday)).toBe(false);
+    expect(easternMonthLabel("2026-10")).toBe("October 2026");
+    expect(previousEasternMonthKey("2026-10")).toBe("2026-09");
+    expect(periodChange(0.99, 0)).toEqual({ direction: "up", percent: null });
+    expect(periodChange(-1.8, 2)).toEqual({ direction: "down", percent: -190 });
+    expect(periodChange(4, 2).direction).toBe("up");
   });
 });
 

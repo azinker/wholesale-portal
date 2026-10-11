@@ -349,6 +349,7 @@ enum ChannelOrderStatus {
   SUBMITTED
   PICKING
   SHIPPED
+  DELIVERED
   FAILED
   REFUNDED
 }
@@ -488,6 +489,8 @@ model ChannelOrder {
   carrier          String?
   trackingNumber   String?            @map("tracking_number")
   trackingUrl      String?            @map("tracking_url")
+  shippedAt        DateTime?          @map("shipped_at")
+  deliveredAt      DateTime?          @map("delivered_at")
   error            String?
   attentionNote    String?            @map("attention_note")
   chargeAttempts   Int                @default(0) @map("charge_attempts")

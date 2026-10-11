@@ -13,6 +13,7 @@ import {
   type OrderLine,
 } from "@/lib/shopify-channel/order-view";
 import { gettingReadyTip } from "@/lib/shopify-channel/calendar";
+import { looksLikeUsps, uspsTrackingUrl } from "@/lib/shopify-channel/shopify-admin";
 import { ChannelSchemaNotice } from "../../channel-schema-notice";
 import { Tip, TipLabel } from "../../tip";
 import { ProductMenu, type ProductLink } from "./product-menu";
@@ -22,6 +23,7 @@ import {
   ChannelPage,
   ChannelPanel,
   StatusPill,
+  orderRowClass,
   channelField,
   channelPrimaryBtn,
   money,
@@ -31,7 +33,7 @@ import {
 type View = "all" | "awaiting" | "shipped" | "attention";
 
 function toneFor(status: string): "good" | "wait" | "bad" | "neutral" {
-  if (status === "SHIPPED" || status === "CHARGED" || status === "SUBMITTED" || status === "PICKING") return "good";
+  if (status === "SHIPPED" || status === "DELIVERED" || status === "CHARGED" || status === "SUBMITTED" || status === "PICKING") return "good";
   if (status === "NEEDS_ATTENTION" || status === "FAILED") return "bad";
   if (status === "REFUNDED") return "neutral";
   return "wait";
@@ -255,8 +257,9 @@ export default async function ChannelOrdersPage({
                 const net = netCharged(order);
                 const credit = Number(order.storeCreditApplied || 0);
                 const charged = wasCharged(order) || credit > 0;
+                const trackHref = order.trackingUrl || (order.trackingNumber && looksLikeUsps(order.trackingNumber) ? uspsTrackingUrl(order.trackingNumber) : null);
                 return (
-                  <tr key={order.id} className="border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6]">
+                  <tr key={order.id} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${orderRowClass(order.status)}`}>
                     <td className="px-4 py-3">
                       <Link href={`/my-shopify/orders/${order.id}`} className="font-semibold hover:underline">{order.shopifyOrderName}</Link>
                       <p className="text-xs text-[#5c5654]">{whenEastern(order.createdAt)} · {order.connection.shopDomain}</p>
@@ -280,10 +283,10 @@ export default async function ChannelOrdersPage({
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      {order.status === "SHIPPED" ? (
+                      {order.status === "SHIPPED" || order.status === "DELIVERED" ? (
                         order.trackingNumber ? (
-                          order.trackingUrl ? (
-                            <a className="font-semibold text-primary hover:underline" href={order.trackingUrl} target="_blank" rel="noreferrer">{order.trackingNumber}</a>
+                          trackHref ? (
+                            <a className="font-semibold text-primary hover:underline" href={trackHref} target="_blank" rel="noreferrer">{order.trackingNumber}</a>
                           ) : (
                             <span className="font-semibold">{order.trackingNumber}</span>
                           )
@@ -302,6 +305,7 @@ export default async function ChannelOrdersPage({
                       >
                         {statusLabel(order.status)}
                       </StatusPill>
+                      {order.deliveredAt ? <p className="mt-1 text-xs text-emerald-800">Delivered {whenEastern(order.deliveredAt)}</p> : order.shippedAt ? <p className="mt-1 text-xs text-[#5c5654]">Shipped {whenEastern(order.shippedAt)}</p> : null}
                     </td>
                   </tr>
                 );

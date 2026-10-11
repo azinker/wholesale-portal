@@ -417,6 +417,48 @@ export async function readOrderAddress(
   };
 }
 
+export function uspsTrackingUrl(trackingNumber: string): string {
+  return `https://tools.usps.com/tracking/?qtc_tLabels1=${encodeURIComponent(trackingNumber)}`;
+}
+
+export function looksLikeUsps(trackingNumber: string): boolean {
+  return /^(92|93|94|95)\d{18,22}$/.test(trackingNumber) || /^\d{20,22}$/.test(trackingNumber);
+}
+
+export async function readFulfillments(
+  shop: string,
+  token: string,
+  orderId: string
+): Promise<Array<{ id: number; shipment_status: string | null; tracking_company: string | null; tracking_number: string | null }>> {
+  const json = await shopify<{
+    fulfillments: Array<{ id: number; shipment_status: string | null; tracking_company: string | null; tracking_number: string | null }>;
+  }>(shop, token, `orders/${orderId}/fulfillments.json`);
+  return json.fulfillments || [];
+}
+
+export async function pointFulfillmentAtCarrier(input: {
+  shop: string;
+  token: string;
+  fulfillmentId: number;
+  trackingNumber: string;
+  company: string;
+  url: string;
+}): Promise<void> {
+  await shopify(input.shop, input.token, `fulfillments/${input.fulfillmentId}/update_tracking.json`, {
+    method: "POST",
+    body: JSON.stringify({
+      fulfillment: {
+        notify_customer: false,
+        tracking_info: {
+          number: input.trackingNumber,
+          company: input.company,
+          url: input.url,
+        },
+      },
+    }),
+  });
+}
+
 export async function createFulfillment(input: {
   shop: string;
   token: string;
@@ -441,8 +483,8 @@ export async function createFulfillment(input: {
         line_items_by_fulfillment_order: open.map((row) => ({ fulfillment_order_id: row.id })),
         tracking_info: {
           number: input.trackingNumber,
-          url: input.trackingUrl || undefined,
-          company: input.carrier || undefined,
+          url: input.trackingUrl || (looksLikeUsps(input.trackingNumber) ? uspsTrackingUrl(input.trackingNumber) : undefined),
+          company: looksLikeUsps(input.trackingNumber) ? "USPS" : input.carrier || undefined,
         },
         notify_customer: true,
       },

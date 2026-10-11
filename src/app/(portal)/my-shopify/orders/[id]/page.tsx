@@ -7,6 +7,7 @@ import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { ChannelSetupGate } from "../../../channel-setup-gate";
 import { isAffiliatedOrder } from "@/lib/shopify-channel/order-view";
+import { looksLikeUsps, uspsTrackingUrl } from "@/lib/shopify-channel/shopify-admin";
 import { ChannelSchemaNotice } from "../../../channel-schema-notice";
 import { Tip } from "../../../tip";
 import {
@@ -18,6 +19,7 @@ import {
   channelGhostBtn,
   channelPrimaryBtn,
   money,
+  marginClass,
   statusLabel,
 } from "../../../channel-ui";
 
@@ -73,11 +75,11 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
       <ChannelHeading
         kicker={order.connection.shopDomain.startsWith("preview-") ? "Sample store" : order.connection.shopDomain}
         title={order.shopifyOrderName}
-        lede={order.createdAt.toLocaleString()}
+        lede={`Placed ${order.createdAt.toLocaleString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })} ET${order.shippedAt ? `. Shipped ${order.shippedAt.toLocaleString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}` : ""}${order.deliveredAt ? `. Delivered ${order.deliveredAt.toLocaleString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}` : ""}`}
       >
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill
-            tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" ? "good" : "wait"}
+            tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" || order.status === "DELIVERED" ? "good" : "wait"}
             tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}
           >
             {statusLabel(order.status)}
@@ -163,8 +165,8 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
             {order.trackingNumber && (
               <p>
                 {order.carrier || "Carrier"}{" "}
-                {order.trackingUrl ? (
-                  <a className="font-semibold text-primary hover:underline" href={order.trackingUrl} target="_blank" rel="noreferrer">
+                {(order.trackingUrl || looksLikeUsps(order.trackingNumber)) ? (
+                  <a className="font-semibold text-primary hover:underline" href={order.trackingUrl || uspsTrackingUrl(order.trackingNumber)} target="_blank" rel="noreferrer">
                     {order.trackingNumber}
                   </a>
                 ) : (
@@ -197,7 +199,7 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
               {credit > 0 && <div className="flex justify-between gap-3 text-emerald-300"><dt className="inline-flex items-center gap-1.5">Store credit <Tip tone="dark" text="Applied automatically to this order before the card. Your card was not charged for this part." /></dt><dd className="tabular-nums font-semibold">{money(credit)}</dd></div>}
               <div className="flex justify-between gap-3 border-t border-white/15 pt-2"><dt className="inline-flex items-center gap-1.5">Card charged <Tip tone="dark" text="Taken from your card when the customer paid, after store credit. Store credit is applied automatically to new orders." /></dt><dd className="tabular-nums font-semibold">{credit > 0 && net <= 0 ? "None" : money(net)}</dd></div>
               {refunded > 0 && <div className="flex justify-between gap-3"><dt className="text-white/70">Refunded</dt><dd className="tabular-nums">{money(refunded)}</dd></div>}
-              <div className="flex justify-between gap-3 text-emerald-300"><dt>Margin</dt><dd className="tabular-nums font-semibold">{money(sold - net - credit)}</dd></div>
+              <div className={`flex justify-between gap-3 ${marginClass(sold - net - credit, "dark")}`}><dt>Margin</dt><dd className="tabular-nums font-semibold">{money(sold - net - credit)}</dd></div>
             </dl>
             <p className="mt-3 text-xs text-white/60">Before Shopify fees, which we do not know.</p>
           </ChannelPanel>
@@ -218,7 +220,8 @@ function orderStory(status: string, enabled: boolean, attention: string | null):
   if (status === "CHARGED") return "Your card was charged when the customer paid. We're sending this to the warehouse next.";
   if (status === "SUBMITTED") return "We received this order and it's waiting to ship. It usually goes out within 1 business day. Weekends and USPS holidays are not shipping days. Hover Getting ready for the expected ship date.";
   if (status === "PICKING") return "We received this order and it's being packed. It usually goes out within 1 business day. Weekends and USPS holidays are not shipping days.";
-  if (status === "SHIPPED") return "We shipped this and put the tracking on your Shopify order.";
+  if (status === "SHIPPED") return "We shipped this and put the tracking on your Shopify order. This changes to Delivered when the carrier marks it delivered.";
+  if (status === "DELIVERED") return "The carrier marked this delivered.";
   if (status === "REFUNDED") return "This charge was refunded. Nothing is shipping.";
   return "We charge your card when the customer pays, then we ship.";
 }

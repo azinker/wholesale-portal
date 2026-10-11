@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { drainQueuedChannelOrders, remindStaleCardAttention } from "@/lib/shopify-channel/orders";
 import { runNextCatalogExport } from "@/lib/shopify-channel/catalog-export";
 import { runNextPublishJob, syncListingInventory } from "@/lib/shopify-channel/publish";
-import { syncPendingShipments } from "@/lib/shopify-channel/tracking";
+import { syncDeliveredShipments, syncPendingShipments } from "@/lib/shopify-channel/tracking";
 
 function authorizeCron(req: NextRequest): NextResponse | null {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -24,5 +24,6 @@ export async function GET(req: NextRequest) {
   const reminded = await remindStaleCardAttention();
   const exported = await runNextCatalogExport();
   const shipped = await syncPendingShipments();
-  return NextResponse.json({ published, inventory, queued, reminded, exported, shipped });
+  const delivered = await syncDeliveredShipments();
+  return NextResponse.json({ published, inventory, queued, reminded, exported, shipped, delivered });
 }

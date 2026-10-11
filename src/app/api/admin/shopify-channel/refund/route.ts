@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     await refundCharge(order.stripeChargeId, Math.round(cardRefund * 100));
   }
   const refunded = roundMoney(Number(order.amountRefunded) + cardRefund);
-  const alreadyShipped = order.status === "SHIPPED";
+  const alreadyShipped = order.status === "SHIPPED" || order.status === "DELIVERED";
   const fullyRefunded = refunded >= Number(order.amountCharged);
   let creditRestored = 0;
   if (fullyRefunded && creditOnOrder > 0 && order.account.customerId) {

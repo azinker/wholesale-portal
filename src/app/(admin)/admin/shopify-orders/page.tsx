@@ -87,7 +87,7 @@ export default async function AdminShopifyOrdersPage({
                       orderId={order.id}
                       orderName={order.shopifyOrderName}
                       remaining={remaining}
-                      shipped={order.status === "SHIPPED"}
+                      shipped={order.status === "SHIPPED" || order.status === "DELIVERED"}
                     />
                   </td>
                 </tr>

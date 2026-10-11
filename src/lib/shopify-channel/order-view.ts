@@ -24,7 +24,7 @@ export function isAffiliatedOrder(order: {
 }
 
 export function orderView(status: string): "awaiting" | "shipped" | "attention" | "closed" {
-  if (status === "SHIPPED") return "shipped";
+  if (status === "SHIPPED" || status === "DELIVERED") return "shipped";
   if (status === "NEEDS_ATTENTION" || status === "FAILED") return "attention";
   if (status === "REFUNDED") return "closed";
   if (AWAITING.has(status)) return "awaiting";
@@ -40,11 +40,24 @@ export function netCharged(order: { amountCharged: unknown; amountRefunded: unkn
 }
 
 export function whenEastern(date: Date): string {
-  return date.toLocaleString("en-US", {
+  const formatted = date.toLocaleString("en-US", {
     timeZone: "America/New_York",
     month: "short",
     day: "numeric",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
+  return `${formatted} ET`;
+}
+
+export function periodChange(current: number, previous: number): { direction: "up" | "down" | "flat"; percent: number | null } {
+  const now = Math.round(current * 100) / 100;
+  const then = Math.round(previous * 100) / 100;
+  if (now === then) return { direction: "flat", percent: then === 0 ? null : 0 };
+  if (then === 0) return { direction: now > 0 ? "up" : "down", percent: null };
+  return {
+    direction: now > then ? "up" : "down",
+    percent: ((now - then) / Math.abs(then)) * 100,
+  };
 }

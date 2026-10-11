@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { periodChange } from "@/lib/shopify-channel/order-view";
 import { HoverTip } from "./tip";
 
 export const channelPrimaryBtn =
@@ -14,6 +15,52 @@ export function money(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
+export function marginClass(value: number, tone: "light" | "dark" = "light"): string {
+  if (value < 0) return tone === "dark" ? "text-red-300" : "text-red-700";
+  if (value > 0) return tone === "dark" ? "text-emerald-300" : "text-emerald-700";
+  return tone === "dark" ? "text-white" : "text-[#1a1a1a]";
+}
+
+export function Trend({
+  current,
+  previous,
+  comparedTo,
+  goodWhenUp,
+}: {
+  current: number;
+  previous: number;
+  comparedTo: string;
+  goodWhenUp: boolean;
+}) {
+  const change = periodChange(current, previous);
+  if (change.percent == null && previous === 0 && current === 0) {
+    return <p className="mt-1 text-xs text-[#5c5654]">No orders in {comparedTo}</p>;
+  }
+  if (change.percent == null) {
+    const arrow = current > previous ? "↑" : "↓";
+    const better = goodWhenUp ? current > previous : false;
+    const color = goodWhenUp ? (better ? "text-emerald-700" : "text-red-700") : "text-[#3f3a38]";
+    return <p className={`mt-1 text-xs font-semibold ${color}`}>{arrow} New vs {comparedTo}</p>;
+  }
+  const up = change.direction === "up";
+  const down = change.direction === "down";
+  const arrow = up ? "↑" : down ? "↓" : "→";
+  const better = change.direction === "flat" ? false : goodWhenUp ? up : down;
+  const color = change.direction === "flat" ? "text-[#5c5654]" : !goodWhenUp ? "text-[#3f3a38]" : better ? "text-emerald-700" : "text-red-700";
+  const amount = change.direction === "flat" ? "Same" : `${arrow} ${Math.abs(change.percent).toFixed(0)}%`;
+  return <p className={`mt-1 text-xs font-semibold ${color}`}>{amount} vs {comparedTo}</p>;
+}
+
+export function orderRowClass(status: string): string {
+  if (status === "DELIVERED") return "bg-emerald-50";
+  if (status === "SHIPPED") return "bg-emerald-50/60";
+  if (status === "NEEDS_ATTENTION" || status === "FAILED") return "bg-red-50";
+  if (status === "REFUNDED") return "bg-zinc-100";
+  if (status === "SUBMITTED" || status === "PICKING") return "bg-amber-50";
+  if (status === "CHARGED" || status === "QUEUED") return "bg-sky-50";
+  return "bg-white";
+}
+
 const STATUS_LABEL: Record<string, string> = {
   HELD: "Waiting",
   QUEUED: "Ready to charge",
@@ -22,6 +69,7 @@ const STATUS_LABEL: Record<string, string> = {
   SUBMITTED: "Getting ready",
   PICKING: "Packing",
   SHIPPED: "Shipped",
+  DELIVERED: "Delivered",
   FAILED: "Needs a look",
   REFUNDED: "Refunded",
 };

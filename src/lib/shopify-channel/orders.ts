@@ -16,7 +16,7 @@ import { listRecentPaidOrders } from "./shopify-admin";
 import { chooseDropshipperCustomerId } from "./customer";
 import { chargeCard, refundCharge } from "./stripe";
 
-const LOCKED = new Set(["SUBMITTED", "PICKING", "SHIPPED", "REFUNDED", "FAILED"]);
+const LOCKED = new Set(["SUBMITTED", "PICKING", "SHIPPED", "DELIVERED", "REFUNDED", "FAILED"]);
 
 export interface ShopifyOrderPayload {
   id: number | string;

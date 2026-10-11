@@ -16,6 +16,19 @@ export function easternMonthKey(date: Date): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+export function easternMonthLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  return `${MONTH_NAMES[(month || 1) - 1] || key} ${year || ""}`.trim();
+}
+
+export function previousEasternMonthKey(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  const date = new Date(Date.UTC(year, (month || 1) - 2, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 function utcNoon(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day, 16, 0, 0));
 }

@@ -3,7 +3,7 @@ import { bc } from "@/lib/bigcommerce/client";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
-import { easternMonthKey, gettingReadyTip } from "@/lib/shopify-channel/calendar";
+import { easternMonthKey, easternMonthLabel, gettingReadyTip, previousEasternMonthKey } from "@/lib/shopify-channel/calendar";
 import { isAffiliatedOrder, netCharged, wasCharged, whenEastern } from "@/lib/shopify-channel/order-view";
 import { stripeConfigured, readCheckoutSession, readSetupIntent, readCard } from "@/lib/shopify-channel/stripe";
 import { retryCardAttention } from "@/lib/shopify-channel/orders";
@@ -14,6 +14,9 @@ import {
   ChannelPage,
   ChannelPanel,
   StatusPill,
+  Trend,
+  marginClass,
+  orderRowClass,
   attentionLabel,
   channelPrimaryBtn,
   money,
@@ -21,7 +24,7 @@ import {
 } from "../channel-ui";
 
 function toneFor(status: string): "good" | "wait" | "bad" | "neutral" {
-  if (status === "SHIPPED" || status === "SUBMITTED" || status === "PICKING" || status === "CHARGED") return "good";
+  if (status === "SHIPPED" || status === "DELIVERED" || status === "SUBMITTED" || status === "PICKING" || status === "CHARGED") return "good";
   if (status === "NEEDS_ATTENTION" || status === "FAILED") return "bad";
   if (status === "REFUNDED") return "neutral";
   return "wait";
@@ -77,7 +80,7 @@ export default async function BillingPage({
   const stored = await db.channelOrder.findMany({
     where: { accountId: account.id, shopifyOrderId: { not: "preview" } },
     orderBy: { createdAt: "desc" },
-    take: 60,
+    take: 400,
   });
   const affiliated = stored.filter((order) => isAffiliatedOrder(order));
   const orders = affiliated.slice(0, 30);
@@ -86,15 +89,27 @@ export default async function BillingPage({
       (await db.channelOrder.findFirst({ where: { id: focusId, accountId: account.id } }))
     : null;
   const focused = focus && isAffiliatedOrder(focus) ? focus : null;
-  const charged = orders.reduce((sum, row) => sum + Number(row.amountCharged) - Number(row.amountRefunded), 0);
-  const sold = orders.reduce((sum, row) => sum + Number(row.soldFor), 0);
   const attention = orders.filter((order) => order.status === "NEEDS_ATTENTION");
   const months = Array.from(new Set(orders.map((order) => easternMonthKey(order.createdAt))));
+  const thisKey = easternMonthKey(new Date());
+  const prevKey = previousEasternMonthKey(thisKey);
+  const thisLabel = easternMonthLabel(thisKey);
+  const prevLabel = easternMonthLabel(prevKey);
+  const totals = (rows: typeof affiliated) => {
+    const sold = rows.reduce((sum, row) => sum + Number(row.soldFor), 0);
+    const charged = rows.reduce((sum, row) => sum + Number(row.amountCharged) - Number(row.amountRefunded), 0);
+    const credit = rows.reduce((sum, row) => sum + Number(row.storeCreditApplied || 0), 0);
+    const margin = sold - charged - credit;
+    return { sold, charged, credit, margin, marginPercent: sold > 0 ? (margin / sold) * 100 : 0 };
+  };
+  const settled = (key: string) => affiliated.filter((order) => easternMonthKey(order.createdAt) === key && order.status !== "NEEDS_ATTENTION");
+  const thisMonth = totals(settled(thisKey));
+  const lastMonth = totals(settled(prevKey));
 
   const stats = [
-    { label: "Buyer paid", value: money(sold), hint: "What customers paid on Shopify" },
-    { label: "Charged", value: money(charged), hint: "Already taken from the credit card" },
-    { label: "Margin", value: money(sold - charged), hint: "Before Shopify fees, which we do not know" },
+    { label: "Buyer paid", value: thisMonth.sold, previous: lastMonth.sold, goodWhenUp: true, hint: `What customers paid on Shopify in ${thisLabel}` },
+    { label: "Charged", value: thisMonth.charged, previous: lastMonth.charged, goodWhenUp: false, hint: `Taken from the card in ${thisLabel}` },
+    { label: "Margin", value: thisMonth.margin, previous: lastMonth.margin, goodWhenUp: true, hint: "Buyer paid minus the card and store credit. Before Shopify fees." },
   ];
 
   return (
@@ -120,7 +135,11 @@ export default async function BillingPage({
               {stat.label}
               <Tip text={stat.label === "Buyer paid" ? "The total your customer paid you on Shopify for these orders." : stat.label === "Charged" ? "What we already took from the credit card on this account. This happens when the order is paid, before we ship." : "Buyer paid minus what we charged. Shopify's own fees are not included."} />
             </p>
-            <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{stat.value}</p>
+            <p className={`mt-1 font-display text-3xl font-semibold tabular-nums ${stat.label === "Margin" ? marginClass(stat.value) : ""}`}>{money(stat.value)}</p>
+            <Trend current={stat.value} previous={stat.previous} comparedTo={prevLabel} goodWhenUp={stat.goodWhenUp} />
+            {stat.label === "Margin" && thisMonth.sold > 0 && (
+              <p className={`text-xs font-semibold ${marginClass(thisMonth.marginPercent)}`}>{thisMonth.marginPercent.toFixed(0)}% of buyer paid</p>
+            )}
             <p className="mt-1 text-xs text-[#5c5654]">{stat.hint}</p>
           </ChannelPanel>
         ))}
@@ -210,10 +229,11 @@ export default async function BillingPage({
               <ChannelPanel key={month} className="overflow-hidden">
                 <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#f0ebe8] px-5 py-4">
                   <div>
-                    <h2 className="font-display text-xl font-semibold">{month}</h2>
+                    <h2 className="font-display text-xl font-semibold">{easternMonthLabel(month)}</h2>
                     <p className="text-sm text-[#5c5654]">
-                      {monthOrders.length} orders · buyers paid {money(monthSold)} · card {money(monthCharged)}{monthCredit > 0 ? ` · store credit ${money(monthCredit)}` : ""} · margin {money(monthSold - monthCharged - monthCredit)}
+                      {monthOrders.length} orders · buyers paid {money(monthSold)} · card {money(monthCharged)}{monthCredit > 0 ? ` · store credit ${money(monthCredit)}` : ""} · margin <span className={marginClass(monthSold - monthCharged - monthCredit)}>{money(monthSold - monthCharged - monthCredit)}</span>
                     </p>
+                    {month === thisKey && <Trend current={monthSold - monthCharged - monthCredit} previous={lastMonth.margin} comparedTo={prevLabel} goodWhenUp />}
                   </div>
                   <a className="cursor-pointer text-sm font-semibold text-primary hover:underline" href={`/api/portal/shopify-channel/invoice?month=${month}`}>
                     Download spreadsheet
@@ -224,6 +244,7 @@ export default async function BillingPage({
                     <thead className="bg-[#2d2d2d] text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
                       <tr>
                         <th className="px-4 py-3"><TipLabel tone="dark" tip="The Shopify order. Open it to see the address, products, and tracking.">Order</TipLabel></th>
+                        <th className="px-3 py-3"><TipLabel tone="dark" tip="When the paid order reached us, in Eastern time.">Date</TipLabel></th>
                         <th className="px-3 py-3"><TipLabel tone="dark" tip="What your customer paid you on Shopify.">Buyer paid</TipLabel></th>
                         <th className="px-3 py-3"><TipLabel tone="dark" tip="What we took from your credit card. The charge happens when the order is paid, not when it ships.">Charged</TipLabel></th>
                         <th className="px-3 py-3"><TipLabel tone="dark" tip="US shipping is $0, including PO Boxes, Alaska, and Hawaii. Every other country is $18.99 once per order.">Shipping</TipLabel></th>
@@ -236,9 +257,13 @@ export default async function BillingPage({
                         const net = Number(order.amountCharged) - Number(order.amountRefunded);
                         const credit = Number(order.storeCreditApplied || 0);
                         return (
-                          <tr key={order.id} id={order.id === focused?.id ? "charge-row" : undefined} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${order.id === focused?.id ? "bg-[#fdf6f6]" : ""}`}>
+                          <tr key={order.id} id={order.id === focused?.id ? "charge-row" : undefined} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${order.id === focused?.id ? "bg-[#fdf6f6]" : orderRowClass(order.status)}`}>
                             <td className="px-4 py-3">
                               <Link className="font-semibold hover:underline" href={`/my-shopify/orders/${order.id}`}>{order.shopifyOrderName}</Link>
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className="block font-medium">{whenEastern(order.createdAt)}</span>
+                              {order.deliveredAt ? <span className="block text-xs text-emerald-800">Delivered {whenEastern(order.deliveredAt)}</span> : order.shippedAt ? <span className="block text-xs text-[#5c5654]">Shipped {whenEastern(order.shippedAt)}</span> : null}
                             </td>
                             <td className="px-3 py-3 tabular-nums">{money(Number(order.soldFor))}</td>
                             <td className="px-3 py-3 tabular-nums">
@@ -256,14 +281,14 @@ export default async function BillingPage({
                                 {Number(order.shippingCharged) > 0 ? "Outside the US, $18.99" : "US, free"}
                               </span>
                             </td>
-                            <td className="px-3 py-3 tabular-nums font-semibold text-emerald-700">{money(Number(order.soldFor) - net - credit)}</td>
+                            <td className={`px-3 py-3 tabular-nums font-semibold ${marginClass(Number(order.soldFor) - net - credit)}`}>{money(Number(order.soldFor) - net - credit)}</td>
                             <td className="px-4 py-3"><StatusPill tone={toneFor(order.status)} tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}>{statusLabel(order.status)}</StatusPill></td>
                           </tr>
                         );
                       })}
                       {monthOrders.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-sm text-[#5c5654]">Nothing settled in this month yet.</td>
+                          <td colSpan={7} className="px-4 py-8 text-center text-sm text-[#5c5654]">Nothing settled in this month yet.</td>
                         </tr>
                       )}
                     </tbody>

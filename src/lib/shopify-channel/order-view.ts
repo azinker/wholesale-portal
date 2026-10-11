@@ -39,6 +39,12 @@ export function netCharged(order: { amountCharged: unknown; amountRefunded: unkn
   return Number(order.amountCharged) - Number(order.amountRefunded);
 }
 
+export function fullyRefunded(order: { amountCharged: unknown; amountRefunded: unknown }): boolean {
+  const charged = Number(order.amountCharged);
+  const refunded = Number(order.amountRefunded);
+  return charged > 0 && refunded + 0.001 >= charged;
+}
+
 export function whenEastern(date: Date): string {
   const formatted = date.toLocaleString("en-US", {
     timeZone: "America/New_York",

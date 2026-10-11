@@ -79,7 +79,7 @@ export default async function ChannelOrderPage({ params }: { params: Promise<{ i
       >
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill
-            tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" ? "bad" : order.status === "SHIPPED" || order.status === "DELIVERED" ? "good" : "wait"}
+            tone={order.status === "NEEDS_ATTENTION" || order.status === "FAILED" || order.status === "REFUNDED" ? "bad" : order.status === "SHIPPED" || order.status === "DELIVERED" ? "good" : "wait"}
             tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}
           >
             {statusLabel(order.status)}
@@ -222,6 +222,6 @@ function orderStory(status: string, enabled: boolean, attention: string | null):
   if (status === "PICKING") return "We received this order and it's being packed. It usually goes out within 1 business day. Weekends and USPS holidays are not shipping days.";
   if (status === "SHIPPED") return "We shipped this and put the tracking on your Shopify order. This changes to Delivered when the carrier marks it delivered.";
   if (status === "DELIVERED") return "The carrier marked this delivered.";
-  if (status === "REFUNDED") return "This charge was refunded. Nothing is shipping.";
+  if (status === "REFUNDED") return "We refunded this charge on your card. That does not refund the customer who paid you on Shopify. If they need their money back, refund them in Shopify.";
   return "We charge your card when the customer pays, then we ship.";
 }

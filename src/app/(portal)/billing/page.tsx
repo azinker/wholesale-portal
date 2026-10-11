@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { easternMonthKey, easternMonthLabel, gettingReadyTip, previousEasternMonthKey } from "@/lib/shopify-channel/calendar";
-import { isAffiliatedOrder, netCharged, wasCharged, whenEastern } from "@/lib/shopify-channel/order-view";
+import { fullyRefunded, isAffiliatedOrder, netCharged, wasCharged, whenEastern } from "@/lib/shopify-channel/order-view";
 import { stripeConfigured, readCheckoutSession, readSetupIntent, readCard } from "@/lib/shopify-channel/stripe";
 import { retryCardAttention } from "@/lib/shopify-channel/orders";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
@@ -25,7 +25,7 @@ import {
 
 function toneFor(status: string): "good" | "wait" | "bad" | "neutral" {
   if (status === "SHIPPED" || status === "DELIVERED" || status === "SUBMITTED" || status === "PICKING" || status === "CHARGED") return "good";
-  if (status === "NEEDS_ATTENTION" || status === "FAILED") return "bad";
+  if (status === "NEEDS_ATTENTION" || status === "FAILED" || status === "REFUNDED") return "bad";
   if (status === "REFUNDED") return "neutral";
   return "wait";
 }
@@ -256,6 +256,7 @@ export default async function BillingPage({
                       {monthOrders.map((order) => {
                         const net = Number(order.amountCharged) - Number(order.amountRefunded);
                         const credit = Number(order.storeCreditApplied || 0);
+                        const refunded = fullyRefunded(order);
                         return (
                           <tr key={order.id} id={order.id === focused?.id ? "charge-row" : undefined} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${order.id === focused?.id ? "bg-[#fdf6f6]" : orderRowClass(order.status)}`}>
                             <td className="px-4 py-3">
@@ -267,12 +268,12 @@ export default async function BillingPage({
                             </td>
                             <td className="px-3 py-3 tabular-nums">{money(Number(order.soldFor))}</td>
                             <td className="px-3 py-3 tabular-nums">
-                              {credit > 0 && net <= 0 ? "Store credit" : money(net)}
+                              {refunded ? <span className="font-semibold text-red-800">Refunded</span> : credit > 0 && net <= 0 ? "Store credit" : money(net)}
                               {credit > 0 && (
                                 <span className="block text-xs font-semibold text-emerald-700">Store credit {money(credit)}</span>
                               )}
                               {Number(order.amountRefunded) > 0 && (
-                                <span className="block text-xs text-[#5c5654]">Refunded {money(Number(order.amountRefunded))}</span>
+                                <span className="block text-xs font-semibold text-red-800">Card refund {money(Number(order.amountRefunded))}</span>
                               )}
                             </td>
                             <td className="px-3 py-3 tabular-nums">
@@ -282,7 +283,7 @@ export default async function BillingPage({
                               </span>
                             </td>
                             <td className={`px-3 py-3 tabular-nums font-semibold ${marginClass(Number(order.soldFor) - net - credit)}`}>{money(Number(order.soldFor) - net - credit)}</td>
-                            <td className="px-4 py-3"><StatusPill tone={toneFor(order.status)} tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}>{statusLabel(order.status)}</StatusPill></td>
+                            <td className="px-4 py-3"><StatusPill tone={toneFor(order.status)} tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : order.status === "REFUNDED" ? "We refunded this charge on your card. That does not refund the customer who paid you on Shopify." : undefined}>{statusLabel(order.status)}</StatusPill></td>
                           </tr>
                         );
                       })}

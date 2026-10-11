@@ -5,6 +5,7 @@ import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { ChannelSetupGate } from "../../channel-setup-gate";
 import {
   affiliatedLines,
+  fullyRefunded,
   isAffiliatedOrder,
   netCharged,
   orderView,
@@ -34,7 +35,7 @@ type View = "all" | "awaiting" | "shipped" | "attention";
 
 function toneFor(status: string): "good" | "wait" | "bad" | "neutral" {
   if (status === "SHIPPED" || status === "DELIVERED" || status === "CHARGED" || status === "SUBMITTED" || status === "PICKING") return "good";
-  if (status === "NEEDS_ATTENTION" || status === "FAILED") return "bad";
+  if (status === "NEEDS_ATTENTION" || status === "FAILED" || status === "REFUNDED") return "bad";
   if (status === "REFUNDED") return "neutral";
   return "wait";
 }
@@ -257,6 +258,7 @@ export default async function ChannelOrdersPage({
                 const net = netCharged(order);
                 const credit = Number(order.storeCreditApplied || 0);
                 const charged = wasCharged(order) || credit > 0;
+                const refunded = fullyRefunded(order);
                 const trackHref = order.trackingUrl || (order.trackingNumber && looksLikeUsps(order.trackingNumber) ? uspsTrackingUrl(order.trackingNumber) : null);
                 return (
                   <tr key={order.id} className={`border-t border-[#f0ebe8] transition-colors duration-200 hover:bg-[#faf7f6] ${orderRowClass(order.status)}`}>
@@ -273,7 +275,12 @@ export default async function ChannelOrdersPage({
                       </Link>
                     </td>
                     <td className="px-3 py-3">
-                      {charged ? (
+                      {refunded ? (
+                        <Link href={`/billing?order=${order.id}#charge`} className="font-semibold text-red-800 hover:underline">
+                          Refunded
+                          <span className="block text-xs font-semibold">Card refund {money(Number(order.amountRefunded))}</span>
+                        </Link>
+                      ) : charged ? (
                         <Link href={`/billing?order=${order.id}#charge`} className="font-semibold tabular-nums text-primary hover:underline">
                           {credit > 0 && net <= 0 ? "Store credit" : money(net)}
                           {credit > 0 && <span className="block text-xs font-semibold text-emerald-700">Store credit {money(credit)}</span>}
@@ -283,7 +290,7 @@ export default async function ChannelOrdersPage({
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      {order.status === "SHIPPED" || order.status === "DELIVERED" ? (
+                      {order.status === "SHIPPED" || order.status === "DELIVERED" || (order.status === "REFUNDED" && order.trackingNumber) ? (
                         order.trackingNumber ? (
                           trackHref ? (
                             <a className="font-semibold text-primary hover:underline" href={trackHref} target="_blank" rel="noreferrer">{order.trackingNumber}</a>
@@ -301,7 +308,7 @@ export default async function ChannelOrdersPage({
                     <td className="px-4 py-3">
                       <StatusPill
                         tone={toneFor(order.status)}
-                        tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : undefined}
+                        tip={order.status === "SUBMITTED" ? gettingReadyTip(order.chargedAt || order.createdAt) : order.status === "REFUNDED" ? "We refunded this charge on your card. That does not refund the customer who paid you on Shopify." : undefined}
                       >
                         {statusLabel(order.status)}
                       </StatusPill>

@@ -33,12 +33,13 @@ export async function pushChannelTracking(bcOrderId: number): Promise<boolean> {
   const shipments = await bc().getOrderShipments(bcOrderId);
   const latest = shipments.filter((row) => row.tracking_number).at(-1);
   if (!latest) return false;
+  if (order.status === "REFUNDED") return false;
   const changed = latest.tracking_number !== order.trackingNumber;
   const trackingUrl = looksLikeUsps(latest.tracking_number) ? uspsTrackingUrl(latest.tracking_number) : order.trackingUrl;
   await db.channelOrder.update({
     where: { id: order.id },
     data: {
-      status: "SHIPPED",
+      status: order.status === "DELIVERED" ? "DELIVERED" : "SHIPPED",
       carrier: latest.shipping_method,
       trackingNumber: latest.tracking_number,
       trackingUrl,

@@ -24,6 +24,7 @@ import {
   CreditCard,
   Store,
   FileSpreadsheet,
+  CirclePlay,
 } from "lucide-react";
 
 const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
@@ -45,6 +46,7 @@ const NAV_ICONS: Record<PortalNavIcon, React.ReactNode> = {
   billing: <CreditCard size={18} />,
   shopify: <Store size={18} />,
   export: <FileSpreadsheet size={18} />,
+  guides: <CirclePlay size={18} />,
 };
 
 function toNavItem(item: ReturnType<typeof getPortalNav>[number]): NavItem {

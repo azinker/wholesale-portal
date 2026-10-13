@@ -16,7 +16,8 @@ export type PortalNavIcon =
   | "catalog"
   | "billing"
   | "shopify"
-  | "export";
+  | "export"
+  | "guides";
 
 export interface PortalNavDefinition {
   href: string;
@@ -60,7 +61,12 @@ export function getPortalNav(
 
   if (!publisher && status === "APPROVED") {
     const dashIndex = items.findIndex((item) => item.href === "/dashboard");
-    items.splice(dashIndex + 1, 0, { href: "/export", label: "Export listings", icon: "export" });
+    items.splice(
+      dashIndex + 1,
+      0,
+      { href: "/guides", label: "How it works", icon: "guides" },
+      { href: "/export", label: "Export listings", icon: "export" },
+    );
   }
 
   if (channelEnabled && !publisher && status === "APPROVED") {

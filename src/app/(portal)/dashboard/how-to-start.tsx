@@ -55,7 +55,7 @@ export async function HowToStart({ email }: { email: string }) {
         <PathCard
           kicker="Our website"
           title="Buy it yourself"
-          body="Shop on theperfectpart.net. Your code applies your wholesale price, free US shipping, and no tax. We ship to you."
+          body="Shop on theperfectpart.net with the same email as this dashboard. Enter your coupon. We ship to the address you type."
           href="https://theperfectpart.net"
           action="Open the store"
         />

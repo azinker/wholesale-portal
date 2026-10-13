@@ -18,6 +18,8 @@ import { RollingWindowHelpDialog } from "./rolling-window-help-dialog";
 import { PublisherDashboard } from "./publisher-dashboard";
 import { ChannelSummary } from "./channel-summary";
 import { HowToStart } from "./how-to-start";
+import { GuideLessons } from "../guides/guide-lessons";
+import { channelVisibility } from "@/lib/shopify-channel/visibility";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -150,6 +152,10 @@ export default async function DashboardPage() {
           discountLabel={await couponDiscountLabel(activePromo)}
           storeCredit={storeCredit}
         />
+      )}
+
+      {status === "APPROVED" && account?.partnerType !== "AFFILIATE_PUBLISHER" && (
+        <GuideLessons shopify={(await channelVisibility(user.email)).visible} />
       )}
 
       {/* Onboarding Checklist */}

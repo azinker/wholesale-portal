@@ -4,7 +4,7 @@ import { getPortalNav } from "../portal-nav";
 describe("getPortalNav", () => {
   it("preserves every reseller navigation route", () => {
     expect(getPortalNav("DROPSHIPPER", "APPROVED").map((item) => item.href)).toEqual([
-      "/dashboard", "/export", "/hot-sellers", "/orders", "/tracking", "/insights",
+      "/dashboard", "/guides", "/export", "/hot-sellers", "/orders", "/tracking", "/insights",
       "/margin-calculator", "/documents", "/profile", "/team", "/support", "/terms",
     ]);
   });
@@ -18,6 +18,7 @@ describe("getPortalNav", () => {
     expect(hrefs).not.toContain("/margin-calculator");
     expect(hrefs).not.toContain("/documents");
     expect(hrefs).not.toContain("/team");
+    expect(hrefs).not.toContain("/guides");
   });
 
   it("defaults unknown and legacy accounts to reseller navigation", () => {
@@ -36,5 +37,6 @@ describe("getPortalNav", () => {
     expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED", true).some((item) => item.label === "Shopify")).toBe(false);
     expect(getPortalNav("AFFILIATE_PUBLISHER", "APPROVED").some((item) => item.href === "/export")).toBe(false);
     expect(getPortalNav("DROPSHIPPER", "PENDING", true).some((item) => item.label === "Shopify")).toBe(false);
+    expect(getPortalNav("DROPSHIPPER", "PENDING").some((item) => item.href === "/guides")).toBe(false);
   });
 });

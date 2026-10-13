@@ -37,18 +37,18 @@ function Lesson({
   );
 
   return (
-    <article id={id} className="scroll-mt-24 rounded-2xl border border-[#e7e1de] bg-white p-5 shadow-[0_10px_30px_rgba(45,45,45,0.04)] md:p-6">
+    <article id={id} className="flex h-full scroll-mt-24 flex-col rounded-2xl border border-[#e7e1de] bg-white p-4 shadow-[0_10px_30px_rgba(45,45,45,0.04)] md:p-5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">{kicker}</p>
-      <h2 className="mt-2 font-display text-2xl font-semibold">{title}</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5c5654]">{intro}</p>
+      <h2 className="mt-1.5 font-display text-xl font-semibold">{title}</h2>
+      <p className="mt-1 text-sm leading-6 text-[#5c5654]">{intro}</p>
       <video
         controls
         playsInline
         preload="metadata"
-        className="mt-5 aspect-video w-full rounded-xl bg-[#1a1a1a]"
+        className="mt-4 aspect-video w-full rounded-xl bg-[#1a1a1a]"
         src={video}
       />
-      <ol className="mt-6 space-y-4">
+      <ol className="mt-4 space-y-3">
         {steps.map((step, index) => (
           <li key={step.text} className="flex gap-3">
             <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
@@ -128,17 +128,7 @@ const SHOPIFY_STEPS: Step[] = [
     text: "Store credit is used first. Your card pays the rest. We charge your wholesale price, not the price your customer paid you.",
   },
   {
-    text: "Type your store address. It ends in .myshopify.com. Pasting the full link is fine. Shopify asks you to approve it. You can connect up to 5 stores. Each store needs to use US dollars.",
-  },
-  {
-    text: "If the store says Not finished, add two webhooks. You do this once for that store.",
-    lines: [
-      "On the store, open Shopify notifications.",
-      "Create a webhook. Event: Order payment. Format: JSON. Paste the address shown on the page. Use the version written there. Save.",
-      "Create a webhook again. Event: Order update. Same format, same address, same version. Save.",
-      "On each row, click the three dots and choose Send test.",
-      "Come back here and refresh. When it says Ready, the store is connected.",
-    ],
+    text: "Type your store address. It ends in .myshopify.com. Pasting the full link is fine. Shopify asks you to approve it. After you approve, the store is connected. You can connect up to 5 stores. Each store needs to use US dollars.",
   },
   {
     text: "Open Catalog. Pick a product. Add it to Shopify. You choose the price your customer pays. We update how many are in stock. We do not change your price.",
@@ -161,6 +151,7 @@ export function GuideLessons({ shopify }: { shopify: boolean }) {
           Watch the short video, then follow the steps under it. If you set this up today, start with the first one.
         </p>
       </div>
+      <div className={shopify ? "grid items-start gap-4 lg:grid-cols-2" : "max-w-xl"}>
       <Lesson
         id="buy-for-your-customer"
         kicker="Our website"
@@ -196,6 +187,7 @@ export function GuideLessons({ shopify }: { shopify: boolean }) {
           action="Open Shopify"
         />
       )}
+      </div>
     </section>
   );
 }

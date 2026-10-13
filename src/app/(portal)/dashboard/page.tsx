@@ -154,7 +154,7 @@ export default async function DashboardPage() {
         />
       )}
 
-      {status === "APPROVED" && account?.partnerType !== "AFFILIATE_PUBLISHER" && (
+      {status === "APPROVED" && (
         <GuideLessons shopify={(await channelVisibility(user.email)).visible} />
       )}
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SHOPIFY_GUIDE } from "../my-shopify/shopify-guide-dialog";
 
 type Step = {
   text: string;
@@ -114,33 +115,6 @@ const WEBSITE_STEPS: Step[] = [
   },
 ];
 
-const SHOPIFY_STEPS: Step[] = [
-  {
-    text: "On this dashboard, open Shopify in the menu.",
-  },
-  {
-    text: "Accept the terms. An owner or an admin does this once.",
-  },
-  {
-    text: "Open Billing and save a card. This is the card we charge when your customer pays you.",
-  },
-  {
-    text: "Store credit is used first. Your card pays the rest. We charge your wholesale price, not the price your customer paid you.",
-  },
-  {
-    text: "Type your store address. It ends in .myshopify.com. Pasting the full link is fine. Shopify asks you to approve it. After you approve, the store is connected. You can connect up to 5 stores. Each store needs to use US dollars.",
-  },
-  {
-    text: "Open Catalog. Pick a product. Add it to Shopify. You choose the price your customer pays. We update how many are in stock. We do not change your price.",
-  },
-  {
-    text: "When a customer pays on your Shopify store, the order shows under Orders. We ship to the address they entered. It usually goes out within 1 business day. Weekends and USPS holidays are not shipping days. Tracking shows when it ships.",
-  },
-  {
-    text: "Shipping in the US is free, including PO Boxes, Alaska, and Hawaii. Outside the US, including Canada, shipping is $18.99 once per order. There is no tax.",
-  },
-];
-
 export function GuideLessons({ shopify }: { shopify: boolean }) {
   return (
     <section className="space-y-4">
@@ -170,21 +144,14 @@ export function GuideLessons({ shopify }: { shopify: boolean }) {
       {shopify && (
         <Lesson
           id="shopify"
-          kicker="Shopify"
-          title="Connect your Shopify store"
-          intro="Your customer pays you on your store. We charge your card, then ship the order to them."
-          video="/guides/shopify-connection.mp4"
-          steps={SHOPIFY_STEPS}
-          notes={[
-            "If a product is out of stock, we email you. We do not charge your card, and we do not ship that sale later. Refund your customer in Shopify.",
-            "If you pause the store, customers can still buy on Shopify. We do not charge your card and we do not ship those sales. You handle them. When you resume, only new sales are charged and shipped.",
-            "After we charge the card, changing the order in Shopify does not change what we ship. For an address change, open Support.",
-            "If we refund our charge, that money goes back to your card. It does not refund the customer who paid you on Shopify. Refund them in Shopify if they need their money back.",
-            "You can put your own product code on Shopify. We match the product you added.",
-            "Export listings is a spreadsheet. It does not connect your store. Those sales are still placed on theperfectpart.net with your dashboard email and coupon.",
-          ]}
-          href="/my-shopify"
-          action="Open Shopify"
+          kicker={SHOPIFY_GUIDE.kicker}
+          title={SHOPIFY_GUIDE.title}
+          intro={SHOPIFY_GUIDE.intro}
+          video={SHOPIFY_GUIDE.video}
+          steps={SHOPIFY_GUIDE.steps}
+          notes={SHOPIFY_GUIDE.notes}
+          href={SHOPIFY_GUIDE.href}
+          action={SHOPIFY_GUIDE.action}
         />
       )}
       </div>

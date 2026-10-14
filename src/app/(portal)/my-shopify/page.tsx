@@ -5,6 +5,7 @@ import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
 import { CHANNEL_TERMS_TEXT, CHANNEL_TERMS_TITLE, CHANNEL_TERMS_UPDATED } from "@/lib/shopify-channel/terms";
 import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
 import { TermsAccept } from "./terms-accept";
+import { ShopifyGuideDialog } from "./shopify-guide-dialog";
 import { Tip } from "../tip";
 import { SetupTrack } from "../setup-track";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
@@ -54,7 +55,9 @@ export default async function MyShopifyPage({
         kicker="Shopify"
         title="My Shopify"
         lede="Connect a Shopify store, up to 5. Your customer pays you there. We charge your card and ship to them. For a spreadsheet instead, use Export listings."
-      />
+      >
+        <ShopifyGuideDialog />
+      </ChannelHeading>
 
       {preview && (
         <ChannelPanel className="border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">

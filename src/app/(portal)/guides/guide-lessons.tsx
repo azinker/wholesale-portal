@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SHOPIFY_GUIDE } from "../my-shopify/shopify-guide-dialog";
+import { SHOPIFY_GUIDE } from "./shopify-guide";
 
 type Step = {
   text: string;

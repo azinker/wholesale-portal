@@ -8,7 +8,23 @@ import { csvCell, plainText } from "../shopify-channel/catalog-export";
 import { buildListingCsv, type ExportItem } from "../shopify-channel/export-formats";
 import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
 import { zipStore } from "../shopify-channel/zip-store";
+import { warehouseOnHand } from "../shopify-channel/inventory-sync";
 import { scrubListingText } from "../shopify-channel/scrub";
+
+describe("warehouse quantity sent to Shopify", () => {
+  it("sends the full product count", () => {
+    expect(warehouseOnHand({ visible: true, level: 8, variants: new Map() }, 0)).toBe(8);
+  });
+
+  it("sends the variant count when the listing is a variant", () => {
+    expect(warehouseOnHand({ visible: true, level: 8, variants: new Map([[4, 2]]) }, 4)).toBe(2);
+  });
+
+  it("sends zero when the product is hidden or missing", () => {
+    expect(warehouseOnHand({ visible: false, level: 8, variants: new Map() }, 0)).toBe(0);
+    expect(warehouseOnHand(undefined, 0)).toBe(0);
+  });
+});
 
 describe("expected ship date", () => {
   it("skips the weekend and Columbus Day for a Saturday order", () => {

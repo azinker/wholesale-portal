@@ -88,7 +88,7 @@ export async function exchangeOauthCode(shop: string, code: string): Promise<str
   return json.access_token;
 }
 
-async function shopify<T>(shop: string, token: string, path: string, init?: RequestInit): Promise<T> {
+async function shopify<T>(shop: string, token: string, path: string, init?: RequestInit, attempt = 1): Promise<T> {
   const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/${path}`, {
     ...init,
     headers: {
@@ -97,6 +97,12 @@ async function shopify<T>(shop: string, token: string, path: string, init?: Requ
       ...(init?.headers || {}),
     },
   });
+  if (res.status === 429 && attempt < 4) {
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : Math.min(1000 * attempt, 10000);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return shopify<T>(shop, token, path, init, attempt + 1);
+  }
   if (res.status === 404) {
     throw new ShopifyNotFoundError(path);
   }

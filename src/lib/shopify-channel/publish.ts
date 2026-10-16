@@ -4,6 +4,7 @@ import { bc, type BCProduct, type BCProductImage } from "@/lib/bigcommerce/clien
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { roundMoney, wholesaleUnitCost } from "./money";
 import { sendListingAddedEmail, sendListingsStoppedEmail } from "@/lib/email";
+import { INVENTORY_STORES_AT_ONCE, INVENTORY_WRITES_PER_STORE, warehouseOnHand } from "./inventory-sync";
 import { scrubListingText } from "./scrub";
 import {
   addProductImage,
@@ -12,7 +13,6 @@ import {
   deleteProduct,
   deleteProductImage,
   downloadAsBase64,
-  productExists,
   readProduct,
   setImagePosition,
   setInventory,
@@ -430,6 +430,7 @@ export async function publishBigCommerceProduct(
         sellerSku: sellerSkuFor(choices, variant?.id, index, rows.length) || null,
         internalSku: variant?.sku || product.sku,
         titleSnapshot: title,
+        ...(locationId ? { pushedQty: Math.max(0, onHand) } : {}),
       },
       update: {
         removedAt: null,
@@ -439,6 +440,7 @@ export async function publishBigCommerceProduct(
         sellerPrice: listPrice(retail, cost, choices, variant?.id),
         sellerSku: sellerSkuFor(choices, variant?.id, index, rows.length) || null,
         titleSnapshot: title,
+        ...(locationId ? { pushedQty: Math.max(0, onHand) } : {}),
       },
     });
   }
@@ -700,45 +702,76 @@ export async function runNextPublishJob(jobId?: string): Promise<boolean> {
   return true;
 }
 
-export async function syncListingInventory(limit = 40): Promise<number> {
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function syncListingInventory(): Promise<number> {
   const listings = await db.channelListing.findMany({
     where: { removedAt: null, connection: { disconnectedAt: null, addressTestStatus: "PASSED" } },
-    include: { connection: true },
-    take: limit,
+    select: {
+      id: true,
+      bcProductId: true,
+      bcVariantId: true,
+      pushedQty: true,
+      shopifyInventoryItemId: true,
+      updatedAt: true,
+      connection: {
+        select: { id: true, shopDomain: true, accessTokenEnc: true, primaryLocationId: true },
+      },
+    },
     orderBy: { updatedAt: "asc" },
   });
-  let updated = 0;
+  if (listings.length === 0) return 0;
+
+  const stock = await bc().getStockForProductIds(listings.map((listing) => listing.bcProductId));
+  const stores = new Map<string, { shop: string; token: string; locationId: string; items: Array<{ id: string; inventoryItemId: string; onHand: number }> }>();
   for (const listing of listings) {
-    if (!listing.connection.accessTokenEnc || !listing.shopifyInventoryItemId || !listing.connection.primaryLocationId) {
-      continue;
+    if (!listing.connection.accessTokenEnc || !listing.shopifyInventoryItemId || !listing.connection.primaryLocationId) continue;
+    const onHand = warehouseOnHand(stock.get(listing.bcProductId), listing.bcVariantId);
+    if (listing.pushedQty === onHand) continue;
+    let store = stores.get(listing.connection.id);
+    if (!store) {
+      store = {
+        shop: listing.connection.shopDomain,
+        token: decrypt(listing.connection.accessTokenEnc),
+        locationId: listing.connection.primaryLocationId,
+        items: [],
+      };
+      stores.set(listing.connection.id, store);
     }
-    const token = decrypt(listing.connection.accessTokenEnc);
-    try {
-      const stillThere = await productExists(listing.connection.shopDomain, token, listing.shopifyProductId);
-      if (!stillThere) {
-        await db.channelListing.update({ where: { id: listing.id }, data: { removedAt: new Date() } });
-        continue;
-      }
-      const product = await bc().getProductById(listing.bcProductId);
-      const variant = listing.bcVariantId
-        ? product?.variants?.find((row) => row.id === listing.bcVariantId)
-        : undefined;
-      const onHand = !product?.is_visible ? 0 : variant ? variant.inventory_level : product?.inventory_level || 0;
-      await setInventory(
-        listing.connection.shopDomain,
-        token,
-        listing.connection.primaryLocationId,
-        listing.shopifyInventoryItemId,
-        Math.max(0, onHand)
-      );
-      await db.channelListing.update({ where: { id: listing.id }, data: { updatedAt: new Date() } });
-      updated += 1;
-    } catch (error) {
-      if (error instanceof ShopifyNotFoundError) {
-        await db.channelListing.update({ where: { id: listing.id }, data: { removedAt: new Date() } });
+    store.items.push({ id: listing.id, inventoryItemId: listing.shopifyInventoryItemId, onHand });
+  }
+
+  let updated = 0;
+  const queue = [...stores.values()];
+  let next = 0;
+  async function runStore(): Promise<void> {
+    while (next < queue.length) {
+      const store = queue[next];
+      next += 1;
+      const batch = store.items.slice(0, INVENTORY_WRITES_PER_STORE);
+      for (let index = 0; index < batch.length; index++) {
+        const item = batch[index];
+        if (index > 0) await wait(500);
+        try {
+          await setInventory(store.shop, store.token, store.locationId, item.inventoryItemId, item.onHand);
+          await db.channelListing.update({ where: { id: item.id }, data: { pushedQty: item.onHand, updatedAt: new Date() } });
+          updated += 1;
+        } catch (error) {
+          if (error instanceof ShopifyNotFoundError) {
+            await db.channelListing.update({ where: { id: item.id }, data: { removedAt: new Date() } });
+            continue;
+          }
+          const message = error instanceof Error ? error.message : "";
+          if (message.includes("(429)")) break;
+          await db.channelListing.update({ where: { id: item.id }, data: { updatedAt: new Date() } });
+        }
       }
     }
   }
+  const workers = Math.min(INVENTORY_STORES_AT_ONCE, queue.length);
+  if (workers > 0) await Promise.all(Array.from({ length: workers }, () => runStore()));
   return updated;
 }
 

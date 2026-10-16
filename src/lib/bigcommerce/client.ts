@@ -479,6 +479,23 @@ class BigCommerceClient {
     return res.data || [];
   }
 
+  async getStockForProductIds(ids: number[]): Promise<Map<number, { visible: boolean; level: number; variants: Map<number, number> }>> {
+    const stock = new Map<number, { visible: boolean; level: number; variants: Map<number, number> }>();
+    const unique = [...new Set(ids)];
+    for (let index = 0; index < unique.length; index += 50) {
+      const chunk = unique.slice(index, index + 50);
+      const res = await this.get<{
+        data?: Array<{ id: number; is_visible?: boolean; inventory_level?: number; variants?: Array<{ id: number; inventory_level?: number }> }>;
+      }>(`${this.baseV3}/catalog/products?id:in=${chunk.join(",")}&include=variants&limit=50`);
+      for (const product of res.data || []) {
+        const variants = new Map<number, number>();
+        for (const variant of product.variants || []) variants.set(variant.id, variant.inventory_level || 0);
+        stock.set(product.id, { visible: Boolean(product.is_visible), level: product.inventory_level || 0, variants });
+      }
+    }
+    return stock;
+  }
+
   async getProductById(id: number): Promise<BCProduct | null> {
     try {
       const res = await this.get<{ data: BCProduct }>(

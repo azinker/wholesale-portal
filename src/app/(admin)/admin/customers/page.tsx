@@ -11,6 +11,7 @@ import RecreatePromotionsButton from "./recreate-promotions-button";
 import { getAvatarUrls } from "@/lib/avatar";
 import { EnrollCustomerForm } from "./enroll-customer-form";
 import { loadTierWindowDays } from "@/lib/tier-engine";
+import { shopifyStoreStatus } from "@/lib/shopify-channel/store-status";
 
 /** Get initials from a company name */
 function getInitials(name: string): string {
@@ -33,6 +34,10 @@ export default async function CustomersPage() {
       promotions: {
         where: { enabled: true },
         select: { tier: true, code: true },
+      },
+      shopifyConnections: {
+        select: { shopDomain: true, paused: true, disconnectedAt: true, addressTestStatus: true },
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -79,6 +84,7 @@ export default async function CustomersPage() {
                   <th className="text-left px-4 py-3 font-medium">Tier</th>
                   <th className="text-left px-4 py-3 font-medium">Program</th>
                   <th className="text-left px-4 py-3 font-medium">Window Orders</th>
+                  <th className="text-left px-4 py-3 font-medium">Shopify</th>
                   <th className="text-left px-4 py-3 font-medium">Active Code</th>
                   <th className="text-left px-4 py-3 font-medium">BC ID</th>
                   <th className="text-left px-4 py-3 font-medium"></th>
@@ -116,6 +122,20 @@ export default async function CustomersPage() {
                       </td>
                       <td className="px-4 py-3"><Badge variant={c.partnerType === "AFFILIATE_PUBLISHER" ? "secondary" : "outline"}>{c.partnerType === "AFFILIATE_PUBLISHER" ? "Publisher" : "Reseller"}</Badge></td>
                       <td className="px-4 py-3 font-mono">{c.partnerType === "AFFILIATE_PUBLISHER" ? `${c.lastCount14d} / 14d` : `${c.lastCount7d} / ${tierWindowDays}d`}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {c.shopifyConnections.length === 0 ? (
+                          <span className="text-muted-foreground">None</span>
+                        ) : (
+                          <div className="space-y-1">
+                            {c.shopifyConnections.map((store) => (
+                              <p key={store.shopDomain}>
+                                <span className="font-medium">{store.shopDomain}</span>
+                                <span className="ml-1 text-muted-foreground">{shopifyStoreStatus(store)}</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {activePromo ? activePromo.code : "—"}
                       </td>

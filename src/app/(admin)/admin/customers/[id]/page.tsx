@@ -18,6 +18,7 @@ import { ResetWelcomeButton } from "./reset-welcome-button";
 import { RecalcTierButton } from "./recalc-tier-button";
 import { VerifyCustomerGroupButton } from "./verify-customer-group-button";
 import { loadPublisherTierConfig } from "@/lib/publisher-tier-engine";
+import { shopifyStoreStatus } from "@/lib/shopify-channel/store-status";
 
 export default async function CustomerDetailPage({
   params,
@@ -39,6 +40,10 @@ export default async function CustomerDetailPage({
       },
       riskFlags: {
         where: { status: "OPEN" },
+      },
+      shopifyConnections: {
+        orderBy: { createdAt: "asc" },
+        include: { _count: { select: { listings: { where: { removedAt: null } } } } },
       },
       documents: {
         orderBy: { uploadedAt: "desc" },
@@ -117,6 +122,34 @@ export default async function CustomerDetailPage({
           </Link>
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Shopify stores</CardTitle>
+          <CardDescription>
+            {account.shopifyConnections.filter((store) => !store.disconnectedAt).length} connected
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {account.shopifyConnections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No Shopify store connected.</p>
+          ) : (
+            <div className="space-y-3">
+              {account.shopifyConnections.map((store) => (
+                <div key={store.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <div>
+                    <p className="font-medium">{store.shopDomain}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {store._count.listings} listed · {store.currency} · connected {store.createdAt.toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Badge variant="outline">{shopifyStoreStatus(store)}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Account Info */}

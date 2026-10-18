@@ -3,6 +3,7 @@ import { appOrigin, appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/bigcommerce/encryption";
 import { SHOPIFY_OAUTH_SCOPES } from "@/lib/shopify-channel/constants";
+import { emailShopifyStoreConnected } from "@/lib/shopify-channel/notify";
 import {
   exchangeOauthCode,
   ensureOrderWebhooks,
@@ -61,6 +62,21 @@ export async function GET(req: NextRequest) {
     await db.shopifyConnection.update({
       where: { id: connectionId },
       data: { addressTestStatus: "PASSED", addressSource: "WEBHOOK" },
+    });
+  }
+  const account = await db.wholesaleAccount.findUnique({
+    where: { id: state.accountId },
+    select: { companyName: true, email: true },
+  });
+  if (account) {
+    await emailShopifyStoreConnected({
+      companyName: account.companyName,
+      email: account.email,
+      shopDomain: shop,
+      reconnected: Boolean(existing),
+      ready,
+    }).catch((error) => {
+      console.error("shopify store connected email failed", error instanceof Error ? error.message : "send failed");
     });
   }
   return NextResponse.redirect(home);

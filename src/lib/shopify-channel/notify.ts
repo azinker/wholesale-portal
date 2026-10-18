@@ -16,3 +16,23 @@ export async function emailWholesaleDesk(subject: string, text: string): Promise
     text,
   });
 }
+
+export async function emailShopifyStoreConnected(input: {
+  companyName: string;
+  email: string;
+  shopDomain: string;
+  reconnected: boolean;
+  ready: boolean;
+}): Promise<void> {
+  const verb = input.reconnected ? "reconnected" : "connected";
+  await emailWholesaleDesk(
+    `Shopify store ${verb}: ${input.shopDomain}`,
+    [
+      `${input.companyName} ${verb} a Shopify store.`,
+      `Store: ${input.shopDomain}`,
+      `Account: ${input.companyName}`,
+      `Email: ${input.email}`,
+      `Status: ${input.ready ? "Ready" : "Connecting"}`,
+    ].join("\n")
+  );
+}

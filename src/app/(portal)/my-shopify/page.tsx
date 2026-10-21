@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
-import { SHOPIFY_CHANNEL_TERMS_VERSION } from "@/lib/shopify-channel/constants";
+import { SHOPIFY_CHANNEL_TERMS_VERSION, SHOPIFY_CONNECT_MAINTENANCE } from "@/lib/shopify-channel/constants";
 import { CHANNEL_TERMS_TEXT, CHANNEL_TERMS_TITLE, CHANNEL_TERMS_UPDATED } from "@/lib/shopify-channel/terms";
 import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
 import { TermsAccept } from "./terms-accept";
@@ -94,7 +94,7 @@ export default async function MyShopifyPage({
           },
           {
             title: "Connect Shopify",
-            detail: passed ? "Store connected" : "Link your store",
+            detail: passed ? "Store connected" : SHOPIFY_CONNECT_MAINTENANCE ? "Under maintenance" : "Link your store",
             done: passed,
             href: "#connect",
             tip: "Takes you to your store on this page. Every wholesaler does this once per store.",
@@ -213,7 +213,13 @@ export default async function MyShopifyPage({
           );
         })}
 
-        {canConnect && shopifyAppConfigured() && liveStores.length < 5 && (
+        {canConnect && SHOPIFY_CONNECT_MAINTENANCE && liveStores.length < 5 && (
+          <ChannelPanel className="p-5 md:p-6">
+            <h2 className="font-display text-xl font-semibold">Connect Shopify</h2>
+            <p className="mt-2 text-sm leading-6 text-[#5c5654]">Connecting a store is under maintenance. We are fixing it, and the connect box will come back on this page. You do not need to try again right now.</p>
+          </ChannelPanel>
+        )}
+        {canConnect && !SHOPIFY_CONNECT_MAINTENANCE && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
             <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Every Shopify store has an address ending in .myshopify.com. In Shopify, open Settings, then Domains. You can connect up to 5 stores. Products already on the store stay as they are." /></h2>
             <p className="mt-1 text-sm leading-6 text-[#5c5654]">Type your Shopify address, like your-store.myshopify.com. Pasting the full link, with https://, is fine. Shopify will ask you to approve it, including orders, so a sale shows up here on its own. Then you come back here. USD stores only. Up to 5 stores.</p>

@@ -1,3 +1,4 @@
+export const SHOPIFY_CONNECT_MAINTENANCE = true;
 export const SHOPIFY_CHANNEL_TERMS_VERSION = "1";
 export const SHOPIFY_APP_NAME = "The Perfect Part Wholesale";
 export const STATEMENT_DESCRIPTOR = "THE PERFECT PART";

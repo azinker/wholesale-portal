@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { SHOPIFY_CONNECT_MAINTENANCE } from "@/lib/shopify-channel/constants";
 import type { ChannelSetup } from "@/lib/shopify-channel/setup";
 import { ChannelHeading, ChannelPage, ChannelPanel, channelPrimaryBtn } from "./channel-ui";
 
@@ -21,9 +22,11 @@ const STEPS = [
   {
     key: "store" as const,
     title: "Connect your Shopify store",
-    body: "Connect the store, up to 5. Products, stock, and orders stay hidden until this is done.",
+    body: SHOPIFY_CONNECT_MAINTENANCE
+      ? "Connecting a store is under maintenance. Catalog and orders open again after that is fixed."
+      : "Connect the store, up to 5. Products, stock, and orders stay hidden until this is done.",
     href: "/my-shopify#connect",
-    action: "Connect Shopify",
+    action: SHOPIFY_CONNECT_MAINTENANCE ? "See status" : "Connect Shopify",
   },
 ];
 

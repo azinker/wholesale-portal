@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { appUrl } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { requirePortalAccount } from "@/lib/portal-auth";
-import { MAX_SHOPS_PER_ACCOUNT } from "@/lib/shopify-channel/constants";
+import { MAX_SHOPS_PER_ACCOUNT, SHOPIFY_CONNECT_MAINTENANCE } from "@/lib/shopify-channel/constants";
 import { channelVisibility } from "@/lib/shopify-channel/visibility";
 import { normalizeShopDomain, oauthStartUrl, shopifyAppConfigured, signOauthState } from "@/lib/shopify-channel/shopify-admin";
 
 export async function GET(req: NextRequest) {
+  if (SHOPIFY_CONNECT_MAINTENANCE) return NextResponse.redirect(appUrl("/my-shopify"));
   const auth = await requirePortalAccount("manage_channel_billing");
   if (!auth.user) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
   const fresh = current && now - current.at < WINDOW_MS && current.phase === "grant";
   if (fresh) {
     await armHome(now);
-    return NextResponse.json({ showApp: true });
+    const clientId = process.env.SHOPIFY_CHANNEL_CLIENT_ID?.trim() || "";
+    const home = /^[a-z0-9]+$/.test(clientId)
+      ? `https://admin.shopify.com/store/${shop}/apps/${clientId}`
+      : "";
+    return NextResponse.json({ showApp: true, home });
   }
   store[shop] = { at: now, phase: "grant" };
   await writeStore(store);

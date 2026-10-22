@@ -8,11 +8,6 @@ function shopHandle(input: string): string | null {
 }
 
 const GRANT_COOKIE = "wsp_shopify_grant";
-const APP_HOME = "https://wholesale.theperfectpart.net/my-shopify";
-
-function appPage() {
-  return NextResponse.redirect(APP_HOME);
-}
 
 function installedPage(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -21,9 +16,8 @@ function installedPage(request: NextRequest) {
   return NextResponse.rewrite(url);
 }
 
-/** Shopify does not keep a cookie between the install check and the post-approval check.
- *  The first visit for a store still goes to grant. The next visit opens the app page. */
-async function returnVisit(handle: string): Promise<boolean> {
+/** First visit goes to the grant screen. After that, Shopify wants the app page inside the admin. */
+async function adminAppHome(handle: string): Promise<string | null> {
   try {
     const response = await fetch(`http://127.0.0.1:${process.env.PORT || "3001"}/api/shopify/install-gate`, {
       method: "POST",
@@ -32,11 +26,13 @@ async function returnVisit(handle: string): Promise<boolean> {
       cache: "no-store",
       signal: AbortSignal.timeout(2000),
     });
-    if (!response.ok) return false;
+    if (!response.ok) return null;
     const body = await response.json();
-    return body.showApp === true;
+    return body.showApp === true && typeof body.home === "string" && body.home.startsWith("https://admin.shopify.com/")
+      ? body.home
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -65,9 +61,8 @@ export async function middleware(request: NextRequest) {
     if (await homeReady()) return installedPage(request);
     return NextResponse.next();
   }
-  if (request.cookies.get(GRANT_COOKIE)?.value === handle || (await returnVisit(handle))) {
-    return appPage();
-  }
+  const home = await adminAppHome(handle);
+  if (home) return NextResponse.redirect(home);
   const response = NextResponse.redirect(`https://admin.shopify.com/store/${handle}/app/grant`);
   response.cookies.set(GRANT_COOKIE, handle, {
     httpOnly: true,

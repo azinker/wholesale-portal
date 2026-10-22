@@ -13,7 +13,7 @@ function appPage(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = "/shopify-installed";
   url.search = "";
-  return NextResponse.rewrite(url);
+  return NextResponse.redirect(url);
 }
 
 /** Shopify does not keep a cookie between the install check and the post-approval check.

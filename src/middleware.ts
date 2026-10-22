@@ -7,14 +7,14 @@ function shopHandle(input: string): string | null {
   return domain.replace(/\.myshopify\.com$/, "");
 }
 
-/** Shopify's install check opens the app URL with ?shop= and expects the grant screen.
- *  After the merchant approves, Shopify returns with ?shop= and ?hmac=. That visit must be the app page, not grant again. */
+/** Install opens the app URL with ?shop= and ?hmac= and must go to the grant screen.
+ *  After approval, Shopify returns with ?host= as well. That visit is the app page. */
 export function middleware(request: NextRequest) {
   if (request.nextUrl.pathname !== "/my-shopify") return NextResponse.next();
   const params = request.nextUrl.searchParams;
   const handle = shopHandle(params.get("shop") || "");
   if (!handle) return NextResponse.next();
-  if (params.get("hmac")) {
+  if (params.get("host")) {
     const url = request.nextUrl.clone();
     url.pathname = "/shopify-installed";
     url.search = "";

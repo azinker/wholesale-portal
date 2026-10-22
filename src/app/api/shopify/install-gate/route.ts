@@ -23,7 +23,7 @@ async function writeStore(store: Store): Promise<void> {
   await writeFile(FILE, JSON.stringify(store));
 }
 
-/** First install visit for a shop is the grant screen. The next visit is the app page. */
+/** First install visit for a shop is the grant screen. Later visits in the same check open the app page. */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const shop = typeof body?.shop === "string" ? body.shop : "";
@@ -33,12 +33,8 @@ export async function POST(req: NextRequest) {
   const now = Date.now();
   const store = await readStore();
   const current = store[shop];
-  const fresh = current && now - current.at < WINDOW_MS;
-  if (fresh && current.phase === "grant") {
-    store[shop] = { at: now, phase: "done" };
-    await writeStore(store);
-    return NextResponse.json({ showApp: true });
-  }
+  const fresh = current && now - current.at < WINDOW_MS && current.phase === "grant";
+  if (fresh) return NextResponse.json({ showApp: true });
   store[shop] = { at: now, phase: "grant" };
   await writeStore(store);
   return NextResponse.json({ showApp: false });

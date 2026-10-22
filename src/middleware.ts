@@ -9,17 +9,38 @@ function shopHandle(input: string): string | null {
 
 const GRANT_COOKIE = "wsp_shopify_grant";
 
-/** The install visit already includes shop, hmac, and host, and must go to the grant screen.
- *  Shopify's next check loads that same address after approval. The cookie marks the return so it opens the app page. */
-export function middleware(request: NextRequest) {
+function appPage(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  url.pathname = "/shopify-installed";
+  url.search = "";
+  return NextResponse.rewrite(url);
+}
+
+/** Shopify does not keep a cookie between the install check and the post-approval check.
+ *  The first visit for a store still goes to grant. The next visit opens the app page. */
+async function returnVisit(handle: string): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${process.env.PORT || "3001"}/api/shopify/install-gate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shop: handle }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!response.ok) return false;
+    const body = await response.json();
+    return body.showApp === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname !== "/my-shopify") return NextResponse.next();
   const handle = shopHandle(request.nextUrl.searchParams.get("shop") || "");
   if (!handle) return NextResponse.next();
-  if (request.cookies.get(GRANT_COOKIE)?.value === handle) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/shopify-installed";
-    url.search = "";
-    return NextResponse.rewrite(url);
+  if (request.cookies.get(GRANT_COOKIE)?.value === handle || (await returnVisit(handle))) {
+    return appPage(request);
   }
   const response = NextResponse.redirect(`https://admin.shopify.com/store/${handle}/app/grant`);
   response.cookies.set(GRANT_COOKIE, handle, {

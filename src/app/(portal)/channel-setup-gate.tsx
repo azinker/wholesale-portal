@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { SHOPIFY_CONNECT_MAINTENANCE } from "@/lib/shopify-channel/constants";
 import type { ChannelSetup } from "@/lib/shopify-channel/setup";
 import { ChannelHeading, ChannelPage, ChannelPanel, channelPrimaryBtn } from "./channel-ui";
+import { ShopifyMaintenanceModal } from "./shopify-maintenance-modal";
 
 const STEPS = [
   {
@@ -48,6 +49,7 @@ export function ChannelSetupGate({
   const firstOpen = STEPS.find((step) => !doneFor(setup, step.key));
   return (
     <ChannelPage>
+      {SHOPIFY_CONNECT_MAINTENANCE && <ShopifyMaintenanceModal />}
       <ChannelHeading kicker="Shopify" title={title} lede={lede} />
       <ChannelPanel className="px-5 py-5">
         <p className="font-semibold text-[#1a1a1a]">Finish these three steps first</p>

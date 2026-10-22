@@ -6,6 +6,7 @@ import { CHANNEL_TERMS_TEXT, CHANNEL_TERMS_TITLE, CHANNEL_TERMS_UPDATED } from "
 import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
 import { TermsAccept } from "./terms-accept";
 import { ShopifyGuideDialog } from "./shopify-guide-dialog";
+import { ShopifyMaintenanceModal } from "../shopify-maintenance-modal";
 import { Tip } from "../tip";
 import { SetupTrack } from "../setup-track";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
@@ -51,6 +52,7 @@ export default async function MyShopifyPage({
 
   return (
     <ChannelPage>
+      {SHOPIFY_CONNECT_MAINTENANCE && <ShopifyMaintenanceModal />}
       <ChannelHeading
         kicker="Shopify"
         title="My Shopify"

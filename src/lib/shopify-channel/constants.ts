@@ -6,6 +6,8 @@ export const INTERNATIONAL_SHIPPING_USD = 18.99;
 export const MAX_SHOPS_PER_ACCOUNT = 5;
 export const SHOPIFY_API_VERSION = "2026-01";
 export const WHOLESALE_NOTICE_EMAIL = "wholesale@theperfectpart.net";
+/** OAuth state marker for installs that start from Shopify rather than from a signed-in wholesaler. */
+export const INSTALL_STATE_ACCOUNT = "shopify-install";
 
 export const SHOPIFY_OAUTH_SCOPES = [
   "read_products",

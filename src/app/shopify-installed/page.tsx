@@ -8,13 +8,14 @@ export default function ShopifyInstalledPage() {
         <Image src="/logo.png" alt="The Perfect Part" width={160} height={40} priority className="h-8 w-auto" />
         <h1 className="mt-6 text-2xl font-semibold text-[#1a1a1a]">The Perfect Part Wholesale</h1>
         <p className="mt-2 text-sm leading-6 text-[#5c5654]">
-          Your Shopify store is connected. Open the wholesale portal to add products and see orders.
+          The app is installed on your Shopify store. Sign in to the wholesale portal to finish connecting it,
+          add products, and see orders.
         </p>
         <Link
-          href="/my-shopify"
+          href="/"
           className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md bg-[#B8282E] text-sm font-medium text-white"
         >
-          Open My Shopify
+          Sign in to the wholesale portal
         </Link>
       </div>
     </main>

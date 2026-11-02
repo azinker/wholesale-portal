@@ -228,6 +228,12 @@ export default async function MyShopifyPage({
             {query.connect === "unrecognized" && (
               <p className="mt-3 text-sm leading-6 text-[#B8282E]">Use the address that ends in .myshopify.com. You can find it in Shopify under Settings, then Domains.</p>
             )}
+            {query.connect === "failed" && (
+              <p className="mt-3 text-sm leading-6 text-[#B8282E]">Shopify did not finish connecting that store. Check the address and try Connect Shopify again.</p>
+            )}
+            {query.connect === "currency" && (
+              <p className="mt-3 text-sm leading-6 text-[#B8282E]">That store is not set to US dollars. Shopify stores on this portal have to use USD.</p>
+            )}
             <form action="/api/shopify/channel/connect" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="shop">Store domain</label>
               <input id="shop" name="shop" placeholder="your-store.myshopify.com" className={channelField} />

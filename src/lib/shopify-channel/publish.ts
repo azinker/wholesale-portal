@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { decrypt } from "@/lib/bigcommerce/encryption";
+import { liveShopifyToken } from "./token";
 import { bc, type BCProduct, type BCProductImage } from "@/lib/bigcommerce/client";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { roundMoney, wholesaleUnitCost } from "./money";
@@ -276,7 +276,8 @@ export async function alignListingImages(connectionId: string, bcProductId: numb
   if (!product) return;
   const ordered = imagesInEditorOrder(product.images || []);
   if (ordered.length === 0) return;
-  const token = decrypt(connection.accessTokenEnc);
+  const token = await liveShopifyToken(connection);
+  if (!token) return;
   const live = await readProduct(connection.shopDomain, token, listing.shopifyProductId);
   if (!live) return;
   const mainKey = fileKey(ordered[0].url_standard || ordered[0].url_zoom || "");
@@ -333,12 +334,12 @@ export async function publishBigCommerceProduct(
   const existing = await db.channelListing.findFirst({
     where: { connectionId, bcProductId, removedAt: null },
   });
+  const token = await liveShopifyToken(connection);
+  if (!token) return emptyReceipt(connection.shopDomain, "failed", "Shopify needs this store connected again.", title);
   if (existing) {
     await alignListingImages(connectionId, bcProductId).catch(() => undefined);
-    return receiptForExisting(connection.shopDomain, connection.accessTokenEnc, product, existing.shopifyProductId, connection.account);
+    return receiptForExisting(connection.shopDomain, token, product, existing.shopifyProductId, connection.account);
   }
-
-  const token = decrypt(connection.accessTokenEnc);
   const percent = await discountPercent(connection.account);
   const sourceVariants = product.variants?.length ? product.variants : [];
   const rows = sourceVariants.length ? sourceVariants : [undefined];
@@ -478,7 +479,7 @@ async function receiptForExisting(
   account: { lastTier: string; welcomeExpiresAt: Date | null }
 ): Promise<ListingReceipt> {
   const percent = await discountPercent(account);
-  const token = decrypt(tokenEnc);
+  const token = tokenEnc;
   const live = await readProduct(shopDomain, token, shopifyProductId).catch(() => null);
   const ordered = imagesInEditorOrder(product.images || []);
   const sourceVariants = product.variants || [];
@@ -536,10 +537,12 @@ export async function listingDetails(accountId: string, bcProductId: number): Pr
     if (seen.has(row.connectionId) || !row.connection.accessTokenEnc) continue;
     seen.add(row.connectionId);
     await alignListingImages(row.connectionId, bcProductId).catch(() => undefined);
+    const token = await liveShopifyToken(row.connection);
+    if (!token) continue;
     receipts.push(
       await receiptForExisting(
         row.connection.shopDomain,
-        row.connection.accessTokenEnc,
+        token,
         product,
         row.shopifyProductId,
         row.account
@@ -717,7 +720,7 @@ export async function syncListingInventory(): Promise<number> {
       shopifyInventoryItemId: true,
       updatedAt: true,
       connection: {
-        select: { id: true, shopDomain: true, accessTokenEnc: true, primaryLocationId: true },
+        select: { id: true, shopDomain: true, accessTokenEnc: true, refreshTokenEnc: true, tokenExpiresAt: true, primaryLocationId: true },
       },
     },
     orderBy: { updatedAt: "asc" },
@@ -732,9 +735,11 @@ export async function syncListingInventory(): Promise<number> {
     if (listing.pushedQty === onHand) continue;
     let store = stores.get(listing.connection.id);
     if (!store) {
+      const token = await liveShopifyToken(listing.connection);
+      if (!token) continue;
       store = {
         shop: listing.connection.shopDomain,
-        token: decrypt(listing.connection.accessTokenEnc),
+        token,
         locationId: listing.connection.primaryLocationId,
         items: [],
       };
@@ -781,7 +786,8 @@ export async function removeListing(listingId: string): Promise<void> {
     include: { connection: true },
   });
   if (!listing || !listing.connection.accessTokenEnc) return;
-  const token = decrypt(listing.connection.accessTokenEnc);
+  const token = await liveShopifyToken(listing.connection);
+  if (!token) return;
   try {
     await deleteProduct(listing.connection.shopDomain, token, listing.shopifyProductId);
   } catch (error) {

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
 import { decrypt } from "@/lib/bigcommerce/encryption";
+import { liveShopifyToken } from "./token";
 import {
   getTierDiscountPercent,
   isWelcomeActive,
@@ -574,7 +575,8 @@ export async function refreshAccountOrders(accountId: string): Promise<{ found: 
   for (const connection of connections) {
     if (!connection.accessTokenEnc) continue;
     try {
-      const token = decrypt(connection.accessTokenEnc);
+      const token = await liveShopifyToken(connection);
+      if (!token) continue;
       const recent = (await listRecentPaidOrders(connection.shopDomain, token, since)) as ShopifyOrderPayload[];
       const known = await db.channelOrder.findMany({
         where: { connectionId: connection.id },
@@ -613,9 +615,7 @@ export async function drainQueuedChannelOrders(limit = 10): Promise<number> {
   for (const row of queued) {
     const token = row.connection.orderTokenEnc
       ? decrypt(row.connection.orderTokenEnc)
-      : row.connection.accessTokenEnc
-        ? decrypt(row.connection.accessTokenEnc)
-        : null;
+      : await liveShopifyToken(row.connection);
     if (!token) continue;
     const { readOrderAddress } = await import("./shopify-admin");
     const address = await readOrderAddress(row.connection.shopDomain, token, row.shopifyOrderId).catch(() => null);

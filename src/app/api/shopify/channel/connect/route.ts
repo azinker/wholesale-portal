@@ -29,6 +29,11 @@ export async function GET(req: NextRequest) {
   if (!existing && active >= MAX_SHOPS_PER_ACCOUNT) {
     return NextResponse.redirect(appUrl("/my-shopify"));
   }
-  const state = signOauthState(accountId, shop);
-  return NextResponse.redirect(oauthStartUrl(shop, state));
+  try {
+    const state = signOauthState(accountId, shop);
+    return NextResponse.redirect(oauthStartUrl(shop, state));
+  } catch (error) {
+    console.error("shopify connect start failed", error instanceof Error ? error.message : "start failed");
+    return NextResponse.redirect(appUrl("/my-shopify?connect=failed"));
+  }
 }

@@ -70,22 +70,58 @@ export function verifyOauthHmac(query: URLSearchParams): boolean {
   return timingSafeEqual(a, b);
 }
 
-export async function exchangeOauthCode(shop: string, code: string): Promise<string> {
-  const e = env();
+export type ShopifyTokenBundle = {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: Date | null;
+  scope: string;
+};
+
+/** Shopify rejects non-expiring Admin API tokens. Ask for an expiring offline token and keep its refresh token. */
+async function requestToken(shop: string, body: Record<string, string>): Promise<ShopifyTokenBundle> {
   const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: e.SHOPIFY_CHANNEL_CLIENT_ID,
-      client_secret: e.SHOPIFY_CHANNEL_CLIENT_SECRET,
-      code,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams(body),
   });
-  const json = (await res.json()) as { access_token?: string; error?: string };
+  const json = (await res.json().catch(() => ({}))) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string;
+    error?: string;
+    error_description?: string;
+  };
   if (!res.ok || !json.access_token) {
-    throw new Error(json.error || "Shopify did not return an access token");
+    throw new Error(json.error_description || json.error || "Shopify did not return an access token");
   }
-  return json.access_token;
+  const seconds = Number(json.expires_in);
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token || null,
+    expiresAt: Number.isFinite(seconds) && seconds > 0 ? new Date(Date.now() + seconds * 1000) : null,
+    scope: json.scope || "",
+  };
+}
+
+export function exchangeOauthCode(shop: string, code: string): Promise<ShopifyTokenBundle> {
+  const e = env();
+  return requestToken(shop, {
+    client_id: e.SHOPIFY_CHANNEL_CLIENT_ID || "",
+    client_secret: e.SHOPIFY_CHANNEL_CLIENT_SECRET || "",
+    code,
+    expiring: "1",
+  });
+}
+
+export function refreshOauthToken(shop: string, refreshToken: string): Promise<ShopifyTokenBundle> {
+  const e = env();
+  return requestToken(shop, {
+    client_id: e.SHOPIFY_CHANNEL_CLIENT_ID || "",
+    client_secret: e.SHOPIFY_CHANNEL_CLIENT_SECRET || "",
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+  });
 }
 
 async function shopify<T>(shop: string, token: string, path: string, init?: RequestInit, attempt = 1): Promise<T> {

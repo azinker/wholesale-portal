@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { bc } from "@/lib/bigcommerce/client";
-import { decrypt } from "@/lib/bigcommerce/encryption";
 import { sendChannelShippedEmail } from "@/lib/email";
+import { liveShopifyToken } from "./token";
 import { createFulfillment, looksLikeUsps, pointFulfillmentAtCarrier, readFulfillments, uspsTrackingUrl } from "./shopify-admin";
 
 export async function syncPendingShipments(accountId?: string): Promise<number> {
@@ -46,7 +46,7 @@ export async function pushChannelTracking(bcOrderId: number): Promise<boolean> {
       shippedAt: order.shippedAt ?? new Date(),
     },
   });
-  const token = order.connection.accessTokenEnc ? decrypt(order.connection.accessTokenEnc) : null;
+  const token = await liveShopifyToken(order.connection);
   if (token && changed) {
     await createFulfillment({
       shop: order.connection.shopDomain,
@@ -78,7 +78,7 @@ export async function syncDeliveredShipments(limit = 15): Promise<number> {
   let delivered = 0;
   for (const row of rows) {
     const number = row.trackingNumber;
-    const token = row.connection.accessTokenEnc ? decrypt(row.connection.accessTokenEnc) : null;
+    const token = await liveShopifyToken(row.connection);
     if (!number || !token) continue;
     const fulfillments = await readFulfillments(row.connection.shopDomain, token, row.shopifyOrderId).catch(() => []);
     const match = fulfillments.find((item) => item.tracking_number === number) || fulfillments.at(-1);

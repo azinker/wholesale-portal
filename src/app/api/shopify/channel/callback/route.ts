@@ -27,17 +27,33 @@ export async function GET(req: NextRequest) {
     return finishShopifyInstall(shop, code, params.get("host"));
   }
 
-  const token = await exchangeOauthCode(shop, code);
-  const currency = await readShopCurrency(shop, token);
-  if (currency !== "USD") return NextResponse.redirect(home);
-  const locationId = await readPrimaryLocationId(shop, token);
+  let granted;
+  try {
+    granted = await exchangeOauthCode(shop, code);
+  } catch (error) {
+    console.error("shopify connect exchange failed", error instanceof Error ? error.message : "exchange failed");
+    return NextResponse.redirect(appUrl("/my-shopify?connect=failed"));
+  }
+  const token = granted.accessToken;
+  let currency = "";
+  let locationId: string | null = null;
+  try {
+    currency = await readShopCurrency(shop, token);
+    locationId = await readPrimaryLocationId(shop, token);
+  } catch (error) {
+    console.error("shopify connect shop lookup failed", error instanceof Error ? error.message : "lookup failed");
+    return NextResponse.redirect(appUrl("/my-shopify?connect=failed"));
+  }
+  if (currency !== "USD") return NextResponse.redirect(appUrl("/my-shopify?connect=currency"));
   const existing = await db.shopifyConnection.findUnique({ where: { shopDomain: shop } });
   if (existing && existing.accountId !== state.accountId) return NextResponse.redirect(home);
 
   const data = {
     accessTokenEnc: encrypt(token),
+    refreshTokenEnc: granted.refreshToken ? encrypt(granted.refreshToken) : null,
+    tokenExpiresAt: granted.expiresAt,
     currency,
-    scopes: SHOPIFY_OAUTH_SCOPES,
+    scopes: granted.scope || SHOPIFY_OAUTH_SCOPES,
     primaryLocationId: locationId,
     disconnectedAt: null,
   };
@@ -97,10 +113,17 @@ async function finishShopifyInstall(shop: string, code: string, host: string | n
   landing.searchParams.set("shop", shop);
   if (host && /^[A-Za-z0-9+/=_-]+$/.test(host)) landing.searchParams.set("host", host);
   try {
-    const token = await exchangeOauthCode(shop, code);
+    const granted = await exchangeOauthCode(shop, code);
     const existing = await db.shopifyConnection.findUnique({ where: { shopDomain: shop } });
     if (existing && !existing.disconnectedAt) {
-      await db.shopifyConnection.update({ where: { id: existing.id }, data: { accessTokenEnc: encrypt(token) } });
+      await db.shopifyConnection.update({
+        where: { id: existing.id },
+        data: {
+          accessTokenEnc: encrypt(granted.accessToken),
+          refreshTokenEnc: granted.refreshToken ? encrypt(granted.refreshToken) : null,
+          tokenExpiresAt: granted.expiresAt,
+        },
+      });
     }
   } catch (error) {
     console.error("shopify install exchange failed", error instanceof Error ? error.message : "exchange failed");

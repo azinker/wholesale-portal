@@ -359,6 +359,8 @@ model ShopifyConnection {
   accountId         String                   @map("account_id")
   shopDomain        String                   @unique @map("shop_domain")
   accessTokenEnc    String?                  @map("access_token_enc")
+  refreshTokenEnc   String?                  @map("refresh_token_enc")
+  tokenExpiresAt    DateTime?                @map("token_expires_at")
   orderTokenEnc     String?                  @map("order_token_enc")
   addressSource     ShopifyAddressSource     @default(WEBHOOK) @map("address_source")
   addressTestStatus ShopifyAddressTestStatus @default(PENDING) @map("address_test_status")

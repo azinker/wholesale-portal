@@ -7,9 +7,10 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const auth = await requirePortalAccount("manage_channel_billing");
-  const account = auth.user?.wholesaleAccount;
-  if (!account) return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status });
-  if (!(await channelVisibility(auth.user.email)).visible) {
+  const user = auth.user;
+  const account = user?.wholesaleAccount;
+  if (!user || !account) return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status });
+  if (!(await channelVisibility(user.email)).visible) {
     return NextResponse.json({ error: "Not available" }, { status: 404 });
   }
   const body = (await req.json().catch(() => null)) as { connectionId?: string; decision?: string; fresh?: boolean; reopen?: boolean } | null;

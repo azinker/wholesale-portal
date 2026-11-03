@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
       console.error("shopify store connected email failed", error instanceof Error ? error.message : "send failed");
     });
   }
-  return NextResponse.redirect(home);
+  return NextResponse.redirect(appUrl("/my-shopify?store=connected"));
 }
 
 /**

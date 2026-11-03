@@ -5,7 +5,9 @@ import { decidePaidOrder } from "../shopify-channel/decide";
 import { plainWarehouseFailure } from "../email";
 import { quoteChannelCharge, shippingForCountry, storeCreditSplit, warehouseCountry, wholesaleUnitCost } from "../shopify-channel/money";
 import { csvCell, plainText } from "../shopify-channel/catalog-export";
-import { buildListingCsv, type ExportItem } from "../shopify-channel/export-formats";
+import { buildListingCsv, howToCsv, type ExportItem } from "../shopify-channel/export-formats";
+import { chooseImportedClaims } from "../shopify-channel/import-claim";
+import type { StoreSkuRow } from "../shopify-channel/shopify-admin";
 import { chooseDropshipperCustomerId } from "../shopify-channel/customer";
 import { zipStore } from "../shopify-channel/zip-store";
 import { warehouseOnHand } from "../shopify-channel/inventory-sync";
@@ -68,6 +70,94 @@ describe("listing export formats", () => {
     expect(buildListingCsv("woocommerce", [item])).toContain("Type,SKU,Name");
     expect(buildListingCsv("shopify", [item])).toContain("https://cdn.example.com/hat.jpg");
     expect(buildListingCsv("shopify", [item])).not.toContain("TPP-SECRET");
+  });
+
+  it("puts our product code on the Shopify file and leaves the manual file blank", () => {
+    const coded: ExportItem = {
+      ...item,
+      variants: [{ ...item.variants[0], sku: "HAT-M" }],
+    };
+    const shopify = buildListingCsv("shopify", [coded]);
+    const columns = shopify.split("\n")[0].split(",");
+    const skuIndex = columns.indexOf("Variant SKU");
+    expect(shopify.split("\n")[1].split(",")[skuIndex]).toBe("HAT-M");
+    expect(buildListingCsv("manual", [coded])).not.toContain("HAT-M");
+    expect(howToCsv("shopify", "buyer@example.com", null)).toContain("Do not change it");
+    expect(howToCsv("manual", "buyer@example.com", null)).toContain("Your SKU starts blank");
+  });
+});
+
+describe("imported shopify product codes", () => {
+  const store = (sku: string, variantId = "10", productId = "1"): StoreSkuRow => ({
+    sku,
+    productId,
+    variantId,
+    inventoryItemId: `inv-${variantId}`,
+    productTitle: "Sample Hat",
+    variantTitle: "M",
+    price: "24.00",
+  });
+
+  it("matches one product code and keeps the seller price", () => {
+    const choice = chooseImportedClaims({
+      store: [store("HAT-M")],
+      catalog: [{ sku: "hat-m", bcProductId: 4, bcVariantId: 9 }],
+      ownedVariantIds: [],
+      ownedBcKeys: [],
+      leftSkus: [],
+    });
+    expect(choice.claims).toEqual([
+      expect.objectContaining({
+        sku: "hat-m",
+        bcProductId: 4,
+        bcVariantId: 9,
+        shopifyVariantId: "10",
+        sellerPrice: 24,
+        title: "Sample Hat — M",
+      }),
+    ]);
+  });
+
+  it("skips a code that is on more than one product, already handled, or left alone", () => {
+    const duplicate = chooseImportedClaims({
+      store: [store("HAT-M", "10", "1"), store("HAT-M", "11", "2")],
+      catalog: [{ sku: "HAT-M", bcProductId: 4, bcVariantId: 9 }],
+      ownedVariantIds: [],
+      ownedBcKeys: [],
+      leftSkus: [],
+    });
+    expect(duplicate.claims).toHaveLength(0);
+    expect(duplicate.skippedDuplicate).toBe(1);
+
+    const owned = chooseImportedClaims({
+      store: [store("HAT-M")],
+      catalog: [{ sku: "HAT-M", bcProductId: 4, bcVariantId: 9 }],
+      ownedVariantIds: ["10"],
+      ownedBcKeys: [],
+      leftSkus: [],
+    });
+    expect(owned.skippedAlready).toBe(1);
+
+    const left = chooseImportedClaims({
+      store: [store("HAT-M")],
+      catalog: [{ sku: "HAT-M", bcProductId: 4, bcVariantId: 9 }],
+      ownedVariantIds: [],
+      ownedBcKeys: [],
+      leftSkus: ["HAT-M"],
+    });
+    expect(left.claims).toHaveLength(0);
+  });
+
+  it("notices when a product has an option that is not ours", () => {
+    const choice = chooseImportedClaims({
+      store: [store("HAT-M", "10", "1"), { ...store("", "12", "1"), sku: "" }],
+      catalog: [{ sku: "HAT-M", bcProductId: 4, bcVariantId: 9 }],
+      ownedVariantIds: [],
+      ownedBcKeys: [],
+      leftSkus: [],
+    });
+    expect(choice.claims).toHaveLength(1);
+    expect(choice.partialProducts).toBe(1);
   });
 });
 

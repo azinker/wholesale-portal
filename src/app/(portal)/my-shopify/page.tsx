@@ -4,6 +4,7 @@ import { requireChannelAccount } from "@/lib/shopify-channel/access";
 import { SHOPIFY_CHANNEL_TERMS_VERSION, SHOPIFY_CONNECT_MAINTENANCE } from "@/lib/shopify-channel/constants";
 import { CHANNEL_TERMS_TEXT, CHANNEL_TERMS_TITLE, CHANNEL_TERMS_UPDATED } from "@/lib/shopify-channel/terms";
 import { shopifyAppConfigured } from "@/lib/shopify-channel/shopify-admin";
+import { ImportClaim } from "./import-claim";
 import { TermsAccept } from "./terms-accept";
 import { ShopifyGuideDialog } from "./shopify-guide-dialog";
 import { ShopifyMaintenanceModal } from "../shopify-maintenance-modal";
@@ -24,7 +25,7 @@ import {
 export default async function MyShopifyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connect?: string }>;
+  searchParams: Promise<{ connect?: string; store?: string }>;
 }) {
   const { user, account, preview, schemaReady } = await requireChannelAccount();
   const query = await searchParams;
@@ -140,6 +141,10 @@ export default async function MyShopifyPage({
                 </div>
               </div>
 
+              {canConnect && !connection.disconnectedAt && !sample && (
+                <ImportClaim connectionId={connection.id} fresh={query.store === "connected"} />
+              )}
+
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl bg-[#f6f3f1] px-4 py-3">
                   <p className="inline-flex items-center gap-1.5 text-xs text-[#5c5654]">Listings <Tip text="Products from the catalog that are on this Shopify store right now." /></p>
@@ -223,7 +228,7 @@ export default async function MyShopifyPage({
         )}
         {canConnect && !SHOPIFY_CONNECT_MAINTENANCE && shopifyAppConfigured() && liveStores.length < 5 && (
           <ChannelPanel className="p-5 md:p-6">
-            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Every Shopify store has an address ending in .myshopify.com. In Shopify, open Settings, then Domains. You can connect up to 5 stores. Products already on the store stay as they are." /></h2>
+            <h2 className="inline-flex items-center gap-1.5 font-display text-xl font-semibold">Connect Shopify <Tip text="Every Shopify store has an address ending in .myshopify.com. In Shopify, open Settings, then Domains. You can connect up to 5 stores. If products already on the store use our SKU, we ask if you want us to take care of them." /></h2>
             <p className="mt-1 text-sm leading-6 text-[#5c5654]">Type your Shopify address, like your-store.myshopify.com. Pasting the full link, with https://, is fine. Shopify will ask you to approve it, including orders, so a sale shows up here on its own. Then you come back here. USD stores only. Up to 5 stores.</p>
             {query.connect === "unrecognized" && (
               <p className="mt-3 text-sm leading-6 text-[#B8282E]">Use the address that ends in .myshopify.com. You can find it in Shopify under Settings, then Domains.</p>

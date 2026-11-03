@@ -374,10 +374,12 @@ model ShopifyConnection {
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @updatedAt @map("updated_at")
 
-  account  WholesaleAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  listings ChannelListing[]
-  orders   ChannelOrder[]
-  jobs     ChannelPublishJob[]
+  account      WholesaleAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  listings     ChannelListing[]
+  orders       ChannelOrder[]
+  jobs         ChannelPublishJob[]
+  importOffers ChannelImportOffer[]
+  importScan   ChannelImportScan?
 
   @@index([accountId])
   @@map("shopify_connections")
@@ -422,6 +424,37 @@ model ChannelListing {
   @@unique([connectionId, bcProductId, bcVariantId])
   @@index([accountId])
   @@map("channel_listings")
+}
+
+model ChannelImportOffer {
+  id                     String   @id @default(cuid())
+  connectionId           String   @map("connection_id")
+  sku                    String
+  bcProductId            Int      @map("bc_product_id")
+  bcVariantId            Int      @default(0) @map("bc_variant_id")
+  shopifyProductId       String   @map("shopify_product_id")
+  shopifyVariantId       String   @map("shopify_variant_id")
+  shopifyInventoryItemId String?  @map("shopify_inventory_item_id")
+  title                  String
+  sellerPrice            Decimal  @map("seller_price") @db.Decimal(10, 2)
+  status                 String   @default("OPEN")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  connection ShopifyConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, shopifyVariantId])
+  @@index([connectionId, status])
+  @@map("channel_import_offers")
+}
+
+model ChannelImportScan {
+  connectionId String   @id @map("connection_id")
+  scannedAt    DateTime @map("scanned_at")
+
+  connection ShopifyConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@map("channel_import_scans")
 }
 
 model ChannelPublishJob {

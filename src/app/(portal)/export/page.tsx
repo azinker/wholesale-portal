@@ -16,6 +16,12 @@ export default async function ExportPage({
   const account = user.wholesaleAccount;
   if (!account || account.status !== "APPROVED" || account.partnerType === "AFFILIATE_PUBLISHER") notFound();
   const params = await searchParams;
+  const readyJob = params.ready
+    ? await db.catalogExport.findFirst({
+        where: { id: params.ready, accountId: account.id, status: "READY" },
+        select: { format: true },
+      })
+    : null;
   const promo = await db.promotionRecord.findFirst({
     where: { accountId: account.id, enabled: true },
     select: { code: true },
@@ -30,7 +36,7 @@ export default async function ExportPage({
       <ChannelPanel className="px-5 py-4 text-sm leading-6 text-[#3f3a38]">
         <p className="inline-flex items-center gap-1.5 font-semibold">
           How ordering works
-          <Tip text="The zip has listings.csv, how-to-use.csv, and an images folder. Each product has its own folder inside images, named with the product title. Your SKU starts blank so you can type your own. Manual is a simple spreadsheet. The other choices use that site's import columns." />
+          <Tip text="The zip has listings.csv, how-to-use.csv, and an images folder. Each product has its own folder inside images, named with the product title. Manual, BigCommerce, and WooCommerce leave your SKU blank. The Shopify file fills in our SKU. Do not change that SKU." />
         </p>
         <p className="mt-1">
           This export puts the catalog on your site, whether that site is Shopify, BigCommerce, WooCommerce, or something else. There is no connection. A sale on your site does not order from us by itself.
@@ -51,10 +57,10 @@ export default async function ExportPage({
           </div>
         )}
         <p className="mt-3 text-[#5c5654]">
-          Manual leaves your selling price blank. Shopify, BigCommerce, and WooCommerce fill the price with today's site price so the file can import. Change that price to what you charge before you import. Your SKU stays blank. Wholesale cost is filled in at your discount today.
+          Manual leaves your selling price blank. Shopify, BigCommerce, and WooCommerce fill the price with today's site price so the file can import. Change that price to what you charge before you import. Manual, BigCommerce, and WooCommerce leave your SKU blank. The Shopify file fills in our SKU. Do not change it. When you connect Shopify later, we use that SKU to find the products and ask if you want us to take care of them. Wholesale cost is filled in at your discount today.
         </p>
       </ChannelPanel>
-      <ExportBoard readyId={params.ready || undefined} />
+      <ExportBoard readyId={readyJob ? params.ready : undefined} readyFormat={readyJob?.format} />
     </ChannelPage>
   );
 }

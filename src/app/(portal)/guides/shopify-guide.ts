@@ -24,7 +24,7 @@ export const SHOPIFY_GUIDE = {
     "If you pause the store, customers can still buy on Shopify. We do not charge your card and we do not ship those sales. You handle them. When you resume, only new sales are charged and shipped.",
     "After we charge the card, changing the order in Shopify does not change what we ship. For an address change, open Support.",
     "If we refund our charge, that money goes back to your card. It does not refund the customer who paid you on Shopify. Refund them in Shopify if they need their money back.",
-    "You can put your own product code on Shopify. We match the product you added.",
-    "Export listings is a spreadsheet. It does not connect your store. Those sales are still placed on theperfectpart.net with your dashboard email and coupon.",
+    "You can put your own product code on a product you add from the catalog. We match the product you added.",
+    "Export listings is a spreadsheet. The Shopify file fills in our SKU. Do not change that SKU. When you connect your store, we use it to find those products and ask if you want us to handle them. Until you say yes, those sales are still placed on theperfectpart.net with your dashboard email and coupon.",
   ],
 };

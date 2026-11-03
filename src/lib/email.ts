@@ -933,6 +933,9 @@ export async function sendCatalogExportEmail(input: {
   const formatText = formatName === "Manual"
     ? "The spreadsheet is the Manual format. It is a simple file, not tied to one website."
     : `The spreadsheet uses ${formatName} product import columns. Import it from that site's product import page.`;
+  const skuText = input.format === "shopify"
+    ? "Do not change the SKU. The Variant SKU column is our SKU. Leave it in the file and on your Shopify store. When you connect, we use that SKU to find these products and ask if you want us to handle them. Until you say yes, a sale on your store does not order from us."
+    : "Your SKU column is blank on purpose. Type your own SKU before you import the file.";
   const code = input.couponCode?.trim() || "";
   const couponText = code
     ? `Your coupon right now is ${code}. Enter that code at checkout.`
@@ -955,7 +958,7 @@ export async function sendCatalogExportEmail(input: {
       couponText,
       ``,
       `The zip has listings.csv, how-to-use.csv, and an images folder. Inside images, each product has its own folder named with the product title.`,
-      `Your SKU column is blank on purpose. Type your own SKU before you import the file.`,
+      skuText,
       ``,
       `Download it after you sign in: ${downloadUrl}`,
     ].join("\n"),
@@ -968,7 +971,7 @@ export async function sendCatalogExportEmail(input: {
       <p>When a customer buys from you, place that order on <strong>www.theperfectpart.net</strong>. Sign in with <strong>${escapeHtml(input.to)}</strong>, the same email as your wholesale dashboard, then enter your coupon.</p>
       ${infoBox(couponHtml)}
       <p>The zip has three things: <strong>listings.csv</strong>, <strong>how-to-use.csv</strong>, and an <strong>images</strong> folder. Open images and each product has its own folder, named with the product title. That product's pictures are inside.</p>
-      <p>Your SKU column is blank on purpose. Type your own SKU before you import the file.</p>
+      <p>${escapeHtml(skuText)}</p>
       <p>Sign in with this same email, then download the file. The link stays on your Export listings page.</p>
       ${ctaButton(downloadUrl, "Download the export")}
     `,

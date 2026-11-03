@@ -438,6 +438,55 @@ class BigCommerceClient {
     );
   }
 
+  async getCatalogBySkus(skus: string[]): Promise<Array<{ sku: string; bcProductId: number; bcVariantId: number }>> {
+    const wanted = [...new Set(skus.map((sku) => sku.trim()).filter(Boolean))];
+    const fromVariants = await this.catalogVariantsBySkus(wanted);
+    const found = new Set(fromVariants.map((row) => row.sku.trim().toLowerCase()));
+    const missing = wanted.filter((sku) => !found.has(sku.toLowerCase()));
+    const fromProducts = missing.length ? await this.catalogProductsBySkus(missing) : [];
+    return [...fromVariants, ...fromProducts];
+  }
+
+  private async catalogVariantsBySkus(skus: string[]): Promise<Array<{ sku: string; bcProductId: number; bcVariantId: number }>> {
+    const rows: Array<{ sku: string; bcProductId: number; bcVariantId: number }> = [];
+    for (const batch of skuBatches(skus)) {
+      const filter = batch.map((sku) => encodeURIComponent(sku)).join(",");
+      let page = 1;
+      while (page <= 10) {
+        const res = await this.get<{
+          data?: Array<{ id: number; product_id: number; sku?: string }>;
+          meta?: { pagination?: { total_pages?: number } };
+        }>(`${this.baseV3}/catalog/variants?sku:in=${filter}&limit=250&page=${page}`);
+        for (const row of res.data || []) {
+          const sku = (row.sku || "").trim();
+          if (!sku || !row.product_id || !row.id) continue;
+          rows.push({ sku, bcProductId: row.product_id, bcVariantId: row.id });
+        }
+        const pages = res.meta?.pagination?.total_pages || 1;
+        if (page >= pages) break;
+        page += 1;
+      }
+    }
+    return rows;
+  }
+
+  private async catalogProductsBySkus(skus: string[]): Promise<Array<{ sku: string; bcProductId: number; bcVariantId: number }>> {
+    const rows: Array<{ sku: string; bcProductId: number; bcVariantId: number }> = [];
+    for (const batch of skuBatches(skus)) {
+      const filter = batch.map((sku) => encodeURIComponent(sku)).join(",");
+      const res = await this.get<{
+        data?: Array<{ id: number; sku?: string; variants?: Array<{ id: number; sku?: string }> }>;
+      }>(`${this.baseV3}/catalog/products?sku:in=${filter}&include=variants&limit=250`);
+      for (const product of res.data || []) {
+        const sku = (product.sku || "").trim();
+        const variants = product.variants || [];
+        if (!sku || !product.id || variants.length !== 1 || !variants[0]?.id) continue;
+        rows.push({ sku, bcProductId: product.id, bcVariantId: variants[0].id });
+      }
+    }
+    return rows;
+  }
+
   async getProductsByIds(ids: number[]): Promise<BCProduct[]> {
     const unique = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
     const products: BCProduct[] = [];
@@ -512,6 +561,26 @@ class BigCommerceClient {
     // Returns the storefront domain for cart links
     return `store-${this.storeHash}.mybigcommerce.com`;
   }
+}
+
+function skuBatches(skus: string[]): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  const flush = () => {
+    if (current.length) batches.push(current);
+    current = [];
+  };
+  for (const sku of skus) {
+    if (sku.includes(",")) {
+      flush();
+      batches.push([sku]);
+      continue;
+    }
+    if (current.length === 40) flush();
+    current.push(sku);
+  }
+  flush();
+  return batches;
 }
 
 // Singleton per request (Next.js serverless)

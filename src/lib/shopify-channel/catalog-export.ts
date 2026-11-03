@@ -88,6 +88,7 @@ function exportItem(product: BCProduct, percent: number, images: ExportItem["ima
       retail,
       cost: wholesaleUnitCost(retail, percent),
       qty: variant ? variant.inventory_level || 0 : product.inventory_level || 0,
+      sku: (variant ? variant.sku : product.sku || "").trim(),
     };
   });
   const page = product.custom_url?.url

@@ -14,8 +14,9 @@ const FORMATS: Array<{ id: Format; label: string; hint: string }> = [
   { id: "woocommerce", label: "WooCommerce", hint: "WooCommerce import" },
 ];
 
-export function ExportBoard({ readyId }: { readyId?: string }) {
+export function ExportBoard({ readyId, readyFormat }: { readyId?: string; readyFormat?: string }) {
   const [format, setFormat] = useState<Format>("manual");
+  const [jobFormat, setJobFormat] = useState(readyFormat || "");
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -63,6 +64,7 @@ export function ExportBoard({ readyId }: { readyId?: string }) {
 
   async function start(ids: number[]) {
     setMessage("");
+    setJobFormat(format);
     const res = await fetch("/api/portal/catalog-export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -117,6 +119,15 @@ export function ExportBoard({ readyId }: { readyId?: string }) {
         })}
       </div>
 
+      {format === "shopify" && (
+        <div className="rounded-2xl border border-[#f0d2d4] bg-[#fff8f8] px-4 py-3 text-sm leading-6 text-[#1a1a1a]">
+          <p className="font-semibold">Do not change the SKU.</p>
+          <p className="mt-1 text-[#3f3a38]">
+            The Shopify file fills in our SKU. In the spreadsheet that column is Variant SKU. Leave it as it is in the file and on your store. You can change the price. If you connect Shopify later, we use that SKU to find these products.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <button className={channelPrimaryBtn} type="button" disabled={selected.length === 0 || job?.status === "RUNNING" || job?.status === "QUEUED"} onClick={() => start(selected)}>
           Export selected ({selected.length})
@@ -141,7 +152,9 @@ export function ExportBoard({ readyId }: { readyId?: string }) {
           </p>
           <p className="mt-1 text-sm text-[#5c5654]">
             {job.status === "READY"
-              ? "We also emailed you. The zip has the spreadsheet, a how-to sheet, and the pictures."
+              ? jobFormat === "shopify"
+                ? "We also emailed you. The zip has the spreadsheet, a how-to sheet, and the pictures. Do not change the SKU in listings.csv. That SKU is ours."
+                : "We also emailed you. The zip has the spreadsheet, a how-to sheet, and the pictures."
               : job.status === "FAILED"
                 ? job.error || "Try again with fewer products."
                 : `${job.done} of ${job.total || "…"} products. You can leave this page. We'll email you when it is ready.`}

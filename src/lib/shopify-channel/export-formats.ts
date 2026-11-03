@@ -25,6 +25,8 @@ export type ExportVariant = {
   retail: number;
   cost: number;
   qty: number;
+  /** Our warehouse product code. The Shopify file keeps this so a later connection can recognize the product. */
+  sku?: string;
 };
 export type ExportItem = {
   name: string;
@@ -103,7 +105,7 @@ function shopifyCsv(items: ExportItem[]): string {
         optionAt({ ...variant, options }, 1)?.value || "",
         optionAt({ ...variant, options }, 2)?.name || "",
         optionAt({ ...variant, options }, 2)?.value || "",
-        "",
+        (variant.sku || "").trim(),
         "shopify",
         String(variant.qty),
         "deny",
@@ -430,15 +432,20 @@ export function howToCsv(format: ExportFormat, email: string, couponCode: string
     : "The price starts as today's price on www.theperfectpart.net so the file can import. Change it to what you charge before you import.";
   const skuNote = format === "woocommerce"
     ? "Your SKU starts blank. A product with options uses a temporary code made from the product name so the options stay grouped. Change that code to your own SKU."
-    : "Your SKU starts blank. Type the SKU you want on your site.";
+    : format === "shopify"
+      ? "This is our SKU, in the Variant SKU column. Do not change it in the file or on Shopify. When you connect your store, we use that SKU to find these products and ask if you want us to handle them."
+      : "Your SKU starts blank. Type the SKU you want on your site.";
+  const connectionNote = format === "shopify"
+    ? "A sale on your site does not order from us by itself. Do not change the SKU. When you connect Shopify, we use that SKU to find these products and ask if you want us to handle them. Until you say yes, you still order on our site."
+    : "A sale on your site does not order from us by itself.";
   const rows = [
     ["Topic", "What it means", "What you do"],
     ["Format", formatNote, "Manual is the simple file. Shopify, BigCommerce, and WooCommerce match that site's import."],
-    ["Your SKU", "Your own product code.", skuNote],
+    ["Your SKU", format === "shopify" ? "Our SKU. Do not change it." : "Your own product code.", skuNote],
     ["Price", "The price your customer pays you.", priceNote],
     ["Wholesale cost", "What you pay us for one item, at your discount today.", "This is your cost. It is not the price you charge your customer. On Shopify this is Cost per item. On BigCommerce this is Cost Price."],
     ["Pictures", "Each product has its own folder inside images, named with the product title.", "The spreadsheet also lists a public picture link when that site can import pictures from a link."],
-    ["No connection", "This file puts the catalog on your site.", "A sale on your site does not order from us by itself."],
+    ["No connection", "This file puts the catalog on your site.", connectionNote],
     ["How you order", "Purchases are made on www.theperfectpart.net.", `Sign in with ${email}, the same email as your wholesale dashboard. ${coupon}`],
   ];
   return rowsToCsv(rows);

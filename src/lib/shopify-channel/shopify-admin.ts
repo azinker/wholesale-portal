@@ -156,6 +156,68 @@ export class ShopifyNotFoundError extends Error {
   }
 }
 
+export type StoreSkuRow = {
+  sku: string;
+  productId: string;
+  variantId: string;
+  inventoryItemId: string;
+  productTitle: string;
+  variantTitle: string;
+  price: string;
+};
+
+async function shopifyPage<T>(shop: string, token: string, url: string, attempt = 1): Promise<{ json: T; next: string | null }> {
+  const res = await fetch(url, {
+    headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },
+  });
+  if (res.status === 429 && attempt < 4) {
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : Math.min(1000 * attempt, 10000);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return shopifyPage<T>(shop, token, url, attempt + 1);
+  }
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(`Shopify ${url} failed (${res.status}): ${text.slice(0, 400)}`);
+  const nextUrl = res.headers.get("link")?.match(/<([^>]+)>;\s*rel="next"/)?.[1] || null;
+  if (nextUrl && !nextUrl.startsWith(`https://${shop}/admin/api/`)) {
+    throw new Error("Unexpected Shopify page link");
+  }
+  return { json: json as T, next: nextUrl };
+}
+
+/** Every variant on the store, including ones with a blank product code. Capped so a huge store still finishes. */
+export async function listStoreSkus(shop: string, token: string): Promise<{ rows: StoreSkuRow[]; checkedAll: boolean }> {
+  const rows: StoreSkuRow[] = [];
+  let url: string | null = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/products.json?limit=250`;
+  let checkedAll = true;
+  for (let page = 0; page < 20 && url; page++) {
+    const { json, next } = await shopifyPage<{
+      products?: Array<{
+        id: number;
+        title?: string;
+        variants?: Array<{ id: number; sku?: string | null; price?: string; title?: string; inventory_item_id?: number }>;
+      }>;
+    }>(shop, token, url);
+    for (const product of json.products || []) {
+      for (const variant of product.variants || []) {
+        rows.push({
+          sku: (variant.sku || "").trim(),
+          productId: String(product.id),
+          variantId: String(variant.id),
+          inventoryItemId: variant.inventory_item_id ? String(variant.inventory_item_id) : "",
+          productTitle: (product.title || "").trim() || "Product",
+          variantTitle: (variant.title || "").trim(),
+          price: variant.price || "0",
+        });
+      }
+    }
+    url = next;
+    if (page === 19 && next) checkedAll = false;
+  }
+  return { rows, checkedAll };
+}
+
 export async function readShopCurrency(shop: string, token: string): Promise<string> {
   const json = await shopify<{ shop: { currency: string } }>(shop, token, "shop.json");
   return json.shop.currency;

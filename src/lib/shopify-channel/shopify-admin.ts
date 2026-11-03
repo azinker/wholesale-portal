@@ -179,12 +179,20 @@ async function shopifyPage<T>(shop: string, token: string, url: string, attempt 
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};
   if (!res.ok) throw new Error(`Shopify ${url} failed (${res.status}): ${text.slice(0, 400)}`);
-  const nextUrl = res.headers.get("link")?.match(/<([^>]+)>;\s*rel="next"/)?.[1] || null;
+  const nextUrl: string | null = res.headers.get("link")?.match(/<([^>]+)>;\s*rel="next"/)?.[1] || null;
   if (nextUrl && !nextUrl.startsWith(`https://${shop}/admin/api/`)) {
     throw new Error("Unexpected Shopify page link");
   }
   return { json: json as T, next: nextUrl };
 }
+
+type ShopifyProductPage = {
+  products?: Array<{
+    id: number;
+    title?: string;
+    variants?: Array<{ id: number; sku?: string | null; price?: string; title?: string; inventory_item_id?: number }>;
+  }>;
+};
 
 /** Every variant on the store, including ones with a blank product code. Capped so a huge store still finishes. */
 export async function listStoreSkus(shop: string, token: string): Promise<{ rows: StoreSkuRow[]; checkedAll: boolean }> {
@@ -192,13 +200,9 @@ export async function listStoreSkus(shop: string, token: string): Promise<{ rows
   let url: string | null = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/products.json?limit=250`;
   let checkedAll = true;
   for (let page = 0; page < 20 && url; page++) {
-    const { json, next } = await shopifyPage<{
-      products?: Array<{
-        id: number;
-        title?: string;
-        variants?: Array<{ id: number; sku?: string | null; price?: string; title?: string; inventory_item_id?: number }>;
-      }>;
-    }>(shop, token, url);
+    const loaded: { json: ShopifyProductPage; next: string | null } = await shopifyPage<ShopifyProductPage>(shop, token, url);
+    const json = loaded.json;
+    const next: string | null = loaded.next;
     for (const product of json.products || []) {
       for (const variant of product.variants || []) {
         rows.push({

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { channelField, channelGhostBtn, channelPrimaryBtn, money } from "../channel-ui";
+import { channelField, channelGhostBtn, channelPrimaryBtn } from "../channel-ui";
 import { Tip } from "../tip";
 import { cn } from "@/lib/utils";
 
@@ -164,9 +164,3 @@ export function AddedBoard({
   );
 }
 
-export function priceLabel(prices: number[]): string {
-  if (prices.length === 0) return "—";
-  const low = Math.min(...prices);
-  const high = Math.max(...prices);
-  return low === high ? money(low) : `${money(low)}–${money(high)}`;
-}

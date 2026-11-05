@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -101,6 +101,8 @@ export function CatalogBoard({
   const [tracked, setTracked] = useState<TrackedJob[]>([]);
   const [storeIds, setStoreIds] = useState<string[]>(stores.length === 1 ? [stores[0].id] : []);
   const [pending, setPending] = useState(false);
+  const [addPercent, setAddPercent] = useState(0);
+  const addTimer = useRef<number | null>(null);
   const [knownListed, setKnownListed] = useState<number[]>(listedIds);
   useEffect(() => {
     setKnownListed(listedIds);
@@ -157,6 +159,9 @@ export function CatalogBoard({
     setCatalogDialogOpen(drafts !== null || dialogOpen);
     return () => setCatalogDialogOpen(false);
   }, [drafts, dialogOpen]);
+  useEffect(() => () => {
+    if (addTimer.current) window.clearInterval(addTimer.current);
+  }, []);
 
   function toggle(id: number) {
     setSelected((current) => (current.includes(id) ? current.filter((row) => row !== id) : [...current, id]));
@@ -176,7 +181,22 @@ export function CatalogBoard({
     return stores.filter((store) => storeIds.includes(store.id));
   }
 
+  function stopAddBar(done: boolean) {
+    if (addTimer.current) window.clearInterval(addTimer.current);
+    addTimer.current = null;
+    setAddPercent(done ? 100 : 0);
+  }
+
+  function startAddBar() {
+    stopAddBar(false);
+    setAddPercent(8);
+    addTimer.current = window.setInterval(() => {
+      setAddPercent((current) => (current >= 90 ? current : Math.min(90, current + 3)));
+    }, 400);
+  }
+
   function closeDialog() {
+    stopAddBar(false);
     setRows(null);
     setJobLabel(null);
     setJobCounts(null);
@@ -250,6 +270,9 @@ export function CatalogBoard({
     setPending(true);
     setView(null);
     setTask("add");
+    setJobLabel(null);
+    setRows(queue.map((draft) => ({ id: draft.productId, name: draft.name, state: "adding" as const, receipts: [] })));
+    startAddBar();
     try {
       const res = await fetch("/api/portal/shopify-channel/listings", {
         method: "POST",
@@ -265,16 +288,19 @@ export function CatalogBoard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not add");
       if (data.receipt) {
+        stopAddBar(data.receipt.status !== "failed");
         setRows([{ id: queue[0].productId, name: queue[0].name, state: data.receipt.status === "failed" ? "failed" : "done", receipts: [data.receipt] }]);
         setKnownListed((current) => [...new Set([...current, queue[0].productId])]);
         setSelected((current) => current.filter((id) => id !== queue[0].productId));
       } else {
+        stopAddBar(false);
         trackCatalogJobs((data.jobIds || []) as string[], queue.length);
         setSelected([]);
         setJobLabel("Adding to your Shopify store");
         setRows(null);
       }
     } catch (error) {
+      stopAddBar(false);
       setRows([{ id: 0, name: "Add to Shopify", state: "failed", receipts: [], error: error instanceof Error ? error.message : "Could not add" }]);
     } finally {
       setPending(false);
@@ -642,22 +668,42 @@ export function CatalogBoard({
             </div>
           )}
 
+          {!jobLabel && !view && task === "add" && rows?.some((row) => row.state === "adding" || row.state === "waiting" || row.state === "done") && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm text-[#3f3a38]">
+                <span>{rows.some((row) => row.state === "adding" || row.state === "waiting") ? "Adding to Shopify" : "Added"}</span>
+                <span>{addPercent}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#f0ebe8]" role="progressbar" aria-valuenow={addPercent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${addPercent}%` }} />
+              </div>
+              <p className="text-sm text-[#5c5654]">
+                {rows.some((row) => row.state === "adding" || row.state === "waiting")
+                  ? "This stays open while Shopify creates the listing."
+                  : "The product is on your store."}
+              </p>
+            </div>
+          )}
+
           {jobLabel && (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 text-sm text-[#3f3a38]">
-                {tracked.length > 0 && <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />}
-                <p>
-                  {tracked.length === 0 && sawJob
-                    ? "Finished. We emailed you what was added, including any price or SKU you set."
-                    : tracked.length === 0
-                      ? "Starting. You can close this window."
-                      : `${progress.done} of ${progress.total || "…"}${progress.minutesLeft ? ` · about ${progress.minutesLeft} min left` : ""}`}
-                </p>
+              <div className="flex items-center justify-between gap-3 text-sm text-[#3f3a38]">
+                <span className="inline-flex items-center gap-3">
+                  {tracked.length > 0 && <Loader2 className="h-5 w-5 animate-spin text-[#B8282E]" />}
+                  <span>
+                    {tracked.length === 0 && sawJob
+                      ? "Finished. We emailed you what was added, including any price or SKU you set."
+                      : tracked.length === 0
+                        ? "Starting. You can close this window."
+                        : `${progress.done} of ${progress.total || "…"}${progress.minutesLeft ? ` · about ${progress.minutesLeft} min left` : ""}`}
+                  </span>
+                </span>
+                <span>{progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : tracked.length === 0 && sawJob ? 100 : 8}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[#f0ebe8]">
                 <div
                   className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 8}%` }}
+                  style={{ width: `${progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : tracked.length === 0 && sawJob ? 100 : 8}%` }}
                 />
               </div>
               {progress.current && <p className="text-sm text-[#5c5654]">{progress.current}</p>}

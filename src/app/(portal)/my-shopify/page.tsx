@@ -118,7 +118,7 @@ export default async function MyShopifyPage({
       )}
 
       <div id="connect" className="space-y-4">
-        {realConnections.map((connection, index) => {
+        {liveStores.map((connection, index) => {
           const sample = connection.shopDomain.startsWith("preview-");
           const readyTone = connection.addressTestStatus === "PASSED" ? "good" : connection.addressTestStatus === "FAILED" ? "bad" : "wait";
           const readyLabel = connection.addressTestStatus === "PASSED" ? "Ready" : connection.addressTestStatus === "FAILED" ? "Needs another look" : "Connecting";

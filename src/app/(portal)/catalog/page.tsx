@@ -1,15 +1,15 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { bc } from "@/lib/bigcommerce/client";
 import { db } from "@/lib/db";
 import { userHasPermission } from "@/lib/portal-auth";
 import { requireChannelAccount } from "@/lib/shopify-channel/access";
+import { loadChannelSetup } from "@/lib/shopify-channel/setup";
 import { getTierDiscountPercent, isWelcomeActive, loadWelcomeConfig } from "@/lib/tier-engine";
 import { wholesaleUnitCost } from "@/lib/shopify-channel/money";
-import { alignListingImages } from "@/lib/shopify-channel/publish";
-import { loadChannelSetup } from "@/lib/shopify-channel/setup";
-import { CatalogBoard } from "./catalog-board";
 import { AddedBoard } from "./catalog-added";
+import { CatalogBrowse, CatalogTableSkeleton } from "./catalog-browse";
 import { priceLabel } from "./catalog-price";
+import { CatalogTabs } from "./catalog-tabs";
 import { ChannelSchemaNotice } from "../channel-schema-notice";
 import { ChannelSetupGate } from "../channel-setup-gate";
 import { ChannelHeading, ChannelPage, ChannelPanel } from "../channel-ui";
@@ -20,6 +20,8 @@ const FLOW = [
   { title: "We charge your card", body: "We charge your wholesale cost when they pay. It shows on your statement as THE PERFECT PART." },
   { title: "We ship it", body: "We ship the same day or the next business day, and put tracking on your Shopify order." },
 ];
+
+export const dynamic = "force-dynamic";
 
 export default async function CatalogPage({
   searchParams,
@@ -44,19 +46,14 @@ export default async function CatalogPage({
   const sortKey = ["name", "stock", "price", "cost", "margin", "total_sold", "date_modified"].includes(params.sort || "")
     ? params.sort || "total_sold"
     : "total_sold";
-  const bcSort =
-    sortKey === "stock" ? "inventory_level" : sortKey === "cost" || sortKey === "margin" ? "price" : sortKey;
   const dir = params.dir === "asc" || params.dir === "desc" ? params.dir : sortKey === "name" ? "asc" : "desc";
   const inStock = params.stock === "1";
   const page = Math.max(1, Number(params.page || "1") || 1);
-  const categoryId = category ? Number(category) : undefined;
   const canAdd = userHasPermission(user, "manage_channel_listings");
   const view = params.view === "added" ? "added" : "browse";
-  const [earned, welcome, categories, categoryCounts, listingRows] = await Promise.all([
+  const [earned, welcome, listingRows] = await Promise.all([
     getTierDiscountPercent(account.lastTier),
     loadWelcomeConfig(),
-    view === "browse" ? bc().getCategories().catch(() => []) : Promise.resolve([]),
-    view === "browse" ? bc().getVisibleCategoryCounts().catch((): Record<number, number> => ({})) : Promise.resolve({} as Record<number, number>),
     db.channelListing.findMany({
       where: { accountId: account.id, removedAt: null, connection: { disconnectedAt: null } },
       select: {
@@ -76,54 +73,6 @@ export default async function CatalogPage({
     isWelcomeActive(account.welcomeExpiresAt) && welcome.enabled && welcome.discount > earned
       ? welcome.discount
       : earned;
-  const stores = setup.stores;
-  const query = {
-    is_visible: true as const,
-    keyword: q || undefined,
-    categoryId: categoryId && Number.isInteger(categoryId) ? categoryId : undefined,
-    sort: bcSort,
-    direction: dir,
-    inStock,
-    include: "images,variants",
-    limit: 24,
-    page,
-  };
-  let products: Awaited<ReturnType<ReturnType<typeof bc>["getProducts"]>>["data"] = [];
-  let matchCount = 0;
-  let catalogCount = 0;
-  let loadFailed = false;
-  try {
-    const [result, all] = await Promise.all([
-      bc().getProducts(query),
-      bc().getProducts({ is_visible: true, limit: 1 }),
-    ]);
-    products = result.data || [];
-    matchCount = result.meta?.pagination?.total || products.length;
-    catalogCount = all.meta?.pagination?.total || 0;
-  } catch {
-    loadFailed = true;
-    products = [];
-  }
-
-  const listedRows = products.length
-    ? await db.channelListing.findMany({
-        where: {
-          accountId: account.id,
-          removedAt: null,
-          bcProductId: { in: products.map((product) => product.id) },
-          connection: { disconnectedAt: null },
-        },
-        select: { bcProductId: true, connectionId: true },
-      })
-    : [];
-  const seenPairs = new Set<string>();
-  for (const row of listedRows) {
-    const pair = `${row.connectionId}:${row.bcProductId}`;
-    if (seenPairs.has(pair)) continue;
-    seenPairs.add(pair);
-    await alignListingImages(row.connectionId, row.bcProductId).catch(() => undefined);
-  }
-
   const groups = new Map<string, { key: string; bcProductId: number; title: string; shop: string; shopifyProductId: string; skus: string[]; prices: number[] }>();
   for (const row of listingRows) {
     const key = `${row.connectionId}:${row.bcProductId}`;
@@ -146,6 +95,7 @@ export default async function CatalogPage({
     }
   }
   const addedCount = groups.size;
+  const listedIds = [...new Set(listingRows.map((row) => row.bcProductId))];
   const addedFiltered = view === "added"
     ? [...groups.values()].filter((row) => {
         if (!q) return true;
@@ -154,8 +104,6 @@ export default async function CatalogPage({
     : [];
   const addedPageCount = Math.max(1, Math.ceil(addedFiltered.length / 24));
   const addedSlice = addedFiltered.slice((page - 1) * 24, page * 24);
-  const addedProducts = view === "added" ? await bc().getProductsByIds(addedSlice.map((row) => row.bcProductId)).catch(() => []) : [];
-  const addedById = new Map(addedProducts.map((product) => [product.id, product]));
 
   return (
     <ChannelPage>
@@ -164,10 +112,7 @@ export default async function CatalogPage({
         title="Catalog"
         lede={view === "added" ? "These products are already on your Shopify store." : "Pick a product and add it to your Shopify store. Your customer pays you. We charge your card and ship it."}
       />
-      <div className="flex flex-wrap gap-2">
-        <Link href="/catalog" className={`rounded-full px-4 py-2 text-sm font-semibold ${view === "browse" ? "bg-[#2d2d2d] text-white" : "bg-white text-[#1a1a1a]"}`}>Browse catalog</Link>
-        <Link href="/catalog?view=added" className={`rounded-full px-4 py-2 text-sm font-semibold ${view === "added" ? "bg-[#2d2d2d] text-white" : "bg-white text-[#1a1a1a]"}`}>On your store ({addedCount})</Link>
-      </div>
+      <CatalogTabs count={addedCount} view={view} />
 
       {view === "browse" && (
         <>
@@ -194,71 +139,75 @@ export default async function CatalogPage({
       )}
 
       {view === "added" ? (
-        <AddedBoard
-          rows={addedSlice.map((row) => {
-            const product = addedById.get(row.bcProductId);
-            const image = product?.images?.find((item) => item.is_thumbnail) || product?.images?.[0];
-            const retail = Number(product?.calculated_price || product?.price || 0);
-            return {
-              key: row.key,
-              bcProductId: row.bcProductId,
-              title: row.title,
-              shop: row.shop,
-              image: image?.url_thumbnail,
-              sku: row.skus.length ? row.skus.join(", ") : "No SKU",
-              priceLabel: priceLabel(row.prices),
-              costLabel: product ? `$${wholesaleUnitCost(retail, percent).toFixed(2)}` : "—",
-              adminUrl: `https://${row.shop}/admin/products/${row.shopifyProductId}`,
-            };
-          })}
-          page={Math.min(page, addedPageCount)}
-          pageCount={addedPageCount}
-          query={q}
-          total={addedFiltered.length}
-        />
+        <Suspense fallback={<CatalogTableSkeleton />}>
+          <AddedListing
+            rows={addedSlice}
+            page={Math.min(page, addedPageCount)}
+            pageCount={addedPageCount}
+            query={q}
+            total={addedFiltered.length}
+            percent={percent}
+          />
+        </Suspense>
       ) : (
-      <CatalogBoard
-        products={products.map((product) => {
-          const retail = Number(product.calculated_price || product.price || 0);
-          const image = product.images?.find((row) => row.is_thumbnail) || product.images?.[0];
-          return {
-            id: product.id,
-            name: product.name,
-            image: image?.url_thumbnail,
-            stock: product.inventory_level,
-            retail,
-            cost: wholesaleUnitCost(retail, percent),
-            variants: (product.variants || []).length > 1
-              ? (product.variants || []).map((variant, index) => {
-                  const variantRetail = Number(variant.calculated_price || variant.price || retail);
-                  const label = (variant.option_values || []).map((option) => option.label).filter(Boolean).join(" / ") || `Option ${index + 1}`;
-                  return {
-                    id: variant.id,
-                    label,
-                    retail: variantRetail,
-                    cost: wholesaleUnitCost(variantRetail, percent),
-                    stock: variant.inventory_level,
-                  };
-                })
-              : [],
-          };
-        })}
-        stores={stores.map((store) => ({ id: store.id, shopDomain: store.shopDomain }))}
-        ready={true}
-        canAdd={canAdd}
-        keyword={q}
-        categoryId={category}
-        matchCount={matchCount}
-        catalogCount={catalogCount}
-        page={page}
-        sort={sortKey}
-        dir={dir}
-        inStock={inStock}
-        categories={categories.map((row) => ({ id: row.id, name: row.name, count: categoryCounts[row.id] || 0 }))}
-        loadFailed={loadFailed}
-        listedIds={[...new Set(listedRows.map((row) => row.bcProductId))]}
-      />
+        <Suspense fallback={<CatalogTableSkeleton />}>
+          <CatalogBrowse
+            percent={percent}
+            canAdd={canAdd}
+            stores={setup.stores.map((store) => ({ id: store.id, shopDomain: store.shopDomain }))}
+            listedIds={listedIds}
+            keyword={q}
+            categoryId={category}
+            sortKey={sortKey}
+            dir={dir}
+            inStock={inStock}
+            page={page}
+          />
+        </Suspense>
       )}
     </ChannelPage>
+  );
+}
+
+async function AddedListing({
+  rows,
+  page,
+  pageCount,
+  query,
+  total,
+  percent,
+}: {
+  rows: Array<{ key: string; bcProductId: number; title: string; shop: string; shopifyProductId: string; skus: string[]; prices: number[] }>;
+  page: number;
+  pageCount: number;
+  query: string;
+  total: number;
+  percent: number;
+}) {
+  const products = rows.length ? await bc().getProductsByIds(rows.map((row) => row.bcProductId)).catch(() => []) : [];
+  const byId = new Map(products.map((product) => [product.id, product]));
+  return (
+    <AddedBoard
+      rows={rows.map((row) => {
+        const product = byId.get(row.bcProductId);
+        const image = product?.images?.find((item) => item.is_thumbnail) || product?.images?.[0];
+        const retail = Number(product?.calculated_price || product?.price || 0);
+        return {
+          key: row.key,
+          bcProductId: row.bcProductId,
+          title: row.title,
+          shop: row.shop,
+          image: image?.url_thumbnail,
+          sku: row.skus.length ? row.skus.join(", ") : "No SKU",
+          priceLabel: priceLabel(row.prices),
+          costLabel: product ? `$${wholesaleUnitCost(retail, percent).toFixed(2)}` : "—",
+          adminUrl: `https://${row.shop}/admin/products/${row.shopifyProductId}`,
+        };
+      })}
+      page={page}
+      pageCount={pageCount}
+      query={query}
+      total={total}
+    />
   );
 }

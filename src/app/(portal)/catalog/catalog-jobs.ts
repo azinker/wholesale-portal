@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { changeAddedCount } from "./catalog-count";
 
 export type TrackedJob = {
   id: string;
@@ -84,6 +85,7 @@ export async function advanceCatalogJobs() {
       if (body.status === "COMPLETED" || body.status === "FAILED") {
         const added = body.addedCount || 0;
         const failed = body.failedCount || 0;
+        if (added > 0) changeAddedCount(added);
         toast.success(
           failed
             ? `Added ${added}. ${failed} could not be added. We emailed the details.`

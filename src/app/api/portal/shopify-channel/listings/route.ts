@@ -248,11 +248,19 @@ export async function DELETE(req: NextRequest) {
     },
   });
   const seen = new Set<string>();
-  for (const listing of listings) {
-    const key = `${listing.connectionId}:${listing.shopifyProductId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    await removeListing(listing.id);
+  if (listings.length === 0) {
+    return NextResponse.json({ error: "This product is not on your Shopify store." }, { status: 404 });
+  }
+  try {
+    for (const listing of listings) {
+      const key = `${listing.connectionId}:${listing.shopifyProductId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await removeListing(listing.id);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not remove this product from Shopify.";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
   return NextResponse.json({ ok: true, removed: seen.size });
 }

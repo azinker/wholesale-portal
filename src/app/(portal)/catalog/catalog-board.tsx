@@ -10,6 +10,7 @@ import { Tip } from "../tip";
 import { cn } from "@/lib/utils";
 import { applyDraftMode, DraftEditor, draftFromProduct, draftSummary, pushFromDraft, type CatalogVariant, type ListingDraft } from "./add-draft";
 import { jobProgress, readTrackedJobs, setCatalogDialogOpen, subscribeJobs, trackCatalogJobs, type TrackedJob } from "./catalog-jobs";
+import { changeAddedCount } from "./catalog-count";
 
 type ProductCard = {
   id: number;
@@ -292,6 +293,7 @@ export function CatalogBoard({
         setRows([{ id: queue[0].productId, name: queue[0].name, state: data.receipt.status === "failed" ? "failed" : "done", receipts: [data.receipt] }]);
         setKnownListed((current) => [...new Set([...current, queue[0].productId])]);
         setSelected((current) => current.filter((id) => id !== queue[0].productId));
+        if (data.receipt.status === "added") changeAddedCount(1);
       } else {
         stopAddBar(false);
         trackCatalogJobs((data.jobIds || []) as string[], queue.length);
@@ -354,6 +356,8 @@ export function CatalogBoard({
       const res = await fetch(`/api/portal/shopify-channel/listings?${params.toString()}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not remove");
+      if (!data.removed) throw new Error("Shopify still has this product. It was not removed.");
+      changeAddedCount(-data.removed);
       if (!shop || stores.length <= 1) {
         setKnownListed((current) => current.filter((id) => id !== product.id));
       }

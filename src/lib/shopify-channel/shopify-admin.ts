@@ -481,7 +481,47 @@ export async function setInventory(
 }
 
 export async function deleteProduct(shop: string, token: string, productId: string): Promise<void> {
-  await shopify(shop, token, `products/${productId}.json`, { method: "DELETE" });
+  const numericId = productId.split("/").pop() || productId;
+  const gid = productId.startsWith("gid://") ? productId : `gid://shopify/Product/${numericId}`;
+  const query = `mutation productDelete($input: ProductDeleteInput!) {
+    productDelete(input: $input) {
+      deletedProductId
+      userErrors { message }
+    }
+  }`;
+  const json = await shopify<{
+    data?: { productDelete?: { deletedProductId: string | null; userErrors: Array<{ message: string }> } };
+    errors?: Array<{ message: string }>;
+  }>(shop, token, "graphql.json", {
+    method: "POST",
+    body: JSON.stringify({ query, variables: { input: { id: gid } } }),
+  }).catch(() => null);
+  if (json?.data?.productDelete?.deletedProductId) return;
+  try {
+    await shopify(shop, token, `products/${numericId}.json`, { method: "DELETE" });
+  } catch (error) {
+    if (!(error instanceof ShopifyNotFoundError)) throw error;
+  }
+}
+
+export async function findProductIdsByTitle(shop: string, token: string, title: string): Promise<string[]> {
+  const trimmed = title.trim();
+  if (!trimmed) return [];
+  const query = `query productsByTitle($query: String!) {
+    products(first: 10, query: $query) {
+      nodes { id title }
+    }
+  }`;
+  const json = await shopify<{
+    data?: { products?: { nodes: Array<{ id: string; title: string }> } };
+  }>(shop, token, "graphql.json", {
+    method: "POST",
+    body: JSON.stringify({ query, variables: { query: `title:${JSON.stringify(trimmed)}` } }),
+  });
+  return (json.data?.products?.nodes || [])
+    .filter((node) => node.title.trim() === trimmed)
+    .map((node) => node.id.split("/").pop() || "")
+    .filter(Boolean);
 }
 
 export async function productExists(shop: string, token: string, productId: string): Promise<boolean> {

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { channelField, channelGhostBtn, channelPrimaryBtn } from "../channel-ui";
 import { Tip } from "../tip";
 import { cn } from "@/lib/utils";
+import { changeAddedCount } from "./catalog-count";
 
 export type AddedRow = {
   key: string;
@@ -55,6 +56,7 @@ export function AddedBoard({
       const res = await fetch(`/api/portal/shopify-channel/listings?${params.toString()}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not remove");
+      changeAddedCount(-1);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not remove");

@@ -13,6 +13,8 @@ import {
   deleteProduct,
   deleteProductImage,
   downloadAsBase64,
+  findProductIdsByTitle,
+  productExists,
   readProduct,
   setImagePosition,
   setInventory,
@@ -785,16 +787,29 @@ export async function removeListing(listingId: string): Promise<void> {
     where: { id: listingId },
     include: { connection: true },
   });
-  if (!listing || !listing.connection.accessTokenEnc) return;
+  if (!listing) throw new Error("This product is not on your Shopify store.");
+  if (listing.connection.disconnectedAt) throw new Error("That store is not connected.");
   const token = await liveShopifyToken(listing.connection);
-  if (!token) return;
-  try {
-    await deleteProduct(listing.connection.shopDomain, token, listing.shopifyProductId);
-  } catch (error) {
-    if (!(error instanceof ShopifyNotFoundError)) throw error;
+  if (!token) throw new Error("Shopify needs this store connected again. Connect it, then remove the product.");
+  const shop = listing.connection.shopDomain;
+  const ids = new Set<string>();
+  if (listing.shopifyProductId) ids.add(listing.shopifyProductId);
+  const titled = await findProductIdsByTitle(shop, token, listing.titleSnapshot).catch(() => [] as string[]);
+  for (const id of titled) ids.add(id);
+  for (const id of ids) {
+    try {
+      await deleteProduct(shop, token, id);
+    } catch (error) {
+      if (!(error instanceof ShopifyNotFoundError)) throw error;
+    }
+  }
+  for (const id of ids) {
+    if (await productExists(shop, token, id)) {
+      throw new Error("Shopify still has this product. It was not removed.");
+    }
   }
   await db.channelListing.updateMany({
-    where: { connectionId: listing.connectionId, shopifyProductId: listing.shopifyProductId },
+    where: { connectionId: listing.connectionId, bcProductId: listing.bcProductId },
     data: { removedAt: new Date() },
   });
 }
